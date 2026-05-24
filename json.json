@@ -1,0 +1,45 @@
+{
+    "Nome": "Evadin S/A",
+    "CNPJ": "12.345.678/0001-90",
+    "Clientes": [
+        {
+            "Nome": "João Silva",
+            "Email": "joaosilva@gmail.com",
+            "Telefone": "(11) 98765-4321",
+            "Produtos": [
+                {
+                    "Nome": "Produto A",
+                    "Preço": 100.00,
+                    "Quantidade": 2,
+                    "CategoriaId": 1,
+                    "Categoria": { 
+                        "Id": 1, 
+                        "Nome": "Eletrônicos" 
+                    }
+                },
+                {
+                    "Nome": "Produto B",
+                    "Preço": 50.00,
+                    "Quantidade": 1,
+                    "CategoriaId": 2,
+                    "Categoria": { 
+                        "Id": 2, 
+                        "Nome": "Livros" 
+                    }
+                }
+            ]
+        },
+        {
+            "Nome": "Maria Oliveira",
+            "Email": "mariaoliveira@gmail.com",
+            "Telefone": "(21) 91234-5678",
+            "Produtos": [
+                {
+                    "Nome": "Produto C",
+                    "Preço": 200.00,
+                    "Quantidade": 1
+                }
+            ]
+        }
+    ]
+}
