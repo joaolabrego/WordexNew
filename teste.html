@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Documento Wordex</title>
+  <style>
+    
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #ddd;
+      font-family: Arial, sans-serif;
+      color: #222;
+    }
+
+    .document {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 20px auto;
+      background: white;
+      box-shadow: 0 0 10px rgba(0,0,0,.35);
+    }
+
+    .region,
+    .header-template,
+    .body-flow,
+    .footer-template {
+      padding: 10mm 15mm;
+    }
+
+    .header-template {
+      min-height: 12mm;
+      max-height: var(--wordex-header-footer-max-height, 89.1mm);
+      overflow: auto;
+      border-bottom: 1px dashed #ccc;
+      background: #fcfcfc;
+    }
+
+    .header-template.is-empty {
+      min-height: 8mm;
+      padding-top: 3mm;
+      padding-bottom: 3mm;
+    }
+
+    .body-flow {
+      min-height: 220mm;
+    }
+
+    .footer-template {
+      min-height: 12mm;
+      max-height: var(--wordex-header-footer-max-height, 89.1mm);
+      overflow: auto;
+      border-top: 1px dashed #ccc;
+      background: #fcfcfc;
+    }
+
+    .footer-template.is-empty {
+      min-height: 8mm;
+      padding-top: 3mm;
+      padding-bottom: 3mm;
+    }
+
+    .paragraph {
+      min-height: 22px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+
+    .paragraph.is-empty::before {
+      content: "";
+    }
+
+    .paragraph::after {
+      content: "";
+      display: block;
+      clear: both;
+    }
+
+    .dynamic-image-box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      max-width: 100%;
+      border: 2px dashed #999;
+      background: #f8f8f8;
+      color: #555;
+      text-align: center;
+      padding: 8px;
+      font-size: 13px;
+      user-select: none;
+      min-width: 28mm;
+      min-height: 18mm;
+    }
+
+    .dynamic-image-box strong,
+    .wordex-chart-box strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 14px;
+      color: #333;
+    }
+
+    table.wordex-table,
+    table {
+      max-width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      background: white;
+    }
+
+    .wordex-table td,
+    td {
+      border: 1px solid #444;
+      padding: 5px;
+      min-width: 12mm;
+      min-height: 7mm;
+      vertical-align: top;
+    }
+
+    .wordex-chart-box {
+      display: flex;
+      flex-direction: column;
+      max-width: 100%;
+      border: 2px dashed #777;
+      background: #fafafa;
+      color: #555;
+      text-align: center;
+      padding: 8px;
+      font-size: 13px;
+      user-select: none;
+      min-width: 40mm;
+      min-height: 28mm;
+      overflow: hidden;
+      contain: layout paint;
+      clear: both;
+    }
+
+    .wordex-chart-label {
+      display: block;
+      flex: 0 0 auto;
+      line-height: 1.2;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+
+    .wordex-chart-label strong {
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+
+    .wordex-chart-preview {
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+      align-items: stretch;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .wordex-chart-preview svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+.wordex-textbox {
+      display: inline-block;
+      max-width: 100%;
+      min-width: 32mm;
+      min-height: 16mm;
+      padding: 6px;
+      border: none;
+      outline: none;
+      box-shadow: none;
+      border-radius: 4px;
+      background: #fff;
+      color: #222;
+      font-size: 12pt;
+      line-height: 1.35;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+
+    .toolbar,
+    .output,
+    .document-title,
+    .block-tools {
+      display: none !important;
+    }
+
+    .selected-object,
+    .selected-cell,
+    .region,
+    .region:hover,
+    .region.selected,
+    .paragraph-block,
+    .object-block,
+    .paragraph-block.selected-block,
+    .object-block.selected-block {
+      outline: none !important;
+    }
+.wordex-textbox:hover {
+      outline-color: #777;
+      box-shadow: 0 0 0 1px #777 inset;
+    }
+
+    .wordex-textbox.selected-object {
+      outline-color: #f0a000 !important;
+      box-shadow: 0 0 0 2px #f0a000 inset;
+    }
+
+    .wordex-textbox:empty::before {
+      content: "Textbox";
+      color: #aaa;
+      font-style: italic;
+    }
+
+    @media print {
+      body {
+        background: white;
+      }
+
+      .document {
+        margin: 0;
+        width: auto;
+        min-height: auto;
+        box-shadow: none;
+      }
+    }
+  
+    
+    .document {
+      width: 210mm;
+      min-height: 297mm;
+    }
+  </style>
+</head>
+<body>
+<div class="document"
+    data-wordex-mode="continuous"
+    data-page-format="A4"
+    data-page-orientation="portrait"
+    data-page-width="210mm"
+    data-page-height="297mm"
+    data-margin-top="25mm"
+    data-margin-right="15mm"
+    data-margin-bottom="20mm"
+    data-margin-left="15mm">
+    <header class="region header-template">
+      <div class="paragraph" style="font-family:Arial;font-size:12pt;color:#000000;text-align:left;"><div class="wordex-chart-box" contenteditable="false" data-wordex-type="chart" data-source-name="VendasPorMes" data-chart-type="bar" data-align="left" style="width: 100mm; height: 60mm; float: left; display: flex; margin: 0px 10px 8px 0px;">
+          <span class="wordex-chart-label">
+            <strong>Gráfico dinâmico</strong>
+            {{VendasPorMes}} / bar
+          </span>
+          <span class="wordex-chart-preview">
+            
+          <svg viewBox="0 0 220 100" preserveAspectRatio="none">
+            <rect x="24" y="28" width="26" height="62" fill="#bbb"></rect>
+            <rect x="62" y="12" width="26" height="78" fill="#999"></rect>
+            <rect x="100" y="48" width="26" height="42" fill="#ccc"></rect>
+            <rect x="138" y="6" width="26" height="84" fill="#888"></rect>
+            <rect x="176" y="24" width="26" height="66" fill="#aaa"></rect>
+            <line x1="14" y1="90" x2="208" y2="90" stroke="#777" stroke-width="1"></line>
+            <line x1="14" y1="8" x2="14" y2="90" stroke="#aaa" stroke-width="1"></line>
+          </svg>
+        
+          </span>
+        </div>​​</div>
+    </header>
+    <main class="region body-flow">
+      <div class="paragraph" style="font-family:Arial;font-size:12pt;color:#000000;text-align:left;"><span class="dynamic-image-box" contenteditable="false" data-wordex-type="dynamicImage" data-field-name="Imagem" data-align="left" style="width: 80mm; height: 45mm; float: left; display: flex; margin: 0px 10px 8px 0px;"><span><strong>Imagem</strong>{{Imagem}}</span></span>​​</div>
+    </main>
+    
+  </div>
+</body>
+</html>
