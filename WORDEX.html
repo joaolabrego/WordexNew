@@ -116,13 +116,7 @@
     }
 
     .info {
-      display: inline-flex;
-      align-items: center;
-      padding: 6px 10px;
-      border-radius: 8px;
-      background: #444;
-      color: white;
-      font-size: 13px;
+      display: none;
     }
 
     .workspace { padding: 28px 0 50px; }
@@ -409,14 +403,41 @@
 
     .block-tools button:hover { background: #ddd; }
 
-    .output {
+    .output-wrapper {
+      position: relative;
       width: min(1000px, calc(100% - 40px));
+      margin: 0 auto 40px;
+    }
+
+    .copy-output-button {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      z-index: 5;
+      width: 30px;
+      height: 30px;
+      border: 0;
+      border-radius: 6px;
+      background: rgba(255,255,255,.88);
+      color: #222;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      box-shadow: 0 1px 4px rgba(0,0,0,.22);
+    }
+
+    .copy-output-button:hover {
+      background: white;
+    }
+
+    .output {
+      width: 100%;
       height: 240px;
       display: block;
-      margin: 0 auto 40px;
-      padding: 10px;
+      padding: 44px 10px 10px;
       font-family: Consolas, monospace;
       font-size: 13px;
+      resize: vertical;
     }
 
     .wordex-textbox {
@@ -725,6 +746,7 @@
     <div class="toolbar-group">
       <span class="toolbar-title">Inserir</span>
       <button onclick="wordex.insertParagraph()">Parágrafo</button>
+      <button class="danger" onclick="wordex.deleteSelectedParagraph()">Excluir parágrafo</button>
       <button onclick="wordex.insertDynamicImage()">Imagem</button>
       <button onclick="wordex.insertChart()">Gráfico</button>
       <button onclick="wordex.insertTextbox()">Textbox</button>
@@ -872,7 +894,10 @@
     <div id="document" class="document"></div>
   </div>
 
-  <textarea id="output" class="output" placeholder="HTML exportado aparecerá aqui..."></textarea>
+  <div class="output-wrapper">
+    <button class="copy-output-button" type="button" title="Copiar HTML exportado" onclick="wordex.copyExportedHtmlToClipboard()">⧉</button>
+    <textarea id="output" class="output" placeholder="HTML exportado aparecerá aqui..."></textarea>
+  </div>
 
   <script>
     class WordexEditor {
@@ -934,9 +959,9 @@
         this.info = document.getElementById(infoId);
 
         this.wordexDocument = {
-          version: "1.67",
+          version: "1.75",
           mode: "continuous",
-          description: "Documento contínuo. Conteúdo editável em HTML, com macros simples de relatório e margens automáticas para header/footer, texto padrão por seção e Enter criando novo parágrafo, Ctrl+setas movendo objetos e toolbar agrupado, gráfico isolado, Ctrl+setas sem invadir objetos e parágrafo vazio persistente e Backspace/Delete selecionando objetos adjacentes e excluindo se já selecionados, sem botão excluir objeto, botão de parágrafo apenas para header/footer e setas selecionando parágrafos vizinhos pela primeira/última linha visual e novos parágrafos usando fonte, tamanho e cor atuais da toolbar também no Enter e botão Parágrafo liberado para todas as seções, objeto Textbox, guias visuais permanentes e placeholder de parágrafo vazio fora do fluxo editável, guia permanente do textbox no editor, borda none removendo propriedades e motor JSON para macros de dados, Ctrl+Z com histórico indexado, tipificação de linhas de tabela, descolunização de TableHeader/GroupHeader com colspan e proteção de Backspace dentro de células.",
+          description: "Documento contínuo. Conteúdo editável em HTML, com macros simples de relatório e margens automáticas para header/footer, texto padrão por seção e Enter criando novo parágrafo, Ctrl+setas movendo objetos e toolbar agrupado, gráfico isolado, Ctrl+setas sem invadir objetos e parágrafo vazio persistente e Backspace/Delete selecionando objetos adjacentes e excluindo se já selecionados, sem botão excluir objeto, botão de parágrafo apenas para header/footer e setas selecionando parágrafos vizinhos pela primeira/última linha visual e novos parágrafos usando fonte, tamanho e cor atuais da toolbar também no Enter e botão Parágrafo liberado para todas as seções, objeto Textbox, guias visuais permanentes e placeholder de parágrafo vazio fora do fluxo editável, guia permanente do textbox no editor, borda none removendo propriedades e motor JSON para macros de dados, Ctrl+Z com histórico indexado, tipificação de linhas de tabela, descolunização de TableHeader/GroupHeader com colspan, proteção de Backspace dentro de células, seleção de objetos dentro de células, botão para copiar HTML exportado, parágrafo sempre selecionado e foco inicial para digitação.",
           headerTemplate: [],
           bodyFlow: [],
           footerTemplate: [],
@@ -966,7 +991,7 @@
 
         this.undoStack = [];
         this.undoIndex = -1;
-        this.maxUndoSteps = 80;
+        this.maxUndoSteps = 500;
         this.lastUndoSnapshot = "";
         this.isRestoringUndo = false;
         this.isInsertingObject = false;
@@ -1002,7 +1027,7 @@
 
         document.addEventListener("click", event => {
           if (!event.target.closest(".document") && !event.target.closest(".toolbar")) {
-            this.clearSelection();
+            this.selectFallbackParagraph();
             this.renderSelection();
           }
         });
@@ -1013,6 +1038,10 @@
             parágrafo/wrapper. Aqui só fica como rede de segurança.
           */
           if (event.defaultPrevented || event.wordexTableClickHandled) {
+            return;
+          }
+
+          if (this.trySelectObjectInsideTableCell(event, this.documentElement)) {
             return;
           }
 
@@ -1130,6 +1159,7 @@
         this.applyPageSettingsToEditor();
         this.render();
         this.resetUndoHistory();
+        this.focusSelectedParagraphForTyping();
       }
 
       initializePageControls() {
@@ -1501,6 +1531,140 @@
         this.selectedTableRow = null;
         this.selectedTableColumnIndex = null;
         this.savedRange = null;
+
+        if (this.selected.region === "bodyFlow") {
+          this.ensureParagraphSelection();
+        }
+      }
+
+      focusSelectedParagraphForTyping() {
+        const paragraph = this.getSelectedParagraphElement();
+
+        if (!paragraph) return;
+
+        paragraph.focus({ preventScroll: true });
+
+        const selection = window.getSelection();
+
+        /*
+          Só posiciona o caret se não houver uma seleção útil dentro do próprio
+          parágrafo. Assim não atrapalha seleções manuais posteriores.
+        */
+        if (
+          !selection ||
+          selection.rangeCount === 0 ||
+          !paragraph.contains(selection.getRangeAt(0).commonAncestorContainer)
+        ) {
+          this.placeCaretAtEnd(paragraph);
+        }
+
+        this.saveSelectionIfInsideParagraph();
+      }
+
+      ensureParagraphInRegion(region) {
+        if (!Array.isArray(this.wordexDocument[region])) {
+          this.wordexDocument[region] = [];
+        }
+
+        let paragraph = this.wordexDocument[region].find(block => block.type === "paragraph");
+
+        if (!paragraph) {
+          paragraph = this.createParagraph("");
+          this.wordexDocument[region].push(paragraph);
+        }
+
+        return paragraph;
+      }
+
+      selectRegionOnly(region, shouldRender = true) {
+        this.selected.region = region;
+        this.selectedParagraphId = null;
+        this.selectedBlockId = null;
+        this.selectedObject = null;
+        this.selectedCell = null;
+        this.selectedTableMode = null;
+        this.selectedTableRow = null;
+        this.selectedTableColumnIndex = null;
+        this.savedRange = null;
+
+        if (shouldRender) {
+          this.renderSelection();
+          this.updateInfo();
+        }
+      }
+
+      selectParagraphInRegion(region, shouldRender = true, shouldFocus = true) {
+        const paragraph = this.ensureParagraphInRegion(region);
+
+        this.selected.region = region;
+        this.selectedParagraphId = paragraph.id;
+        this.selectedBlockId = paragraph.id;
+        this.selectedObject = null;
+        this.selectedCell = null;
+        this.selectedTableMode = null;
+        this.selectedTableRow = null;
+        this.selectedTableColumnIndex = null;
+        this.savedRange = null;
+
+        if (shouldRender) {
+          this.render();
+
+          if (shouldFocus) {
+            this.focusSelectedParagraphForTyping();
+          }
+        }
+
+        return paragraph;
+      }
+
+      ensureParagraphSelection() {
+        if (
+          this.selectedParagraphId &&
+          this.findBlockById(this.selectedParagraphId)
+        ) {
+          return;
+        }
+
+        if (this.selected.region === "bodyFlow") {
+          this.selectParagraphInRegion("bodyFlow", false, false);
+        }
+      }
+
+      selectFallbackParagraph(shouldRender = true) {
+        this.ensureRequiredParagraphs();
+
+        const regions = [
+          this.selected.region || "bodyFlow",
+          "bodyFlow",
+          "headerTemplate",
+          "footerTemplate"
+        ];
+
+        for (const region of regions) {
+          const blocks = this.wordexDocument[region] || [];
+          const paragraph = blocks.find(block => block.type === "paragraph");
+
+          if (paragraph) {
+            this.selected.region = region;
+            this.selectedParagraphId = paragraph.id;
+            this.selectedBlockId = paragraph.id;
+            this.selectedObject = null;
+            this.selectedCell = null;
+            this.selectedTableMode = null;
+            this.selectedTableRow = null;
+            this.selectedTableColumnIndex = null;
+            this.savedRange = null;
+
+            if (shouldRender) {
+              this.renderSelection();
+              this.updateInfo();
+            }
+
+            return;
+          }
+        }
+
+        this.selectParagraphInRegion("bodyFlow", shouldRender, false);
       }
 
       getSelectedBlocks() {
@@ -1536,9 +1700,40 @@
 
       selectRegion(region) {
         this.selected.region = region;
-        this.clearSelection();
-        this.renderSelection();
-        this.updateInfo();
+
+        if (region === "bodyFlow") {
+          this.selectParagraphInRegion("bodyFlow");
+          return;
+        }
+
+        const blocks = this.wordexDocument[region] || [];
+        const paragraph = blocks.find(block => block.type === "paragraph");
+
+        if (paragraph) {
+          this.selectedParagraphId = paragraph.id;
+          this.selectedBlockId = paragraph.id;
+          this.selectedObject = null;
+          this.selectedCell = null;
+          this.selectedTableMode = null;
+          this.selectedTableRow = null;
+          this.selectedTableColumnIndex = null;
+          this.savedRange = null;
+
+          this.renderSelection();
+          this.updateInfo();
+
+          const element = this.getSelectedParagraphElement();
+
+          if (element) {
+            element.focus();
+            this.placeCaretAtEnd(element);
+            this.saveSelectionIfInsideParagraph();
+          }
+
+          return;
+        }
+
+        this.selectRegionOnly(region);
       }
 
       selectParagraph(region, blockId) {
@@ -1596,6 +1791,86 @@
         if (element) {
           element.focus();
           this.placeCaretAtEnd(element);
+          this.saveSelectionIfInsideParagraph();
+        }
+      }
+
+      deleteSelectedParagraph() {
+        if (!this.selectedParagraphId) {
+          alert("Selecione um parágrafo para excluir.");
+          return;
+        }
+
+        this.syncCurrentEditingState();
+
+        let region = this.selected.region;
+        let blocks = this.wordexDocument[region] || [];
+        let index = blocks.findIndex(block => block.id === this.selectedParagraphId);
+
+        /*
+          Segurança: se a região atual estiver defasada, procura o parágrafo
+          nas três regiões.
+        */
+        if (index < 0) {
+          for (const candidateRegion of ["headerTemplate", "bodyFlow", "footerTemplate"]) {
+            const candidateBlocks = this.wordexDocument[candidateRegion] || [];
+            const candidateIndex = candidateBlocks.findIndex(block => block.id === this.selectedParagraphId);
+
+            if (candidateIndex >= 0) {
+              region = candidateRegion;
+              blocks = candidateBlocks;
+              index = candidateIndex;
+              break;
+            }
+          }
+        }
+
+        if (index < 0) {
+          alert("Parágrafo não encontrado.");
+          return;
+        }
+
+        blocks.splice(index, 1);
+        this.ensureRequiredParagraphs();
+
+        let targetBlock = null;
+
+        if (region === "bodyFlow") {
+          const bodyBlocks = this.wordexDocument.bodyFlow || [];
+          targetBlock =
+            bodyBlocks[Math.min(index, bodyBlocks.length - 1)] ||
+            bodyBlocks.find(block => block.type === "paragraph") ||
+            null;
+        } else {
+          targetBlock =
+            blocks[Math.min(index, blocks.length - 1)] ||
+            blocks.find(block => block.type === "paragraph") ||
+            null;
+        }
+
+        this.selected.region = region;
+        this.selectedObject = null;
+        this.selectedCell = null;
+        this.selectedTableMode = null;
+        this.selectedTableRow = null;
+        this.selectedTableColumnIndex = null;
+        this.savedRange = null;
+
+        if (targetBlock && targetBlock.type === "paragraph") {
+          this.selectedParagraphId = targetBlock.id;
+          this.selectedBlockId = targetBlock.id;
+        } else {
+          this.selectedParagraphId = null;
+          this.selectedBlockId = null;
+        }
+
+        this.render();
+
+        const targetElement = this.getSelectedParagraphElement();
+
+        if (targetElement) {
+          targetElement.focus();
+          this.placeCaretAtEnd(targetElement);
           this.saveSelectionIfInsideParagraph();
         }
       }
@@ -2905,6 +3180,39 @@
         }
 
         alert("Selecione uma tabela ou célula.");
+      }
+
+      trySelectObjectInsideTableCell(event, container = this.documentElement) {
+        const object = event.target.closest(WordexEditor.objectSelector);
+
+        if (!object || !container.contains(object)) {
+          return false;
+        }
+
+        const cell = object.closest("td");
+
+        if (!cell || !container.contains(cell)) {
+          return false;
+        }
+
+        const ownerTable = cell.closest(".wordex-table");
+
+        /*
+          Se o objeto encontrado for a própria tabela dona da célula,
+          não é objeto interno: deixa o fluxo normal selecionar célula/tabela.
+          Imagem, gráfico, textbox e tabela aninhada dentro da célula devem
+          poder ser selecionados para configurar/redimensionar.
+        */
+        if (ownerTable && object === ownerTable) {
+          return false;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.wordexTableClickHandled = true;
+
+        this.selectObject(object);
+        return true;
       }
 
       selectTableCell(cell) {
@@ -4929,6 +5237,10 @@
           this.renderRegion("footerTemplate", "footer-template", "Modelo de rodapé")
         );
 
+        if (this.selected.region === "bodyFlow") {
+          this.ensureParagraphSelection();
+        }
+
         this.renderSelection();
         this.updateInfo();
 
@@ -5005,6 +5317,10 @@
           event.stopPropagation();
 
           if (event.defaultPrevented || event.wordexTableClickHandled) {
+            return;
+          }
+
+          if (this.trySelectObjectInsideTableCell(event, wrapper)) {
             return;
           }
 
@@ -5086,6 +5402,10 @@
 
         paragraph.addEventListener("click", event => {
           if (event.defaultPrevented || event.wordexTableClickHandled) {
+            return;
+          }
+
+          if (this.trySelectObjectInsideTableCell(event, paragraph)) {
             return;
           }
 
@@ -5265,60 +5585,13 @@
       }
 
       updateInfo() {
-        const names = {
-          headerTemplate: "modelo de cabeçalho",
-          bodyFlow: "corpo contínuo",
-          footerTemplate: "modelo de rodapé"
-        };
-
-        let objectInfo = "";
-
-        if (this.selectedObject) {
-          objectInfo = this.selectedObject.matches(".dynamic-image-box")
-            ? " / imagem selecionada"
-            : this.selectedObject.matches(".wordex-chart-box")
-              ? " / gráfico selecionado"
-              : this.selectedObject.matches(".wordex-textbox")
-                ? " / textbox selecionado"
-                : " / tabela selecionada";
-
-          if (this.selectedObject.matches(".wordex-table")) {
-            if (this.selectedTableMode === "table") {
-              objectInfo += " / tabela inteira";
-            } else if (this.selectedTableMode === "cell") {
-              objectInfo += " / célula selecionada";
-            } else if (this.selectedTableMode === "row") {
-              objectInfo += " / linha selecionada";
-            } else if (this.selectedTableMode === "column") {
-              objectInfo += " / coluna selecionada";
-            }
-
-            const rowContext = this.getSelectedTableRowContextWithoutAlert();
-            const rowType = rowContext?.row?.dataset?.wordexRowType || "";
-
-            if (rowType) {
-              objectInfo += " / " + rowType;
-            }
-          }
-
-          if (this.selectedObject.closest(".paragraph")) {
-            objectInfo += " / conteúdo do parágrafo";
-          }
+        /*
+          Barra de status removida por opção de interface.
+          Mantém o elemento vazio para não quebrar chamadas existentes.
+        */
+        if (this.info) {
+          this.info.textContent = "";
         }
-
-        const paragraphInfo = this.selectedParagraphId && !objectInfo
-          ? " / parágrafo selecionado / pode digitar texto"
-          : "";
-
-        const page = this.getPageSettings();
-        const dataInfo = this.reportData
-          ? " / JSON: " + (this.reportDataFileName || "carregado")
-          : " / JSON: nenhum";
-
-        this.info.textContent =
-          "Selecionado: " + names[this.selected.region] + paragraphInfo + objectInfo +
-          " / Página: " + page.format + " " + (page.orientation === "landscape" ? "paisagem" : "retrato") +
-          dataInfo;
       }
 
       loadSavedWordexDocumentFromHtml() {
@@ -5353,6 +5626,30 @@
 
         if (this.selectedObject) {
           this.syncObjectAfterChange(this.selectedObject);
+        }
+      }
+
+      async copyExportedHtmlToClipboard() {
+        const text = this.output?.value || "";
+
+        if (!text) {
+          alert("Não há HTML exportado para copiar.");
+          return;
+        }
+
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            this.output.focus();
+            this.output.select();
+            document.execCommand("copy");
+            window.getSelection()?.removeAllRanges();
+          }
+
+          alert("HTML exportado copiado para a área de transferência.");
+        } catch (error) {
+          alert("Não foi possível copiar o HTML: " + error.message);
         }
       }
 
