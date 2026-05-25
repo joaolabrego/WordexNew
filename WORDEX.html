@@ -115,10 +115,6 @@
       min-width: 30px;
     }
 
-    .info {
-      display: none;
-    }
-
     .workspace { padding: 28px 0 50px; }
 
     .document {
@@ -373,36 +369,6 @@
       cursor: default;
     }
 
-    .block-tools {
-      display: none;
-      position: absolute;
-      right: 0;
-      top: -26px;
-      gap: 4px;
-      background: white;
-      padding: 3px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      z-index: 20;
-      box-shadow: 0 2px 5px rgba(0,0,0,.18);
-    }
-
-    .paragraph-block.selected-block .block-tools,
-    .object-block.selected-block .block-tools {
-      display: flex;
-    }
-
-    .block-tools button {
-      border: 0;
-      background: #eee;
-      cursor: pointer;
-      padding: 2px 6px;
-      font-size: 11px;
-      border-radius: 3px;
-    }
-
-    .block-tools button:hover { background: #ddd; }
-
     .wordex-textbox {
       display: inline-block;
       max-width: 100%;
@@ -443,9 +409,8 @@
       body { background: white; }
 
       .toolbar,
-      .output,
       .document-title,
-      .block-tools {
+      .wordex-table tr[data-wordex-row-type] td:first-child::before {
         display: none !important;
       }
 
@@ -467,241 +432,16 @@
       .object-block,
       .paragraph-block.selected-block,
       .object-block.selected-block,
-      .selected-object {
+      .selected-object,
+      .selected-cell,
+      .selected-row-cell,
+      .selected-column-cell {
         outline: none !important;
         box-shadow: none !important;
+        background-image: none !important;
       }
     }
   </style>
-
-  <script id="wordex-report-style" type="text/plain">
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      background: #ddd;
-      font-family: Arial, sans-serif;
-      color: #222;
-    }
-
-    .document {
-      width: 210mm;
-      min-height: 297mm;
-      margin: 20px auto;
-      background: white;
-      box-shadow: 0 0 10px rgba(0,0,0,.35);
-    }
-
-    .region,
-    .header-template,
-    .body-flow,
-    .footer-template {
-      padding: 10mm 15mm;
-    }
-
-    .header-template {
-      min-height: 12mm;
-      max-height: var(--wordex-header-footer-max-height, 89.1mm);
-      overflow: auto;
-      border-bottom: 1px dashed #ccc;
-      background: #fcfcfc;
-    }
-
-    .header-template.is-empty {
-      min-height: 8mm;
-      padding-top: 3mm;
-      padding-bottom: 3mm;
-    }
-
-    .body-flow {
-      min-height: 220mm;
-    }
-
-    .footer-template {
-      min-height: 12mm;
-      max-height: var(--wordex-header-footer-max-height, 89.1mm);
-      overflow: auto;
-      border-top: 1px dashed #ccc;
-      background: #fcfcfc;
-    }
-
-    .footer-template.is-empty {
-      min-height: 8mm;
-      padding-top: 3mm;
-      padding-bottom: 3mm;
-    }
-
-    .paragraph {
-      min-height: 22px;
-      line-height: 1.45;
-      white-space: pre-wrap;
-    }
-
-    .paragraph.is-empty::before {
-      content: "";
-    }
-
-    .paragraph::after {
-      content: "";
-      display: block;
-      clear: both;
-    }
-
-    .dynamic-image-box {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      max-width: 100%;
-      border: 2px dashed #999;
-      background: #f8f8f8;
-      color: #555;
-      text-align: center;
-      padding: 8px;
-      font-size: 13px;
-      user-select: none;
-      min-width: 28mm;
-      min-height: 18mm;
-    }
-
-    .dynamic-image-box strong,
-    .wordex-chart-box strong {
-      display: block;
-      margin-bottom: 4px;
-      font-size: 14px;
-      color: #333;
-    }
-
-    table.wordex-table,
-    table {
-      max-width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-      background: white;
-    }
-
-    .wordex-table td,
-    td {
-      border: 1px solid #444;
-      padding: 5px;
-      min-width: 12mm;
-      min-height: 7mm;
-      vertical-align: top;
-    }
-
-    .wordex-chart-box {
-      display: flex;
-      flex-direction: column;
-      max-width: 100%;
-      border: 2px dashed #777;
-      background: #fafafa;
-      color: #555;
-      text-align: center;
-      padding: 8px;
-      font-size: 13px;
-      user-select: none;
-      min-width: 40mm;
-      min-height: 28mm;
-      overflow: hidden;
-      contain: layout paint;
-      clear: both;
-    }
-
-    .wordex-chart-label {
-      display: block;
-      flex: 0 0 auto;
-      line-height: 1.2;
-      margin-bottom: 4px;
-      font-size: 12px;
-    }
-
-    .wordex-chart-label strong {
-      font-size: 13px;
-      margin-bottom: 2px;
-    }
-
-    .wordex-chart-preview {
-      display: flex;
-      flex: 1 1 auto;
-      min-height: 0;
-      width: 100%;
-      align-items: stretch;
-      justify-content: center;
-      overflow: hidden;
-    }
-
-    .wordex-chart-preview svg {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-.wordex-textbox {
-      display: inline-block;
-      max-width: 100%;
-      min-width: 32mm;
-      min-height: 16mm;
-      padding: 6px;
-      border: none;
-      outline: none;
-      box-shadow: none;
-      border-radius: 4px;
-      background: #fff;
-      color: #222;
-      font-size: 12pt;
-      line-height: 1.35;
-      overflow: auto;
-      white-space: pre-wrap;
-    }
-
-    .toolbar,
-    .output,
-    .document-title,
-    .block-tools {
-      display: none !important;
-    }
-
-    .selected-object,
-    .selected-cell,
-    .region,
-    .region:hover,
-    .region.selected,
-    .paragraph-block,
-    .object-block,
-    .paragraph-block.selected-block,
-    .object-block.selected-block {
-      outline: none !important;
-    }
-.wordex-textbox:hover {
-      outline-color: #777;
-      box-shadow: 0 0 0 1px #777 inset;
-    }
-
-    .wordex-textbox.selected-object {
-      outline-color: #f0a000 !important;
-      box-shadow: 0 0 0 2px #f0a000 inset;
-    }
-
-    .wordex-textbox:empty::before {
-      content: "Textbox";
-      color: #aaa;
-      font-style: italic;
-    }
-
-    @media print {
-      body {
-        background: white;
-      }
-
-      .document {
-        margin: 0;
-        width: auto;
-        min-height: auto;
-        box-shadow: none;
-      }
-    }
-  </script>
-
 </head>
 
 <body>
@@ -848,7 +588,6 @@
       <button class="primary" onclick="window.print()">Imprimir fluxo</button>
     </div>
 
-    <span id="info" class="info"></span>
   </div>
 
   <div class="workspace">
@@ -911,15 +650,13 @@
         { value: "ANSI_E", text: "ANSI E", width: "863.6mm", height: "1117.6mm" }
       ]);
 
-      constructor(documentId, outputId, infoId) {
+      constructor(documentId) {
         this.documentElement = document.getElementById(documentId);
-        this.output = document.getElementById(outputId);
-        this.info = document.getElementById(infoId);
 
         this.wordexDocument = {
-          version: "1.78",
+          version: "1.79",
           mode: "continuous",
-          description: "Documento contínuo. Conteúdo editável em HTML, com macros simples de relatório e margens automáticas para header/footer, texto padrão por seção e Enter criando novo parágrafo, Ctrl+setas movendo objetos e toolbar agrupado, gráfico isolado, Ctrl+setas sem invadir objetos e parágrafo vazio persistente e Backspace/Delete selecionando objetos adjacentes e excluindo se já selecionados, sem botão excluir objeto, botão de parágrafo apenas para header/footer e setas selecionando parágrafos vizinhos pela primeira/última linha visual e novos parágrafos usando fonte, tamanho e cor atuais da toolbar também no Enter e botão Parágrafo liberado para todas as seções, objeto Textbox, guias visuais permanentes e placeholder de parágrafo vazio fora do fluxo editável, guia permanente do textbox no editor, borda none removendo propriedades e motor JSON para macros de dados, Ctrl+Z com histórico indexado, tipificação de linhas de tabela, descolunização de TableHeader/GroupHeader com colspan, proteção de Backspace dentro de células, seleção de objetos dentro de células, botão para copiar HTML exportado, parágrafo sempre selecionado e foco inicial para digitação.",
+          description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas e objetos).",
           headerTemplate: [],
           bodyFlow: [],
           footerTemplate: [],
@@ -1198,7 +935,6 @@
         page.marginLeft = this.normalizeCssSize(document.getElementById("marginLeft")?.value || "15mm", "15mm");
 
         this.applyPageSettingsToEditor();
-        this.updateInfo();
         this.saveUndoStateIfChanged();
       }
 
@@ -1547,7 +1283,6 @@
 
         if (shouldRender) {
           this.renderSelection();
-          this.updateInfo();
         }
       }
 
@@ -1615,7 +1350,6 @@
 
             if (shouldRender) {
               this.renderSelection();
-              this.updateInfo();
             }
 
             return;
@@ -1678,7 +1412,6 @@
           this.savedRange = null;
 
           this.renderSelection();
-          this.updateInfo();
 
           const element = this.getSelectedParagraphElement();
 
@@ -1701,7 +1434,6 @@
         this.selectedObject = null;
         this.selectedCell = null;
         this.renderSelection();
-        this.updateInfo();
       }
 
       selectObject(object) {
@@ -1731,7 +1463,6 @@
         }
 
         this.renderSelection();
-        this.updateInfo();
       }
 
       insertParagraph() {
@@ -2343,7 +2074,6 @@
           this.selectTableCell(cell);
         } else {
           this.renderSelection();
-          this.updateInfo();
           this.saveUndoStateIfChanged();
         }
 
@@ -2446,7 +2176,6 @@
 
         this.syncParagraphElement(paragraphElement);
         this.renderSelection();
-        this.updateInfo();
 
         if (node.matches?.("table.wordex-table")) {
           this.ensureUndoRecordsTableInParagraph(paragraphElement);
@@ -2641,34 +2370,6 @@
           object.style.height = newHeight + "px";
         } else if (object.matches(".wordex-table")) {
           this.resizeTableRowsByTotalHeight(object, newHeight);
-        }
-
-        this.syncObjectAfterChange(object);
-        this.keepObjectSelected(object);
-      }
-
-      resizeSelectedObject() {
-        if (!this.selectedObject) {
-          alert("Selecione uma imagem, gráfico, textbox ou tabela.");
-          return;
-        }
-
-        const object = this.selectedObject;
-        const rect = object.getBoundingClientRect();
-
-        const width = prompt("Largura:", Math.round(rect.width) + "px");
-        if (!width) return;
-
-        const height = prompt("Altura:", Math.round(rect.height) + "px");
-        if (!height) return;
-
-        object.style.width = width;
-        this.limitObjectWidthToParagraph(object);
-
-        if (object.matches(".dynamic-image-box, .wordex-chart-box, .wordex-textbox")) {
-          object.style.height = height;
-        } else if (object.matches(".wordex-table")) {
-          this.resizeTableRowsByTotalHeight(object, this.parseCssSizeToPixels(height, object));
         }
 
         this.syncObjectAfterChange(object);
@@ -2995,7 +2696,6 @@
 
           this.syncParagraphElement(paragraph);
           this.renderSelection();
-          this.updateInfo();
           this.saveUndoStateIfChanged();
         }
       }
@@ -3039,7 +2739,6 @@
         this.selectedBlockId = paragraph.dataset.blockId;
         this.syncParagraphElement(paragraph);
         this.renderSelection();
-        this.updateInfo();
         this.saveUndoStateIfChanged();
 
         return true;
@@ -3165,7 +2864,6 @@
           this.applyBorderStyle(paragraph);
           this.syncParagraphElement(paragraph);
           this.renderSelection();
-          this.updateInfo();
           return;
         }
 
@@ -3393,7 +3091,6 @@
         }
 
         this.renderSelection();
-        this.updateInfo();
       }
 
       shouldDecolumnizeTableRow(table, row, rowType) {
@@ -3700,8 +3397,6 @@
             block.style.textAlign = align;
             block.html = this.getCleanInnerHtml(paragraph);
           }
-
-          this.updateInfo();
           return;
         }
 
@@ -3768,7 +3463,6 @@
         this.selectedBlockId = paragraph.dataset.blockId;
         this.syncParagraphElement(paragraph);
         this.renderSelection();
-        this.updateInfo();
         this.saveUndoStateIfChanged();
 
         return true;
@@ -3788,7 +3482,6 @@
         }
 
         this.renderSelection();
-        this.updateInfo();
         this.saveUndoStateIfChanged();
       }
 
@@ -4980,7 +4673,6 @@
           }
 
           this.renderSelection();
-          this.updateInfo();
         }, 0);
       }
 
@@ -5325,7 +5017,6 @@
         }
 
         this.renderSelection();
-        this.updateInfo();
 
         if (!this.isInsertingObject) {
           this.saveUndoStateIfChanged();
@@ -5558,22 +5249,6 @@
         return wrapper;
       }
 
-      renderBlockTools(region, block, title) {
-        const tools = document.createElement("div");
-        tools.className = "block-tools";
-
-        const deleteButton = document.createElement("button");
-        deleteButton.textContent = "Excluir";
-        deleteButton.title = title;
-        deleteButton.addEventListener("click", event => {
-          event.stopPropagation();
-          this.deleteBlock(region, block.id);
-        });
-
-        tools.appendChild(deleteButton);
-        return tools;
-      }
-
       renderSelection() {
         this.documentElement.querySelectorAll(".region").forEach(regionElement => {
           regionElement.classList.toggle(
@@ -5667,16 +5342,6 @@
         });
       }
 
-      updateInfo() {
-        /*
-          Barra de status removida por opção de interface.
-          Mantém o elemento vazio para não quebrar chamadas existentes.
-        */
-        if (this.info) {
-          this.info.textContent = "";
-        }
-      }
-
       loadSavedWordexDocumentFromHtml() {
         const stateElement = document.getElementById("wordexSavedDocument");
 
@@ -5736,13 +5401,6 @@
         const clone = document.documentElement.cloneNode(true);
 
         clone.querySelectorAll("#wordexSavedDocument").forEach(node => node.remove());
-
-        /*
-          Remove conteúdo auxiliar de saída para o HTML salvo abrir limpo.
-          O template em si vai dentro do JSON salvo.
-        */
-        const output = clone.querySelector("#output");
-        if (output) output.value = "";
 
         const stateScript = document.createElement("script");
         stateScript.id = "wordexSavedDocument";
@@ -5843,12 +5501,10 @@
             const data = JSON.parse(String(reader.result || ""));
             this.reportData = data;
             this.reportDataFileName = file.name || "JSON carregado";
-            this.updateInfo();
             alert("JSON carregado: " + this.reportDataFileName);
           } catch (error) {
             this.reportData = null;
             this.reportDataFileName = "";
-            this.updateInfo();
             alert("Erro ao carregar JSON: " + error.message);
           }
         };
@@ -5863,440 +5519,7 @@
       clearJsonData() {
         this.reportData = null;
         this.reportDataFileName = "";
-        this.updateInfo();
         alert("JSON limpo.");
-      }
-
-      getValueByPath(source, path) {
-        const text = String(path || "").trim();
-
-        if (!text) return undefined;
-
-        return text.split(".").reduce((current, key) => {
-          if (current == null) return undefined;
-          return current[key];
-        }, source);
-      }
-
-      formatMacroValue(value) {
-        if (value == null) return "";
-
-        if (typeof value === "object") {
-          try {
-            return JSON.stringify(value);
-          } catch {
-            return "";
-          }
-        }
-
-        return String(value);
-      }
-
-      getBuiltinMacroValue(expression, { paged = false } = {}) {
-        const key = String(expression || "").trim().toLowerCase();
-        const now = new Date();
-
-        const date = now.toLocaleDateString("pt-BR");
-        const time = now.toLocaleTimeString("pt-BR", {
-          hour: "2-digit",
-          minute: "2-digit"
-        });
-        const dateTime = `${date} ${time}`;
-
-        /*
-          Macros internas do Wordex têm @ como parte real do nome.
-          Portanto, os nomes são @date, @time, @now, @page, @pages etc.
-        */
-        if (key === "@today" || key === "@date") return date;
-        if (key === "@time") return time;
-        if (key === "@now" || key === "@datetime") return dateTime;
-
-        if (paged && key === "@page") {
-          return '<span class="wordex-page-number"></span>';
-        }
-
-        if (paged && key === "@pages") {
-          return '<span class="wordex-page-count"></span>';
-        }
-
-        return undefined;
-      }
-
-      resolveReportMacro(expression, options = {}) {
-        const text = String(expression || "").trim();
-
-        if (!text) return "";
-
-        const builtin = this.getBuiltinMacroValue(text, options);
-
-        if (builtin !== undefined) {
-          return builtin;
-        }
-
-        if (!this.reportData) {
-          return "{{" + text + "}}";
-        }
-
-        const value = this.getValueByPath(this.reportData, text);
-        return this.formatMacroValue(value);
-      }
-
-      exportHtml() {
-        const paragraph = this.getSelectedParagraphElement();
-        if (paragraph) this.syncParagraphElement(paragraph);
-
-        if (this.selectedObject) this.syncObjectAfterChange(this.selectedObject);
-
-        this.output.value = this.generateHtml();
-        alert("HTML exportado para a caixa de saída.");
-      }
-
-      getExportCss() {
-        return document.getElementById("wordex-report-style")?.textContent || "";
-      }
-
-      previewPagedHtml() {
-        const pagedHtml = this.generatePagedHtml();
-
-        /*
-          Não usamos document.write para injetar o HTML paginado,
-          porque navegadores podem bloquear scripts externos escritos dessa forma.
-          Com Blob URL, o HTML abre como uma página normal e o Paged.js carrega melhor.
-        */
-        const blob = new Blob([pagedHtml], { type: "text/html" });
-        const url = URL.createObjectURL(blob);
-        const win = window.open(url, "_blank");
-
-        if (!win) {
-          URL.revokeObjectURL(url);
-          alert("O navegador bloqueou a janela de paginação.");
-          return;
-        }
-
-        setTimeout(() => {
-          URL.revokeObjectURL(url);
-        }, 60000);
-      }
-
-      getPagedCss() {
-        const page = this.getPageSettings();
-
-        return `
-          @page {
-            size: ${this.getPageSizeCss()};
-            margin: ${this.getPageMarginCss()};
-
-            @top-center {
-              content: element(wordexHeader);
-            }
-
-            @bottom-center {
-              content: element(wordexFooter);
-            }
-          }
-
-          body.wordex-paged {
-            margin: 0;
-            background: #ddd;
-            font-family: Arial, sans-serif;
-            color: #222;
-          }
-
-          body.wordex-paged .document {
-            width: auto;
-            min-height: auto;
-            margin: 0;
-            background: white;
-            box-shadow: none;
-          }
-
-          body.wordex-paged .region,
-          body.wordex-paged .header-template,
-          body.wordex-paged .body-flow,
-          body.wordex-paged .footer-template {
-            padding: 0;
-          }
-
-          /*
-            Cabeçalho/rodapé fora de .document. Seletores SEM "body" no running():
-            o Paged.js busca no fragmento do <template> (filhos diretos, sem <body>).
-          */
-          .header-template {
-            position: running(wordexHeader);
-            border: none;
-            background: transparent;
-            min-height: auto;
-            max-height: none;
-            overflow: visible;
-          }
-
-          .footer-template {
-            position: running(wordexFooter);
-            border: none;
-            background: transparent;
-            min-height: auto;
-            max-height: none;
-            overflow: visible;
-          }
-
-          /*
-            Esconder cópias no miolo (não nas margens .pagedjs_margin-*).
-          */
-          body.wordex-paged .pagedjs_page_content .header-template,
-          body.wordex-paged .pagedjs_page_content .footer-template {
-            display: none !important;
-          }
-
-          @media print {
-            body.wordex-paged > .header-template,
-            body.wordex-paged > .footer-template {
-              display: none !important;
-            }
-
-            body.wordex-paged .pagedjs_margin-top-center,
-            body.wordex-paged .pagedjs_margin-bottom-center,
-            body.wordex-paged .pagedjs_margin-top-center .pagedjs_margin-content,
-            body.wordex-paged .pagedjs_margin-bottom-center .pagedjs_margin-content {
-              display: block !important;
-              visibility: visible !important;
-            }
-          }
-
-          body.wordex-paged .body-flow {
-            min-height: auto;
-          }
-
-          .wordex-page-number::after {
-            content: counter(page);
-          }
-
-          .wordex-page-count::after {
-            content: counter(pages);
-          }
-
-
-
-          body.wordex-paged .paragraph-block,
-          body.wordex-paged .object-block {
-            break-inside: avoid;
-          }
-
-          /*
-            Fundo branco forçado na estrutura real criada pelo Paged.js.
-            O cinza deve aparecer apenas fora da folha.
-          */
-          body.wordex-paged .pagedjs_page,
-          body.wordex-paged .pagedjs_pagebox,
-          body.wordex-paged .pagedjs_sheet,
-          body.wordex-paged .pagedjs_bleed,
-          body.wordex-paged .pagedjs_area,
-          body.wordex-paged .pagedjs_margin,
-          body.wordex-paged [class^="pagedjs_margin-"],
-          body.wordex-paged [class*=" pagedjs_margin-"],
-          body.wordex-paged .pagedjs_margin-content {
-            background: white !important;
-          }
-
-          @media screen {
-            body.wordex-paged .pagedjs_pages {
-              margin: 20px auto;
-            }
-
-            /*
-              O fundo externo continua cinza pelo body.
-              A folha inteira, incluindo header/footer/margens, fica branca.
-            */
-            body.wordex-paged .pagedjs_page,
-            body.wordex-paged .pagedjs_sheet,
-            body.wordex-paged .pagedjs_area,
-            body.wordex-paged .pagedjs_margin-top,
-            body.wordex-paged .pagedjs_margin-bottom,
-            body.wordex-paged .pagedjs_margin-left,
-            body.wordex-paged .pagedjs_margin-right,
-            body.wordex-paged .pagedjs_margin-top-center,
-            body.wordex-paged .pagedjs_margin-bottom-center {
-              background: white;
-            }
-
-            body.wordex-paged .pagedjs_page {
-              background: white !important;
-              box-shadow: 0 0 10px rgba(0,0,0,.35);
-              margin: 0 auto 20px;
-            }
-          }
-        `;
-      }
-
-      generateHtml() {
-        return this.buildExportedHtml({ paged: false });
-      }
-
-      generatePagedHtml() {
-        return this.buildExportedHtml({ paged: true });
-      }
-
-      applyReportMacros(html, { paged = false } = {}) {
-        return String(html || "").replace(/\{\{\s*([^}]+?)\s*\}\}/g, (match, expression) => {
-          return this.resolveReportMacro(expression, { paged });
-        });
-      }
-
-      buildExportedHtml({ paged = false } = {}) {
-        if (paged) {
-          this.updateHeaderFooterMarginsFromEditor();
-        }
-
-        const page = this.getPageSettings();
-        const headerHtml = this.applyReportMacros(
-          this.generateOptionalRegionHtml(
-            "header",
-            "region header-template",
-            this.wordexDocument.headerTemplate
-          ),
-          { paged }
-        );
-        const bodyHtml = this.applyReportMacros(
-          this.generateRegionHtml(this.wordexDocument.bodyFlow),
-          { paged }
-        );
-        const footerHtml = this.applyReportMacros(
-          this.generateOptionalRegionHtml(
-            paged ? "div" : "footer",
-            "region footer-template",
-            this.wordexDocument.footerTemplate
-          ),
-          { paged }
-        );
-        const pageDataAttrs = `
-    data-page-format="${page.format}"
-    data-page-orientation="${page.orientation}"
-    data-page-width="${page.width}"
-    data-page-height="${page.height}"
-    data-margin-top="${page.marginTop}"
-    data-margin-right="${page.marginRight}"
-    data-margin-bottom="${page.marginBottom}"
-    data-margin-left="${page.marginLeft}"`;
-        const extraStyle = paged
-          ? this.getPagedCss()
-          : `
-    .document {
-      width: ${page.width};
-      min-height: ${page.height};
-    }`;
-        const pagedScript = paged
-          ? `  <script src="https://cdn.jsdelivr.net/npm/pagedjs/dist/paged.polyfill.js"><\/script>
-  <script>
-    function wordexCleanupPagedOutput() {
-      document.querySelectorAll(
-        "body.wordex-paged .pagedjs_page_content .header-template, " +
-        "body.wordex-paged .pagedjs_page_content .footer-template"
-      ).forEach(node => node.remove());
-    }
-
-    class WordexPagedCleanup extends (window.Paged && Paged.Handler ? Paged.Handler : class {}) {
-      afterRendered() {
-        wordexCleanupPagedOutput();
-      }
-    }
-
-    if (window.Paged && Paged.registerHandlers) {
-      Paged.registerHandlers(WordexPagedCleanup);
-    }
-
-    window.addEventListener("load", () => {
-      if (window.PagedPolyfill && PagedPolyfill.on) {
-        PagedPolyfill.on("rendered", wordexCleanupPagedOutput);
-      }
-    });
-  <\/script>\n`
-          : "";
-
-        return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <title>${paged ? "Documento Wordex Paginado" : "Documento Wordex"}</title>
-  <style>
-    ${this.getExportCss()}
-    ${extraStyle}
-  </style>
-${pagedScript}</head>
-<body${paged ? ' class="wordex-paged"' : ""}>
-${paged
-  ? `${headerHtml}
-  ${footerHtml}
-  <div class="document"
-    data-wordex-mode="paged"${pageDataAttrs}>
-    <main class="region body-flow">
-      ${bodyHtml}
-    </main>
-  </div>`
-  : `<div class="document"
-    data-wordex-mode="continuous"${pageDataAttrs}>
-    ${headerHtml}
-    <main class="region body-flow">
-      ${bodyHtml}
-    </main>
-    ${footerHtml}
-  </div>`}
-</body>
-</html>`;
-      }
-
-      generateOptionalRegionHtml(tagName, className, blocks) {
-        if (!blocks || blocks.length === 0) {
-          return "";
-        }
-
-        return `<${tagName} class="${className}">
-      ${this.generateRegionHtml(blocks)}
-    </${tagName}>`;
-      }
-
-      generateRegionHtml(blocks) {
-        return blocks.map(block => this.generateBlockHtml(block)).join("\n");
-      }
-
-      generateBlockHtml(block) {
-        if (block.type === "paragraph") {
-          return `<div class="paragraph" style="font-family:${this.escapeAttribute(block.style.fontFamily)};font-size:${this.escapeAttribute(block.style.fontSize)};color:${this.escapeAttribute(block.style.color || "#000000")};text-align:${this.escapeAttribute(block.style.textAlign)};">${block.html || ""}</div>`;
-        }
-
-        if (block.type === "dynamicImage") {
-          const image = this.createDynamicImageElement(block.fieldName, block.align, block.width, block.height);
-          image.dataset.blockX = block.blockX || "0";
-          image.style.marginLeft = Math.max(0, Number(block.blockX || "0") || 0) + "px";
-          return image.outerHTML;
-        }
-
-        if (block.type === "chart") {
-          const chart = this.createChartElement(
-            block.sourceName || "Dados",
-            block.chartType || "bar",
-            block.align || "left",
-            block.width || "100mm",
-            block.height || "60mm"
-          );
-
-          return chart.outerHTML;
-        }
-
-        if (block.type === "textbox") {
-          const textbox = this.createTextboxElement(
-            block.html || "",
-            block.align || "left",
-            block.width || "80mm",
-            block.height || "30mm"
-          );
-
-          return textbox.outerHTML;
-        }
-
-        if (block.type === "table") {
-          return block.html || "";
-        }
-
-        return "";
       }
 
       escapeHtml(value) {
@@ -6317,7 +5540,7 @@ ${paged
       }
     }
 
-    const wordex = new WordexEditor("document", "output", "info");
+    const wordex = new WordexEditor("document");
   </script>
 </body>
 </html>
