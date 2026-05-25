@@ -342,6 +342,18 @@
       outline-offset: -2px;
     }
 
+    .selected-row-cell {
+      outline: 2px solid #33aa55 !important;
+      outline-offset: -2px;
+      background-image: linear-gradient(rgba(51, 170, 85, .10), rgba(51, 170, 85, .10));
+    }
+
+    .selected-column-cell {
+      outline: 2px solid #8a55cc !important;
+      outline-offset: -2px;
+      background-image: linear-gradient(rgba(138, 85, 204, .10), rgba(138, 85, 204, .10));
+    }
+
     [data-align="free"] {
       cursor: default;
     }
@@ -829,6 +841,8 @@
 
   <script>
     class WordexEditor {
+      static objectSelector = ".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox";
+
       static paperFormatList = Object.freeze([
         { value: "A0", text: "A0", width: "841mm", height: "1189mm" },
         { value: "A1", text: "A1", width: "594mm", height: "841mm" },
@@ -885,9 +899,9 @@
         this.info = document.getElementById(infoId);
 
         this.wordexDocument = {
-          version: "1.50",
+          version: "1.63",
           mode: "continuous",
-          description: "Documento contínuo. Conteúdo editável em HTML, com macros simples de relatório e margens automáticas para header/footer, texto padrão por seção e Enter criando novo parágrafo, Ctrl+setas movendo objetos e toolbar agrupado, gráfico isolado, Ctrl+setas sem invadir objetos e parágrafo vazio persistente e Backspace/Delete selecionando objetos adjacentes e excluindo se já selecionados, sem botão excluir objeto, botão de parágrafo apenas para header/footer e setas selecionando parágrafos vizinhos pela primeira/última linha visual e novos parágrafos usando fonte, tamanho e cor atuais da toolbar também no Enter e botão Parágrafo liberado para todas as seções, objeto Textbox, guias visuais permanentes e placeholder de parágrafo vazio fora do fluxo editável, guia permanente do textbox no editor, borda none removendo propriedades e motor JSON para macros de dados.",
+          description: "Documento contínuo. Conteúdo editável em HTML, com macros simples de relatório e margens automáticas para header/footer, texto padrão por seção e Enter criando novo parágrafo, Ctrl+setas movendo objetos e toolbar agrupado, gráfico isolado, Ctrl+setas sem invadir objetos e parágrafo vazio persistente e Backspace/Delete selecionando objetos adjacentes e excluindo se já selecionados, sem botão excluir objeto, botão de parágrafo apenas para header/footer e setas selecionando parágrafos vizinhos pela primeira/última linha visual e novos parágrafos usando fonte, tamanho e cor atuais da toolbar também no Enter e botão Parágrafo liberado para todas as seções, objeto Textbox, guias visuais permanentes e placeholder de parágrafo vazio fora do fluxo editável, guia permanente do textbox no editor, borda none removendo propriedades e motor JSON para macros de dados e Ctrl+Z ignorando diferenças transitórias de seleção da tabela.",
           headerTemplate: [],
           bodyFlow: [],
           footerTemplate: [],
@@ -908,16 +922,46 @@
         this.selectedBlockId = null;
         this.selectedObject = null;
         this.selectedCell = null;
+        this.selectedTableMode = null;
+        this.selectedTableRow = null;
+        this.selectedTableColumnIndex = null;
         this.savedRange = null;
         this.reportData = null;
         this.reportDataFileName = "";
+
+        this.undoStack = [];
+        this.undoIndex = -1;
+        this.maxUndoSteps = 80;
+        this.lastUndoSnapshot = "";
+        this.isRestoringUndo = false;
+        this.isInsertingObject = false;
+
+        /*
+          Captura Ctrl+Z antes do contenteditable/navegador.
+          O listener normal de keydown continua abaixo para as demais teclas.
+        */
+        window.addEventListener("keydown", event => {
+          this.handleUndoShortcut(event);
+        }, true);
 
         this.loadSavedWordexDocumentFromHtml();
 
         this.ensureRequiredParagraphs();
 
         document.addEventListener("selectionchange", () => {
-          this.updateParagraphEmptyState(paragraph);
+          const selection = window.getSelection();
+
+          if (selection?.rangeCount) {
+            const paragraph = this.findParagraphElementFromNode(
+              selection.getRangeAt(0).commonAncestorContainer
+            );
+
+            if (paragraph) {
+              this.updateParagraphEmptyState(paragraph);
+            }
+          }
+
+          this.clearSelectedCellWhenCaretLeavesTable();
           this.saveSelectionIfInsideParagraph();
         });
 
@@ -929,28 +973,58 @@
         });
 
         this.documentElement.addEventListener("click", event => {
+          /*
+            Cliques em tabelas dentro de parágrafos já são tratados no próprio
+            parágrafo/wrapper. Aqui só fica como rede de segurança.
+          */
+          if (event.defaultPrevented || event.wordexTableClickHandled) {
+            return;
+          }
+
           const cell = event.target.closest("td");
 
           if (cell && this.documentElement.contains(cell)) {
             const table = cell.closest(".wordex-table");
 
             if (table) {
-              this.selectObject(table);
-              this.selectTableCell(cell);
+              if (event.ctrlKey || event.metaKey) {
+                event.preventDefault();
+                event.stopPropagation();
+                event.wordexTableClickHandled = true;
+                this.cycleTableComponentSelection(cell);
+              } else {
+                event.wordexTableClickHandled = true;
+                this.selectTableCell(cell);
+              }
+
               return;
             }
           }
 
-          const object = event.target.closest(".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox");
+          const object = event.target.closest(WordexEditor.objectSelector);
 
           if (object) {
             event.stopPropagation();
-            this.selectObject(object);
+
+            if ((event.ctrlKey || event.metaKey) && object.matches(".wordex-table")) {
+              event.preventDefault();
+              event.wordexTableClickHandled = true;
+
+              const cycleCell = this.getCellForTableComponentCycle(object, event.target);
+
+              if (cycleCell) {
+                this.cycleTableComponentSelection(cycleCell);
+              } else {
+                this.selectTableComponent(object, null, "table");
+              }
+            } else {
+              this.selectObject(object);
+            }
           }
         });
 
         this.documentElement.addEventListener("dblclick", event => {
-          const object = event.target.closest(".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox");
+          const object = event.target.closest(WordexEditor.objectSelector);
 
           if (!object) return;
 
@@ -971,6 +1045,10 @@
         });
 
         document.addEventListener("keydown", event => {
+          if (this.handleUndoShortcut(event)) {
+            return;
+          }
+
           if (this.handleInlineObjectDelete(event)) {
             return;
           }
@@ -991,6 +1069,14 @@
         });
 
         this.documentElement.addEventListener("input", event => {
+          /*
+            Inserções programáticas (tabela/imagem) disparam input no contenteditable.
+            Ignorar aqui evita entradas duplicadas ou fora de ordem no histórico.
+          */
+          if (this.isInsertingObject) {
+            return;
+          }
+
           const paragraph = event.target.closest(".paragraph");
           const table = event.target.closest(".wordex-table");
 
@@ -1001,11 +1087,14 @@
           if (table) {
             this.syncStandaloneObjectFromDom(table);
           }
+
+          this.saveUndoStateIfChanged();
         });
 
         this.initializePageControls();
         this.applyPageSettingsToEditor();
         this.render();
+        this.resetUndoHistory();
       }
 
       initializePageControls() {
@@ -1087,6 +1176,7 @@
 
         this.applyPageSettingsToEditor();
         this.updateInfo();
+        this.saveUndoStateIfChanged();
       }
 
       normalizeCssSize(value, fallback) {
@@ -1310,7 +1400,7 @@
         if (!paragraphElement) return false;
 
         if (
-          paragraphElement.querySelector(".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox")
+          paragraphElement.querySelector(WordexEditor.objectSelector)
         ) {
           return true;
         }
@@ -1364,28 +1454,7 @@
       }
 
       createTableHtml(rows, cols, align, width) {
-        const table = document.createElement("table");
-        table.className = "wordex-table";
-        table.contentEditable = "false";
-        table.dataset.wordexType = "table";
-        table.dataset.align = align;
-        table.style.width = width;
-
-        for (let r = 0; r < rows; r++) {
-          const tr = document.createElement("tr");
-
-          for (let c = 0; c < cols; c++) {
-            const td = document.createElement("td");
-            td.contentEditable = "true";
-            td.innerHTML = "<br>";
-            tr.appendChild(td);
-          }
-
-          table.appendChild(tr);
-        }
-
-        this.applyAlignment(table, align);
-        return table.outerHTML;
+        return this.createTableElement(rows, cols, align, width).outerHTML;
       }
 
       clearSelection() {
@@ -1393,6 +1462,9 @@
         this.selectedBlockId = null;
         this.selectedObject = null;
         this.selectedCell = null;
+        this.selectedTableMode = null;
+        this.selectedTableRow = null;
+        this.selectedTableColumnIndex = null;
         this.savedRange = null;
       }
 
@@ -1401,7 +1473,17 @@
       }
 
       findBlockById(blockId) {
-        return this.getSelectedBlocks().find(block => block.id === blockId) || null;
+        if (!blockId) return null;
+
+        for (const region of ["headerTemplate", "bodyFlow", "footerTemplate"]) {
+          const block = this.wordexDocument[region].find(item => item.id === blockId);
+
+          if (block) {
+            return block;
+          }
+        }
+
+        return null;
       }
 
       getSelectedParagraphElement() {
@@ -1429,6 +1511,7 @@
         this.selectedParagraphId = blockId;
         this.selectedBlockId = blockId;
         this.selectedObject = null;
+        this.selectedCell = null;
         this.renderSelection();
         this.updateInfo();
       }
@@ -1454,14 +1537,13 @@
 
         if (!object.matches(".wordex-table")) {
           this.selectedCell = null;
+          this.selectedTableMode = null;
+          this.selectedTableRow = null;
+          this.selectedTableColumnIndex = null;
         }
 
         this.renderSelection();
         this.updateInfo();
-      }
-
-      insertHeaderFooterParagraph() {
-        this.insertParagraph();
       }
 
       insertParagraph() {
@@ -1516,28 +1598,29 @@
         return paragraphElement;
       }
 
+      promptSizeAndAlign(defaultWidth, defaultHeight) {
+        const align = this.askAlignment("left");
+        if (!align) return null;
+
+        const width = prompt("Largura:", defaultWidth);
+        if (!width) return null;
+
+        const height = prompt("Altura:", defaultHeight);
+        if (!height) return null;
+
+        return { align, width, height };
+      }
+
       insertDynamicImage() {
         const fieldName = prompt("Nome da imagem:", "Imagem");
         if (!fieldName) return;
 
-        const align = this.askAlignment("left");
-        if (!align) return;
+        const size = this.promptSizeAndAlign("80mm", "45mm");
+        if (!size) return;
 
-        const width = prompt("Largura:", "80mm");
-        if (!width) return;
-
-        const height = prompt("Altura:", "45mm");
-        if (!height) return;
-
-        const paragraphElement = this.ensureParagraphForInsertion();
-        if (!paragraphElement) return;
-
-        const imageBox = this.createDynamicImageElement(fieldName, align, width, height);
-
-        this.insertNodeInsideCurrentParagraph(imageBox);
-        this.selectedObject = null;
-        this.renderSelection();
-        this.updateInfo();
+        this.insertNodeAtCurrentInsertionPoint(
+          this.createDynamicImageElement(fieldName, size.align, size.width, size.height)
+        );
       }
 
       insertChart() {
@@ -1547,48 +1630,24 @@
         const chartType = this.askChartType("bar");
         if (!chartType) return;
 
-        const align = this.askAlignment("left");
-        if (!align) return;
+        const size = this.promptSizeAndAlign("100mm", "60mm");
+        if (!size) return;
 
-        const width = prompt("Largura:", "100mm");
-        if (!width) return;
-
-        const height = prompt("Altura:", "60mm");
-        if (!height) return;
-
-        const paragraphElement = this.ensureParagraphForInsertion();
-        if (!paragraphElement) return;
-
-        const chartBox = this.createChartElement(sourceName, chartType, align, width, height);
-
-        this.insertNodeInsideCurrentParagraph(chartBox);
-        this.selectedObject = null;
-        this.renderSelection();
-        this.updateInfo();
+        this.insertNodeAtCurrentInsertionPoint(
+          this.createChartElement(sourceName, chartType, size.align, size.width, size.height)
+        );
       }
 
       insertTextbox() {
         const text = prompt("Texto inicial:", "Textbox");
         if (text === null) return;
 
-        const align = this.askAlignment("left");
-        if (!align) return;
+        const size = this.promptSizeAndAlign("80mm", "30mm");
+        if (!size) return;
 
-        const width = prompt("Largura:", "80mm");
-        if (!width) return;
-
-        const height = prompt("Altura:", "30mm");
-        if (!height) return;
-
-        const paragraphElement = this.ensureParagraphForInsertion();
-        if (!paragraphElement) return;
-
-        const textbox = this.createTextboxElement(text, align, width, height);
-
-        this.insertNodeInsideCurrentParagraph(textbox);
-        this.selectedObject = null;
-        this.renderSelection();
-        this.updateInfo();
+        this.insertNodeAtCurrentInsertionPoint(
+          this.createTextboxElement(text, size.align, size.width, size.height)
+        );
       }
 
       askChartType(defaultValue) {
@@ -1621,15 +1680,9 @@
         const width = prompt("Largura da tabela:", "80mm");
         if (!width) return;
 
-        const paragraphElement = this.ensureParagraphForInsertion();
-        if (!paragraphElement) return;
-
         const table = this.createTableElement(rows, cols, align, width);
 
-        this.insertNodeInsideCurrentParagraph(table);
-        this.selectedObject = null;
-        this.renderSelection();
-        this.updateInfo();
+        this.insertNodeAtCurrentInsertionPoint(table);
       }
 
       createDynamicImageElement(fieldName, align, width, height) {
@@ -1815,10 +1868,246 @@
         }
       }
 
+      insertNodeAtCurrentInsertionPoint(node) {
+        this.isInsertingObject = true;
+
+        try {
+          const cell = this.getSelectedCellForInsertion();
+
+          if (cell) {
+            this.insertNodeInsideSelectedTableCell(node, cell);
+            return;
+          }
+
+          this.selectedCell = null;
+
+          const paragraphElement = this.ensureParagraphForInsertion();
+
+          if (!paragraphElement) return;
+
+          this.insertNodeInsideCurrentParagraph(node);
+        } finally {
+          this.isInsertingObject = false;
+        }
+      }
+
+      clearSelectedCellWhenCaretLeavesTable() {
+        if (!this.selectedCell) return;
+
+        const selection = window.getSelection();
+
+        if (!selection || selection.rangeCount === 0) return;
+
+        const range = selection.getRangeAt(0);
+        const element = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+          ? range.commonAncestorContainer
+          : range.commonAncestorContainer.parentElement;
+
+        if (!element || !this.documentElement.contains(element)) return;
+
+        if (!element.closest("td")) {
+          this.selectedCell = null;
+          this.selectedTableMode = null;
+          this.selectedTableRow = null;
+          this.selectedTableColumnIndex = null;
+        }
+      }
+
+      getSelectedCellForInsertion() {
+        /*
+          A célula selecionada só deve vencer quando o caret/seleção atual
+          estiver dentro de uma célula, ou quando não houver uma seleção útil
+          no documento, como acontece depois de clicar no toolbar.
+
+          Se o usuário colocou o caret num parágrafo fora da tabela, não pode
+          continuar inserindo na última célula selecionada.
+        */
+        const cellFromSelection = this.getTableCellFromRangeSelection(window.getSelection());
+
+        if (cellFromSelection) {
+          return cellFromSelection;
+        }
+
+        const cellFromSavedRange = this.getTableCellFromRange(this.savedRange);
+
+        if (cellFromSavedRange) {
+          return cellFromSavedRange;
+        }
+
+        if (this.currentSelectionIsInsideDocumentButOutsideTable()) {
+          this.selectedCell = null;
+          return null;
+        }
+
+        if (this.selectedCell && this.documentElement.contains(this.selectedCell)) {
+          return this.selectedCell;
+        }
+
+        return null;
+      }
+
+      getTableCellFromRangeSelection(selection) {
+        if (!selection || selection.rangeCount === 0) return null;
+
+        return this.getTableCellFromRange(selection.getRangeAt(0));
+      }
+
+      getTableCellFromRange(range) {
+        if (!range) return null;
+
+        const element = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+          ? range.commonAncestorContainer
+          : range.commonAncestorContainer.parentElement;
+
+        const cell = element?.closest?.("td") || null;
+
+        if (!cell || !this.documentElement.contains(cell)) return null;
+
+        const table = cell.closest(".wordex-table");
+
+        return table ? cell : null;
+      }
+
+      currentSelectionIsInsideDocumentButOutsideTable() {
+        const selection = window.getSelection();
+
+        if (!selection || selection.rangeCount === 0) {
+          return false;
+        }
+
+        const range = selection.getRangeAt(0);
+        const element = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+          ? range.commonAncestorContainer
+          : range.commonAncestorContainer.parentElement;
+
+        if (!element || !this.documentElement.contains(element)) {
+          return false;
+        }
+
+        return !element.closest("td");
+      }
+
+      insertNodeInsideSelectedTableCell(node, cell = this.getSelectedCellForInsertion()) {
+        if (!node || !cell) return;
+
+        const paragraphForUndo = cell.closest(".paragraph");
+
+        if (paragraphForUndo) {
+          this.saveUndoCheckpointForParagraph(paragraphForUndo);
+        }
+
+        cell.focus();
+
+        const selection = window.getSelection();
+        let range = null;
+
+        /*
+          Se já existe objeto selecionado dentro da célula, o novo objeto
+          entra depois dele.
+        */
+        if (this.selectedObject && cell.contains(this.selectedObject)) {
+          range = document.createRange();
+          range.setStartAfter(this.selectedObject);
+          range.collapse(true);
+        } else if (
+          selection &&
+          selection.rangeCount > 0 &&
+          cell.contains(selection.getRangeAt(0).commonAncestorContainer)
+        ) {
+          range = selection.getRangeAt(0).cloneRange();
+
+          /*
+            Se o caret estiver dentro de um objeto da célula, sobe para fora.
+          */
+          const container = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+            ? range.commonAncestorContainer
+            : range.commonAncestorContainer.parentElement;
+
+          const objectInSelection = container?.closest?.(WordexEditor.objectSelector);
+
+          if (objectInSelection && cell.contains(objectInSelection)) {
+            range = document.createRange();
+            range.setStartAfter(objectInSelection);
+            range.collapse(true);
+          }
+        } else {
+          range = document.createRange();
+          range.selectNodeContents(cell);
+          range.collapse(false);
+        }
+
+        /*
+          Célula recém-criada costuma ter apenas <br>. Remove esse marcador
+          antes de inserir objeto real.
+        */
+        if (cell.innerHTML.trim().toLowerCase() === "<br>") {
+          cell.innerHTML = "";
+          range = document.createRange();
+          range.selectNodeContents(cell);
+          range.collapse(false);
+        }
+
+        selection.removeAllRanges();
+        selection.addRange(range);
+        range.deleteContents();
+
+        const anchor = document.createTextNode("\u200B");
+        range.insertNode(anchor);
+        range.insertNode(node);
+
+        const afterObjectAnchor = document.createTextNode("\u200B");
+        node.after(afterObjectAnchor);
+
+        this.limitObjectWidthToCell(node, cell);
+
+        const caretRange = document.createRange();
+        caretRange.setStartAfter(afterObjectAnchor);
+        caretRange.collapse(true);
+
+        selection.removeAllRanges();
+        selection.addRange(caretRange);
+
+        const table = cell.closest(".wordex-table");
+
+        if (table) {
+          this.syncObjectAfterChange(table);
+          this.selectObject(table);
+          this.selectTableCell(cell);
+        } else {
+          this.renderSelection();
+          this.updateInfo();
+          this.saveUndoStateIfChanged();
+        }
+
+        this.savedRange = null;
+      }
+
+      limitObjectWidthToCell(object, cell) {
+        if (!object || !cell) return;
+
+        if (!object.matches(WordexEditor.objectSelector)) return;
+
+        const cellWidth = cell.clientWidth;
+
+        if (!cellWidth) return;
+
+        const computed = window.getComputedStyle(object);
+        const marginLeft = parseFloat(computed.marginLeft || "0") || 0;
+        const marginRight = parseFloat(computed.marginRight || "0") || 0;
+        const maxWidth = Math.max(30, Math.floor(cellWidth - marginLeft - marginRight - 4));
+        const currentWidth = object.getBoundingClientRect().width;
+
+        if (currentWidth > maxWidth) {
+          object.style.width = maxWidth + "px";
+        }
+      }
+
       insertNodeInsideCurrentParagraph(node) {
         const paragraphElement = this.getSelectedParagraphElement();
 
         if (!paragraphElement) return;
+
+        this.saveUndoCheckpointForParagraph(paragraphElement);
 
         paragraphElement.focus();
 
@@ -1844,7 +2133,7 @@
             ? range.commonAncestorContainer
             : range.commonAncestorContainer.parentElement;
 
-          const objectInSelection = container?.closest?.(".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox");
+          const objectInSelection = container?.closest?.(WordexEditor.objectSelector);
 
           if (objectInSelection && paragraphElement.contains(objectInSelection)) {
             range = document.createRange();
@@ -1890,6 +2179,49 @@
         this.syncParagraphElement(paragraphElement);
         this.renderSelection();
         this.updateInfo();
+
+        if (node.matches?.("table.wordex-table")) {
+          this.ensureUndoRecordsTableInParagraph(paragraphElement);
+        } else {
+          this.saveUndoStateIfChanged();
+        }
+      }
+
+      ensureUndoRecordsTableInParagraph(paragraphElement) {
+        if (this.isRestoringUndo || !paragraphElement) return;
+
+        this.syncParagraphElement(paragraphElement);
+
+        const snapshot = this.getUndoSnapshot();
+        const blockId = paragraphElement.dataset.blockId;
+        const block = this.findBlockById(blockId);
+        const html = block?.html || "";
+
+        if (!html.includes("wordex-table")) {
+          return;
+        }
+
+        if (
+          this.undoStack[this.undoIndex] === snapshot ||
+          this.getUndoComparableSnapshot(this.undoStack[this.undoIndex]) ===
+            this.getUndoComparableSnapshot(snapshot)
+        ) {
+          this.lastUndoSnapshot = snapshot;
+          return;
+        }
+
+        if (this.undoIndex < this.undoStack.length - 1) {
+          this.undoStack = this.undoStack.slice(0, this.undoIndex + 1);
+        }
+
+        this.undoStack.push(snapshot);
+        this.undoIndex = this.undoStack.length - 1;
+        this.lastUndoSnapshot = snapshot;
+
+        if (this.undoStack.length > this.maxUndoSteps) {
+          this.undoStack.shift();
+          this.undoIndex = Math.max(0, this.undoIndex - 1);
+        }
       }
 
       getMaxObjectWidthInParagraph(object, paragraph) {
@@ -1911,7 +2243,7 @@
       limitObjectWidthToParagraph(object) {
         if (!object) return;
 
-        if (!object.matches(".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox")) return;
+        if (!object.matches(WordexEditor.objectSelector)) return;
 
         const paragraph = object.closest(".paragraph");
 
@@ -1928,7 +2260,88 @@
         }
       }
 
+      resizeSelectedTableComponentBy(deltaWidth, deltaHeight) {
+        if (
+          !this.selectedObject ||
+          !this.selectedObject.matches(".wordex-table") ||
+          !this.selectedTableMode ||
+          this.selectedTableMode === "table"
+        ) {
+          return false;
+        }
+
+        const context = this.getSelectedTableContext();
+
+        if (!context) return false;
+
+        const mode = this.selectedTableMode;
+
+        if (mode === "row") {
+          const rect = context.row.getBoundingClientRect();
+          const newHeight = Math.max(18, Math.round(rect.height + deltaHeight));
+
+          if (deltaHeight === 0) {
+            return true;
+          }
+
+          context.row.style.height = newHeight + "px";
+          Array.from(context.row.cells).forEach(cell => {
+            cell.style.height = newHeight + "px";
+          });
+
+          this.syncObjectAfterChange(context.table);
+          this.selectTableComponent(context.table, context.cell, "row");
+          return true;
+        }
+
+        if (mode === "column") {
+          if (deltaWidth === 0) {
+            return true;
+          }
+
+          const currentCell = context.cell;
+          const currentWidth = currentCell.getBoundingClientRect().width;
+          const newWidth = Math.max(24, Math.round(currentWidth + deltaWidth));
+
+          Array.from(context.table.rows).forEach(row => {
+            const cell = row.cells[context.columnIndex];
+
+            if (cell) {
+              cell.style.width = newWidth + "px";
+            }
+          });
+
+          this.syncObjectAfterChange(context.table);
+          this.selectTableComponent(context.table, context.cell, "column");
+          return true;
+        }
+
+        if (mode === "cell") {
+          const rect = context.cell.getBoundingClientRect();
+          const newWidth = Math.max(24, Math.round(rect.width + deltaWidth));
+          const newHeight = Math.max(18, Math.round(rect.height + deltaHeight));
+
+          if (deltaWidth !== 0) {
+            context.cell.style.width = newWidth + "px";
+          }
+
+          if (deltaHeight !== 0) {
+            context.cell.style.height = newHeight + "px";
+          }
+
+          this.syncObjectAfterChange(context.table);
+          this.selectTableComponent(context.table, context.cell, "cell");
+          return true;
+        }
+
+        return false;
+      }
+
       resizeSelectedObjectBy(deltaWidth, deltaHeight) {
+        if (this.resizeSelectedTableComponentBy(deltaWidth, deltaHeight)) {
+          return;
+        }
+
         if (!this.selectedObject) {
           alert("Selecione uma imagem, gráfico, textbox ou tabela.");
           return;
@@ -2251,39 +2664,15 @@
       }
 
       toggleBold() {
-        this.applyFormatting({
-          fontWeight: "bold"
-        });
-      }
-
-      removeBold() {
-        this.applyFormatting({
-          fontWeight: "normal"
-        });
+        this.applyFormatting({ fontWeight: "bold" });
       }
 
       toggleItalic() {
-        this.applyFormatting({
-          fontStyle: "italic"
-        });
-      }
-
-      removeItalic() {
-        this.applyFormatting({
-          fontStyle: "normal"
-        });
+        this.applyFormatting({ fontStyle: "italic" });
       }
 
       toggleUnderline() {
-        this.applyFormatting({
-          textDecoration: "underline"
-        });
-      }
-
-      removeUnderline() {
-        this.applyFormatting({
-          textDecoration: "none"
-        });
+        this.applyFormatting({ textDecoration: "underline" });
       }
 
       clearTextEmphasis() {
@@ -2347,6 +2736,11 @@
       }
 
       applyBorderToCurrent() {
+        if (this.selectedObject?.matches?.(".wordex-table") && this.selectedTableMode) {
+          this.applyBorderToSelectedTableComponent();
+          return;
+        }
+
         if (this.selectedCell) {
           this.applyBorderToSelectedTableCell();
           return;
@@ -2372,83 +2766,63 @@
         alert("Selecione um parágrafo, imagem, tabela ou célula.");
       }
 
-      clearBorderFromCurrent() {
-        if (this.selectedCell) {
-          this.clearBorderStyle(this.selectedCell);
-          const table = this.selectedCell.closest(".wordex-table");
-          if (table) {
-            this.syncObjectAfterChange(table);
-            this.selectObject(table);
-            this.selectTableCell(this.selectedCell);
-          }
-          return;
+      forEachSelectedTableTarget(mode, callback) {
+        const context = this.getSelectedTableContext();
+        if (!context) return null;
+
+        if (mode === "cell") {
+          callback(context.cell);
+        } else if (mode === "row") {
+          Array.from(context.row.cells).forEach(callback);
+        } else if (mode === "column") {
+          Array.from(context.table.rows).forEach(row => {
+            const cell = row.cells[context.columnIndex];
+            if (cell) callback(cell);
+          });
+        } else if (mode === "table") {
+          callback(context.table);
+          context.table.querySelectorAll("td").forEach(callback);
         }
 
-        if (this.selectedObject) {
-          this.clearBorderStyle(this.selectedObject);
+        return context;
+      }
 
-          if (this.selectedObject.matches(".wordex-table")) {
-            this.selectedObject.querySelectorAll("td").forEach(cell => {
-              this.clearBorderStyle(cell);
-            });
-          }
+      applyBorderToSelectedTableComponent() {
+        const context = this.getSelectedTableContext();
 
-          this.syncObjectAfterChange(this.selectedObject);
-          this.keepObjectSelected(this.selectedObject);
-          return;
+        if (!context) return;
+
+        const mode = this.selectedTableMode || "cell";
+
+        if (mode === "table") {
+          this.applyBorderToSelectedTable();
+        } else if (mode === "row") {
+          this.applyBorderToSelectedTableRow();
+        } else if (mode === "column") {
+          this.applyBorderToSelectedTableColumn();
+        } else {
+          this.applyBorderToSelectedTableCell();
         }
-
-        const paragraph = this.getSelectedParagraphElement();
-
-        if (paragraph) {
-          this.clearBorderStyle(paragraph);
-          this.syncParagraphElement(paragraph);
-          this.renderSelection();
-          this.updateInfo();
-          return;
-        }
-
-        alert("Selecione um parágrafo, imagem, tabela ou célula.");
       }
 
       applyBorderToSelectedTableCell() {
-        const context = this.getSelectedTableContext();
-        if (!context) return;
-
-        this.applyBorderStyle(context.cell);
-        this.selectObject(context.table);
-        this.selectTableCell(context.cell);
-        this.syncObjectAfterChange(context.table);
+        this.applyBorderToSelectedTableScope("cell");
       }
 
       applyBorderToSelectedTableRow() {
-        const context = this.getSelectedTableContext();
-        if (!context) return;
-
-        Array.from(context.row.cells).forEach(cell => {
-          this.applyBorderStyle(cell);
-        });
-
-        this.selectObject(context.table);
-        this.selectTableCell(context.cell);
-        this.syncObjectAfterChange(context.table);
+        this.applyBorderToSelectedTableScope("row");
       }
 
       applyBorderToSelectedTableColumn() {
-        const context = this.getSelectedTableContext();
+        this.applyBorderToSelectedTableScope("column");
+      }
+
+      applyBorderToSelectedTableScope(mode) {
+        const context = this.forEachSelectedTableTarget(mode, cell => this.applyBorderStyle(cell));
         if (!context) return;
 
-        Array.from(context.table.rows).forEach(row => {
-          const cell = row.cells[context.columnIndex];
-
-          if (cell) {
-            this.applyBorderStyle(cell);
-          }
-        });
-
-        this.selectObject(context.table);
-        this.selectTableCell(context.cell);
         this.syncObjectAfterChange(context.table);
+        this.selectTableComponent(context.table, context.cell, mode);
       }
 
       applyBorderToSelectedTable() {
@@ -2461,9 +2835,8 @@
             this.applyBorderStyle(cell);
           });
 
-          this.selectObject(context.table);
-          this.selectTableCell(context.cell);
           this.syncObjectAfterChange(context.table);
+          this.selectTableComponent(context.table, context.cell, "table");
           return;
         }
 
@@ -2485,12 +2858,99 @@
       selectTableCell(cell) {
         if (!cell) return;
 
-        this.selectedCell = cell;
+        const table = cell.closest(".wordex-table");
+
+        if (!table) return;
+
+        this.selectTableComponent(table, cell, "cell");
+      }
+
+      getCellForTableComponentCycle(table, target) {
+        if (!table) return null;
+
+        const targetElement = target && target.nodeType === Node.ELEMENT_NODE
+          ? target
+          : target?.parentElement;
+
+        const targetCell = targetElement?.closest?.("td") || null;
+
+        if (targetCell && table.contains(targetCell)) {
+          return targetCell;
+        }
+
+        if (this.selectedCell && table.contains(this.selectedCell)) {
+          return this.selectedCell;
+        }
+
+        return table.rows?.[0]?.cells?.[0] || null;
+      }
+
+      cycleTableComponentSelection(cell) {
+        if (!cell) return;
 
         const table = cell.closest(".wordex-table");
 
-        if (table) {
-          this.selectedObject = table;
+        if (!table) return;
+
+        const currentMode =
+          this.selectedObject === table
+            ? (this.selectedTableMode || table.dataset.wordexSelectionMode || "cell")
+            : (table.dataset.wordexSelectionMode || "cell");
+
+        let nextMode = "table";
+
+        if (currentMode === "table") {
+          nextMode = "row";
+        } else if (currentMode === "row") {
+          nextMode = "column";
+        } else if (currentMode === "column") {
+          nextMode = "table";
+        } else {
+          /*
+            Modo cell ou indefinido: primeiro Ctrl+clique sobe para tabela.
+          */
+          nextMode = "table";
+        }
+
+        this.selectTableComponent(table, cell, nextMode);
+      }
+
+      selectTableComponent(table, cell, mode) {
+        if (!table) return;
+
+        this.selectedObject = table;
+        this.selectedCell = cell || this.selectedCell;
+        this.selectedTableMode = mode || "table";
+        table.dataset.wordexSelectionMode = this.selectedTableMode;
+        this.selectedTableRow = cell ? cell.parentElement : null;
+        this.selectedTableColumnIndex = cell && cell.parentElement
+          ? Array.from(cell.parentElement.cells).indexOf(cell)
+          : null;
+
+        if (this.selectedTableMode !== "cell") {
+          const selection = window.getSelection();
+
+          if (selection) {
+            selection.removeAllRanges();
+          }
+
+          this.savedRange = null;
+        }
+
+        const paragraph = table.closest(".paragraph");
+        const block = table.closest(".paragraph-block, .object-block");
+        const region = table.closest(".region");
+
+        if (region) {
+          this.selected.region = region.dataset.region;
+        }
+
+        if (paragraph) {
+          this.selectedParagraphId = paragraph.dataset.blockId;
+          this.selectedBlockId = paragraph.dataset.blockId;
+        } else if (block) {
+          this.selectedParagraphId = null;
+          this.selectedBlockId = block.dataset.blockId;
         }
 
         this.renderSelection();
@@ -2545,28 +3005,14 @@
         };
       }
 
-      alignSelectedTableCell() {
+      alignSelectedTable(scope) {
         const context = this.getSelectedTableContext();
         if (!context) return;
 
         const align = this.askTableAlignment();
         if (!align) return;
 
-        context.cell.style.textAlign = align;
-
-        this.selectObject(context.table);
-        this.selectTableCell(context.cell);
-        this.syncObjectAfterChange(context.table);
-      }
-
-      alignSelectedTableRow() {
-        const context = this.getSelectedTableContext();
-        if (!context) return;
-
-        const align = this.askTableAlignment();
-        if (!align) return;
-
-        Array.from(context.row.cells).forEach(cell => {
+        this.forEachSelectedTableTarget(scope, cell => {
           cell.style.textAlign = align;
         });
 
@@ -2575,24 +3021,16 @@
         this.syncObjectAfterChange(context.table);
       }
 
+      alignSelectedTableCell() {
+        this.alignSelectedTable("cell");
+      }
+
+      alignSelectedTableRow() {
+        this.alignSelectedTable("row");
+      }
+
       alignSelectedTableColumn() {
-        const context = this.getSelectedTableContext();
-        if (!context) return;
-
-        const align = this.askTableAlignment();
-        if (!align) return;
-
-        Array.from(context.table.rows).forEach(row => {
-          const cell = row.cells[context.columnIndex];
-
-          if (cell) {
-            cell.style.textAlign = align;
-          }
-        });
-
-        this.selectObject(context.table);
-        this.selectTableCell(context.cell);
-        this.syncObjectAfterChange(context.table);
+        this.alignSelectedTable("column");
       }
 
       applyParagraphAlign(align) {
@@ -2675,6 +3113,7 @@
         this.syncParagraphElement(paragraph);
         this.renderSelection();
         this.updateInfo();
+        this.saveUndoStateIfChanged();
 
         return true;
       }
@@ -2694,6 +3133,7 @@
 
         this.renderSelection();
         this.updateInfo();
+        this.saveUndoStateIfChanged();
       }
 
       applyFormattingToSelectedObject(style) {
@@ -2725,6 +3165,183 @@
         });
       }
 
+      handleUndoShortcut(event) {
+        if (event.wordexUndoHandled) {
+          return false;
+        }
+
+        const key = String(event.key || "").toLowerCase();
+
+        if (!(event.ctrlKey || event.metaKey)) {
+          return false;
+        }
+
+        if (event.shiftKey || event.altKey || key !== "z") {
+          return false;
+        }
+
+        /*
+          Não sequestra Ctrl+Z em campos auxiliares do próprio navegador/editor.
+        */
+        const target = event.target;
+
+        if (
+          target?.closest?.(".toolbar") ||
+          target?.matches?.("textarea, input, select")
+        ) {
+          return false;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.wordexUndoHandled = true;
+
+        this.undoLastChange();
+        return true;
+      }
+
+      getUndoSnapshot() {
+        return JSON.stringify(this.wordexDocument);
+      }
+
+      getUndoComparableSnapshot(snapshot = this.getUndoSnapshot()) {
+        /*
+          Comparação lógica do undo.
+          Diferenças transitórias de seleção da tabela não devem criar um
+          passo extra no Ctrl+Z.
+        */
+        return String(snapshot || "")
+          .replace(/\sdata-wordex-selection-mode="[^"]*"/g, "")
+          .replace(/\sclass=""/g, "")
+          .replace(/\sclass="(?:selected-object|selected-cell|selected-row-cell|selected-column-cell)"/g, "");
+      }
+
+      resetUndoHistory() {
+        const snapshot = this.getUndoSnapshot();
+
+        this.undoStack = [snapshot];
+        this.undoIndex = 0;
+        this.lastUndoSnapshot = snapshot;
+      }
+
+      saveUndoCheckpointForParagraph(paragraphElement) {
+        if (this.isRestoringUndo || !paragraphElement) return;
+
+        this.syncParagraphElement(paragraphElement);
+        this.saveUndoStateIfChanged();
+      }
+
+      syncDocumentFromDomForUndo() {
+        if (!this.documentElement) return;
+
+        this.documentElement.querySelectorAll(".paragraph").forEach(paragraphElement => {
+          this.syncParagraphElement(paragraphElement);
+        });
+
+        this.documentElement.querySelectorAll(".object-block").forEach(wrapper => {
+          const object = wrapper.querySelector(WordexEditor.objectSelector);
+
+          if (object) {
+            this.syncStandaloneObjectFromDom(object);
+          }
+        });
+      }
+
+      saveUndoStateIfChanged() {
+        if (this.isRestoringUndo) return;
+
+        const snapshot = this.getUndoSnapshot();
+        const currentHistorySnapshot = this.undoStack[this.undoIndex];
+
+        if (
+          snapshot === currentHistorySnapshot ||
+          this.getUndoComparableSnapshot(snapshot) ===
+            this.getUndoComparableSnapshot(currentHistorySnapshot)
+        ) {
+          this.lastUndoSnapshot = snapshot;
+          return;
+        }
+
+        /*
+          Se o usuário desfez e depois alterou o documento,
+          descarta o futuro do histórico.
+        */
+        if (this.undoIndex < this.undoStack.length - 1) {
+          this.undoStack = this.undoStack.slice(0, this.undoIndex + 1);
+        }
+
+        this.undoStack.push(snapshot);
+        this.undoIndex = this.undoStack.length - 1;
+        this.lastUndoSnapshot = snapshot;
+
+        if (this.undoStack.length > this.maxUndoSteps) {
+          this.undoStack.shift();
+          this.undoIndex = Math.max(0, this.undoIndex - 1);
+        }
+      }
+
+      countTablesInUndoSnapshot(snapshot) {
+        return (String(snapshot || "").match(/wordex-table/g) || []).length;
+      }
+
+      undoSnapshotWouldLoseTables(storedSnapshot, liveSnapshot) {
+        return (
+          this.countTablesInUndoSnapshot(storedSnapshot) >
+          this.countTablesInUndoSnapshot(liveSnapshot)
+        );
+      }
+
+      undoLastChange() {
+        if (this.undoStack.length === 0 || this.undoIndex <= 0) {
+          alert("Nada para desfazer.");
+          return;
+        }
+
+        /*
+          Mescla edição de texto ainda não salva no índice atual (sem criar entrada nova).
+          Se a sincronização omitir tabelas do HTML, não sobrescreve o snapshot guardado.
+        */
+        const storedSnapshot = this.undoStack[this.undoIndex];
+
+        this.isRestoringUndo = true;
+        this.syncDocumentFromDomForUndo();
+        const liveSnapshot = this.getUndoSnapshot();
+
+        if (!this.undoSnapshotWouldLoseTables(storedSnapshot, liveSnapshot)) {
+          this.undoStack[this.undoIndex] = liveSnapshot;
+          this.lastUndoSnapshot = liveSnapshot;
+        }
+
+        this.isRestoringUndo = false;
+
+        const currentComparable = this.getUndoComparableSnapshot(this.undoStack[this.undoIndex]);
+
+        do {
+          this.undoIndex--;
+        } while (
+          this.undoIndex > 0 &&
+          this.getUndoComparableSnapshot(this.undoStack[this.undoIndex]) === currentComparable
+        );
+
+        this.restoreUndoSnapshot(this.undoStack[this.undoIndex]);
+      }
+
+      restoreUndoSnapshot(snapshot) {
+        try {
+          this.isRestoringUndo = true;
+
+          this.wordexDocument = JSON.parse(snapshot);
+          this.lastUndoSnapshot = snapshot;
+
+          this.clearSelection();
+          this.render();
+        } catch (error) {
+          alert("Erro ao desfazer: " + error.message);
+        } finally {
+          this.isRestoringUndo = false;
+        }
+      }
+
       handleInlineObjectDelete(event) {
         if (event.key !== "Backspace" && event.key !== "Delete") {
           return false;
@@ -2735,20 +3352,34 @@
         }
 
         /*
-          Dentro de célula de tabela ou textbox, Backspace/Delete continua sendo edição
-          normal do conteúdo.
+          Dentro de textbox, Backspace/Delete continua sendo edição normal.
+          Dentro de célula de tabela, porém, o Wordex precisa conseguir
+          selecionar/excluir objetos inseridos na célula.
         */
-        if (event.target.closest("td, .wordex-textbox")) {
+        if (event.target.closest(".wordex-textbox")) {
           return false;
         }
 
         /*
-          Se já há um objeto selecionado, Backspace/Delete exclui esse objeto.
-          Isso dá o comportamento em dois tempos:
-          1ª tecla seleciona o objeto
-          2ª tecla exclui.
+          Se uma célula está selecionada, a tabela dona da célula também fica
+          marcada como selectedObject para fins de edição da tabela.
+          Nesse caso, Backspace/Delete NÃO pode apagar essa tabela inteira.
+          Primeiro deve tentar achar objeto dentro da célula.
         */
-        if (this.selectedObject && this.documentElement.contains(this.selectedObject)) {
+        const selectedCellTable = this.selectedCell?.closest?.(".wordex-table") || null;
+        const selectedObjectIsOwnerTable =
+          selectedCellTable &&
+          this.selectedObject === selectedCellTable;
+
+        /*
+          Se já há um objeto selecionado, Backspace/Delete exclui esse objeto,
+          exceto quando esse objeto é apenas a tabela dona da célula selecionada.
+        */
+        if (
+          this.selectedObject &&
+          this.documentElement.contains(this.selectedObject) &&
+          !selectedObjectIsOwnerTable
+        ) {
           event.preventDefault();
           event.stopPropagation();
 
@@ -2763,13 +3394,13 @@
         }
 
         const range = selection.getRangeAt(0);
-        const paragraph = this.findParagraphElementFromNode(range.commonAncestorContainer);
+        const container = this.findDeletionContainerFromNode(range.commonAncestorContainer);
 
-        if (!paragraph || !this.documentElement.contains(paragraph)) {
+        if (!container || !this.documentElement.contains(container)) {
           return false;
         }
 
-        const result = this.findAdjacentObjectAtCaret(paragraph, range, event.key);
+        const result = this.findAdjacentObjectAtCaret(container, range, event.key);
 
         if (!result || !result.object || !result.marker) {
           return false;
@@ -2788,10 +3419,28 @@
 
         this.selectObject(result.object);
 
+        const cell = result.object.closest("td");
+        if (cell) {
+          this.selectedCell = cell;
+        }
+
         return true;
       }
 
-      findAdjacentObjectAtCaret(paragraph, range, key) {
+      findDeletionContainerFromNode(node) {
+        if (!node) return null;
+
+        const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+        if (!element) return null;
+
+        /*
+          Se o caret está numa célula, a célula é o container de edição.
+          Caso contrário, usa o parágrafo.
+        */
+        return element.closest("td") || element.closest(".paragraph");
+      }
+
+      findAdjacentObjectAtCaret(container, range, key) {
         const marker = document.createElement("span");
         marker.dataset.wordexCaretMarker = "1";
         marker.style.display = "inline-block";
@@ -2803,7 +3452,7 @@
         const workRange = range.cloneRange();
         workRange.insertNode(marker);
 
-        const units = this.getParagraphDeletionUnits(paragraph, marker);
+        const units = this.getDeletionUnits(container, marker);
         const index = units.indexOf(marker);
 
         if (index < 0) {
@@ -2862,7 +3511,7 @@
         return null;
       }
 
-      getParagraphDeletionUnits(paragraph, marker) {
+      getDeletionUnits(container, marker) {
         const units = [];
 
         const walk = node => {
@@ -2880,15 +3529,12 @@
             return;
           }
 
+          /*
+            Objetos Wordex contam como uma unidade apagável.
+            Não entramos no conteúdo interno deles.
+          */
           if (this.isWordexInlineObject(node)) {
             units.push(node);
-            return;
-          }
-
-          /*
-            Não entra no conteúdo interno dos objetos.
-          */
-          if (node.closest && node.closest(".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox")) {
             return;
           }
 
@@ -2903,7 +3549,7 @@
           Array.from(node.childNodes).forEach(child => walk(child));
         };
 
-        Array.from(paragraph.childNodes).forEach(child => walk(child));
+        Array.from(container.childNodes).forEach(child => walk(child));
 
         return units;
       }
@@ -2912,7 +3558,7 @@
         return Boolean(
           node &&
           node.nodeType === Node.ELEMENT_NODE &&
-          node.matches(".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox")
+          node.matches(WordexEditor.objectSelector)
         );
       }
 
@@ -3637,7 +4283,7 @@
           : parent.parentElement;
 
         if (
-          parentElement?.closest?.(".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox")
+          parentElement?.closest?.(WordexEditor.objectSelector)
         ) {
           return;
         }
@@ -3715,6 +4361,16 @@
           return;
         }
 
+        /*
+          Proteção: célula selecionada deixa a tabela dona da célula como objeto
+          selecionado. Essa seleção é operacional; não deve apagar a tabela.
+        */
+        const selectedCellTable = this.selectedCell?.closest?.(".wordex-table") || null;
+
+        if (selectedCellTable && this.selectedObject === selectedCellTable) {
+          return;
+        }
+
         const paragraph = this.selectedObject.closest(".paragraph");
         const objectBlock = this.selectedObject.closest(".object-block");
 
@@ -3751,11 +4407,13 @@
 
         if (paragraph) {
           this.syncParagraphElement(paragraph);
+          this.saveUndoStateIfChanged();
           return;
         }
 
         if (objectBlock) {
           this.syncStandaloneObjectFromDom(object);
+          this.saveUndoStateIfChanged();
         }
       }
 
@@ -3801,26 +4459,84 @@
       getCleanInnerHtml(paragraphElement) {
         const clone = paragraphElement.cloneNode(true);
 
-        clone.querySelectorAll(".selected-object").forEach(element => {
-          element.classList.remove("selected-object");
-        });
+        this.removeTransientEditorArtifacts(clone);
 
-        clone.querySelectorAll(".selected-cell").forEach(element => {
-          element.classList.remove("selected-cell");
-        });
+        /*
+          Tabelas (contenteditable=false dentro do parágrafo) por vezes não entram
+          de forma fiável no innerHTML do clone. Por isso, quando houver tabela,
+          serializamos os filhos já limpos um a um.
+        */
+        if (clone.querySelector("table.wordex-table")) {
+          return this.serializeParagraphInlineObjects(clone);
+        }
 
         return clone.innerHTML;
       }
 
-      getCleanOuterHtml(element) {
-        const clone = element.cloneNode(true);
-        clone.classList.remove("selected-object");
+      serializeParagraphInlineObjects(paragraphElement) {
+        const parts = [];
 
-        clone.querySelectorAll(".selected-cell").forEach(item => {
-          item.classList.remove("selected-cell");
+        paragraphElement.childNodes.forEach(child => {
+          if (child.nodeType === Node.TEXT_NODE) {
+            parts.push(child.textContent);
+            return;
+          }
+
+          if (child.nodeType !== Node.ELEMENT_NODE) {
+            return;
+          }
+
+          if (child.matches(WordexEditor.objectSelector)) {
+            parts.push(this.getCleanOuterHtml(child));
+            return;
+          }
+
+          if (child.tagName === "BR") {
+            parts.push("<br>");
+            return;
+          }
+
+          parts.push(child.outerHTML);
         });
 
+        return parts.join("");
+      }
+
+      getCleanOuterHtml(element) {
+        const clone = element.cloneNode(true);
+
+        this.removeTransientEditorArtifacts(clone);
+
         return clone.outerHTML;
+      }
+
+      removeTransientEditorArtifacts(root) {
+        if (!root) return;
+
+        const cleanElement = element => {
+          if (!element || !element.classList) return;
+
+          element.classList.remove(
+            "selected-object",
+            "selected-cell",
+            "selected-row-cell",
+            "selected-column-cell",
+            "selected-block",
+            "selected"
+          );
+
+          element.removeAttribute("data-wordex-selection-mode");
+
+          if (element.getAttribute("class") === "") {
+            element.removeAttribute("class");
+          }
+        };
+
+        cleanElement(root);
+
+        if (root.querySelectorAll) {
+          root.querySelectorAll("*").forEach(cleanElement);
+        }
       }
 
       saveSelectionIfInsideParagraph() {
@@ -3832,6 +4548,13 @@
         const paragraphElement = this.findParagraphElementFromNode(range.commonAncestorContainer);
 
         if (!paragraphElement) return;
+
+        if (!paragraphElement.closest("td")) {
+          this.selectedCell = null;
+          this.selectedTableMode = null;
+          this.selectedTableRow = null;
+          this.selectedTableColumnIndex = null;
+        }
 
         this.selectedParagraphId = paragraphElement.dataset.blockId;
         this.selectedBlockId = paragraphElement.dataset.blockId;
@@ -3952,6 +4675,10 @@
 
         this.renderSelection();
         this.updateInfo();
+
+        if (!this.isInsertingObject) {
+          this.saveUndoStateIfChanged();
+        }
       }
 
       renderRegion(region, cssClass, emptyText) {
@@ -3999,10 +4726,47 @@
         wrapper.addEventListener("click", event => {
           event.stopPropagation();
 
-          const object = event.target.closest(".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox");
+          if (event.defaultPrevented || event.wordexTableClickHandled) {
+            return;
+          }
+
+          const cell = event.target.closest("td");
+
+          if (cell && wrapper.contains(cell)) {
+            const table = cell.closest(".wordex-table");
+
+            if (table) {
+              event.wordexTableClickHandled = true;
+
+              if (event.ctrlKey || event.metaKey) {
+                event.preventDefault();
+                this.cycleTableComponentSelection(cell);
+              } else {
+                this.selectTableCell(cell);
+              }
+
+              return;
+            }
+          }
+
+          const object = event.target.closest(WordexEditor.objectSelector);
 
           if (object && wrapper.contains(object)) {
-            this.selectObject(object);
+            if ((event.ctrlKey || event.metaKey) && object.matches(".wordex-table")) {
+              event.preventDefault();
+              event.wordexTableClickHandled = true;
+
+              const cycleCell = this.getCellForTableComponentCycle(object, event.target);
+
+              if (cycleCell) {
+                this.cycleTableComponentSelection(cycleCell);
+              } else {
+                this.selectTableComponent(object, null, "table");
+              }
+            } else {
+              this.selectObject(object);
+            }
+
             return;
           }
 
@@ -4024,7 +4788,7 @@
         paragraph.classList.toggle("is-empty", this.isParagraphHtmlEmpty(block.html));
 
         requestAnimationFrame(() => {
-          paragraph.querySelectorAll(".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox").forEach(object => {
+          paragraph.querySelectorAll(WordexEditor.objectSelector).forEach(object => {
             this.limitObjectWidthToParagraph(object);
             this.syncParagraphElement(paragraph);
           });
@@ -4042,21 +4806,48 @@
         });
 
         paragraph.addEventListener("click", event => {
+          if (event.defaultPrevented || event.wordexTableClickHandled) {
+            return;
+          }
+
           const cell = event.target.closest("td");
 
           if (cell && paragraph.contains(cell)) {
             const table = cell.closest(".wordex-table");
             if (table) {
-              this.selectObject(table);
-              this.selectTableCell(cell);
+              event.stopPropagation();
+              event.wordexTableClickHandled = true;
+
+              if (event.ctrlKey || event.metaKey) {
+                event.preventDefault();
+                this.cycleTableComponentSelection(cell);
+              } else {
+                this.selectTableCell(cell);
+              }
+
               return;
             }
           }
 
-          const object = event.target.closest(".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox");
+          const object = event.target.closest(WordexEditor.objectSelector);
 
           if (object && paragraph.contains(object)) {
-            this.selectObject(object);
+            if ((event.ctrlKey || event.metaKey) && object.matches(".wordex-table")) {
+              event.preventDefault();
+              event.stopPropagation();
+              event.wordexTableClickHandled = true;
+
+              const cycleCell = this.getCellForTableComponentCycle(object, event.target);
+
+              if (cycleCell) {
+                this.cycleTableComponentSelection(cycleCell);
+              } else {
+                this.selectTableComponent(object, null, "table");
+              }
+            } else {
+              this.selectObject(object);
+            }
+
             return;
           }
 
@@ -4124,12 +4915,56 @@
           element.classList.remove("selected-cell");
         });
 
+        this.documentElement.querySelectorAll(".selected-row-cell").forEach(element => {
+          element.classList.remove("selected-row-cell");
+        });
+
+        this.documentElement.querySelectorAll(".selected-column-cell").forEach(element => {
+          element.classList.remove("selected-column-cell");
+        });
+
         if (this.selectedObject && this.documentElement.contains(this.selectedObject)) {
-          this.selectedObject.classList.add("selected-object");
+          const isTableComponentSelection =
+            this.selectedObject.matches(".wordex-table") &&
+            this.selectedTableMode &&
+            this.selectedTableMode !== "table";
+
+          if (!isTableComponentSelection) {
+            this.selectedObject.classList.add("selected-object");
+          }
         }
 
-        if (this.selectedCell && this.documentElement.contains(this.selectedCell)) {
+        if (
+          this.selectedCell &&
+          this.documentElement.contains(this.selectedCell) &&
+          this.selectedTableMode === "cell"
+        ) {
           this.selectedCell.classList.add("selected-cell");
+        }
+
+        if (
+          this.selectedTableMode === "row" &&
+          this.selectedTableRow &&
+          this.documentElement.contains(this.selectedTableRow)
+        ) {
+          Array.from(this.selectedTableRow.cells).forEach(cell => {
+            cell.classList.add("selected-row-cell");
+          });
+        }
+
+        if (
+          this.selectedTableMode === "column" &&
+          this.selectedObject &&
+          this.selectedObject.matches(".wordex-table") &&
+          Number.isInteger(this.selectedTableColumnIndex)
+        ) {
+          Array.from(this.selectedObject.rows).forEach(row => {
+            const cell = row.cells[this.selectedTableColumnIndex];
+
+            if (cell) {
+              cell.classList.add("selected-column-cell");
+            }
+          });
         }
       }
 
@@ -4166,8 +5001,16 @@
                 ? " / textbox selecionado"
                 : " / tabela selecionada";
 
-          if (this.selectedCell) {
-            objectInfo += " / célula selecionada";
+          if (this.selectedObject.matches(".wordex-table")) {
+            if (this.selectedTableMode === "table") {
+              objectInfo += " / tabela inteira";
+            } else if (this.selectedTableMode === "cell") {
+              objectInfo += " / célula selecionada";
+            } else if (this.selectedTableMode === "row") {
+              objectInfo += " / linha selecionada";
+            } else if (this.selectedTableMode === "column") {
+              objectInfo += " / coluna selecionada";
+            }
           }
 
           if (this.selectedObject.closest(".paragraph")) {
@@ -4209,6 +5052,11 @@
       }
 
       syncCurrentEditingState() {
+        if (this.isRestoringUndo) {
+          this.syncDocumentFromDomForUndo();
+          return;
+        }
+
         const paragraph = this.getSelectedParagraphElement();
 
         if (paragraph) {
