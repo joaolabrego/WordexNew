@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wordex - MVP Contínuo</title>
+  <title>Wordex - MVP Contínuo v191</title>
 
   <style id="wordex-editor-style">
     * { box-sizing: border-box; }
@@ -457,6 +457,13 @@
     </div>
 
     <div class="toolbar-group">
+      <span class="toolbar-title">Clipboard</span>
+      <button onclick="wordex.copySelectedWordexBlockToClipboard()">Copiar bloco</button>
+      <button onclick="wordex.cutSelectedWordexBlockToClipboard()">Recortar bloco</button>
+      <button onclick="wordex.pasteWordexBlockFromClipboard()">Colar bloco</button>
+    </div>
+
+    <div class="toolbar-group">
       <span class="toolbar-title">Página</span>
       <select id="pageFormat" onchange="wordex.applyPageSettingsFromToolbar()"></select>
       <select id="pageOrientation" onchange="wordex.applyPageSettingsFromToolbar()">
@@ -522,14 +529,13 @@
       <span class="toolbar-title">Linha</span>
       <select id="tableRowType" onchange="wordex.applySelectedTableRowType(this.value)">
         <option value="">Tipo da linha</option>
-        <option value="TableHeader">TableHeader</option>
         <option value="ColumnHeader">ColumnHeader</option>
         <option value="GroupHeader">GroupHeader</option>
         <option value="Detail">Detail</option>
         <option value="GroupFooter">GroupFooter</option>
-        <option value="TableFooter">TableFooter</option>
-      </select>
+              </select>
       <button onclick="wordex.clearSelectedTableRowType()">Limpar</button>
+      <button onclick="wordex.configureSelectedTableRow()">Config linha</button>
     </div>
 
     <div class="toolbar-group">
@@ -580,6 +586,7 @@
       <input id="jsonFileInput" type="file" accept=".json,application/json" style="display:none" onchange="wordex.loadJsonFile(this.files[0]); this.value='';" />
       <button onclick="wordex.chooseJsonFile()">Carregar JSON</button>
       <button onclick="wordex.clearJsonData()">Limpar JSON</button>
+      <button class="primary" onclick="wordex.generateHtmlFromJson()">Montar HTML</button>
     </div>
 
     <div class="toolbar-group">
@@ -654,9 +661,9 @@
         this.documentElement = document.getElementById(documentId);
 
         this.wordexDocument = {
-          version: "1.79",
+          version: "1.91",
           mode: "continuous",
-          description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas e objetos).",
+          description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas, objetos e montagem HTML por dados e clipboard interno).",
           headerTemplate: [],
           bodyFlow: [],
           footerTemplate: [],
@@ -683,6 +690,7 @@
         this.savedRange = null;
         this.reportData = null;
         this.reportDataFileName = "";
+        this.wordexClipboard = null;
 
         this.undoStack = [];
         this.undoIndex = -1;
@@ -826,6 +834,8 @@
 
           this.handleFreeObjectKeyboard(event);
         });
+
+        this.installWordexClipboardEvents();
 
         this.documentElement.addEventListener("input", event => {
           /*
@@ -1482,6 +1492,379 @@
           this.placeCaretAtEnd(element);
           this.saveSelectionIfInsideParagraph();
         }
+      }
+
+      installWordexClipboardEvents() {
+        document.addEventListener("copy", event => {
+          this.handleWordexCopyEvent(event);
+        });
+
+        document.addEventListener("cut", event => {
+          this.handleWordexCutEvent(event);
+        });
+
+        document.addEventListener("paste", event => {
+          this.handleWordexPasteEvent(event);
+        });
+      }
+
+      getWordexClipboardMarker() {
+        return "__WORDEX_BLOCK_CLIPBOARD_V1__";
+      }
+
+      hasNonCollapsedSelectionInsideEditor() {
+        const selection = window.getSelection();
+
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+          return false;
+        }
+
+        const range = selection.getRangeAt(0);
+        const element = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+          ? range.commonAncestorContainer
+          : range.commonAncestorContainer.parentElement;
+
+        return !!element && this.documentElement.contains(element);
+      }
+
+      getSelectedBlockContext() {
+        const blockId = this.selectedBlockId || this.selectedParagraphId;
+
+        if (!blockId) return null;
+
+        for (const region of ["headerTemplate", "bodyFlow", "footerTemplate"]) {
+          const blocks = this.wordexDocument[region] || [];
+          const index = blocks.findIndex(block => block.id === blockId);
+
+          if (index >= 0) {
+            return { region, blocks, block: blocks[index], index };
+          }
+        }
+
+        return null;
+      }
+
+      sanitizeClipboardBlockHtml(html) {
+        const template = document.createElement("template");
+        template.innerHTML = String(html || "");
+
+        template.content.querySelectorAll(
+          ".selected-object, .selected-cell, .selected-row-cell, .selected-column-cell"
+        ).forEach(element => {
+          element.classList.remove(
+            "selected-object",
+            "selected-cell",
+            "selected-row-cell",
+            "selected-column-cell"
+          );
+        });
+
+        return template.innerHTML;
+      }
+
+      cloneBlockForClipboard(block) {
+        const clone = JSON.parse(JSON.stringify(block));
+
+        if (clone.html) {
+          clone.html = this.sanitizeClipboardBlockHtml(clone.html);
+        }
+
+        return clone;
+      }
+
+      cloneBlockForPaste(block) {
+        const clone = this.cloneBlockForClipboard(block);
+        clone.id = this.createId(clone.type || "paragraph");
+        return clone;
+      }
+
+      createWordexClipboardPayload() {
+        this.syncCurrentEditingState();
+
+        const context = this.getSelectedBlockContext();
+
+        if (!context) {
+          return null;
+        }
+
+        return {
+          source: "Wordex",
+          kind: "blocks",
+          version: "1.91",
+          createdAt: new Date().toISOString(),
+          region: context.region,
+          blocks: [this.cloneBlockForClipboard(context.block)]
+        };
+      }
+
+      serializeWordexClipboardPayload(payload) {
+        return this.getWordexClipboardMarker() + "\n" + JSON.stringify(payload);
+      }
+
+      parseWordexClipboardText(text) {
+        const source = String(text || "");
+        const marker = this.getWordexClipboardMarker();
+
+        if (!source.startsWith(marker)) {
+          return null;
+        }
+
+        try {
+          const payload = JSON.parse(source.slice(marker.length).trim());
+
+          if (
+            payload &&
+            payload.source === "Wordex" &&
+            payload.kind === "blocks" &&
+            Array.isArray(payload.blocks)
+          ) {
+            return payload;
+          }
+        } catch (error) {
+          console.warn("Clipboard Wordex inválido.", error);
+        }
+
+        return null;
+      }
+
+      copyPayloadToClipboardEvent(event, payload) {
+        if (!event?.clipboardData || !payload) return false;
+
+        const text = this.serializeWordexClipboardPayload(payload);
+        event.clipboardData.setData("text/plain", text);
+        event.clipboardData.setData("application/x-wordex-blocks", text);
+        event.preventDefault();
+
+        this.wordexClipboard = payload;
+        return true;
+      }
+
+      async writePayloadToSystemClipboard(payload) {
+        if (!payload) return false;
+
+        const text = this.serializeWordexClipboardPayload(payload);
+        this.wordexClipboard = payload;
+
+        if (navigator.clipboard?.writeText) {
+          try {
+            await navigator.clipboard.writeText(text);
+            return true;
+          } catch (error) {
+            console.warn("Clipboard API indisponível; usando fallback.", error);
+          }
+        }
+
+        return this.writeTextToClipboardFallback(text);
+      }
+
+      writeTextToClipboardFallback(text) {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "readonly");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        textarea.style.top = "-9999px";
+        document.body.appendChild(textarea);
+
+        const selection = window.getSelection();
+        const savedRanges = [];
+
+        if (selection) {
+          for (let i = 0; i < selection.rangeCount; i++) {
+            savedRanges.push(selection.getRangeAt(i).cloneRange());
+          }
+        }
+
+        textarea.select();
+
+        let copied = false;
+
+        try {
+          copied = document.execCommand("copy");
+        } catch (error) {
+          copied = false;
+        }
+
+        document.body.removeChild(textarea);
+
+        if (selection) {
+          selection.removeAllRanges();
+          savedRanges.forEach(range => selection.addRange(range));
+        }
+
+        return copied;
+      }
+
+      async readWordexPayloadFromSystemClipboard() {
+        if (!navigator.clipboard?.readText) {
+          return null;
+        }
+
+        try {
+          return this.parseWordexClipboardText(await navigator.clipboard.readText());
+        } catch (error) {
+          console.warn("Não foi possível ler o clipboard do navegador.", error);
+          return null;
+        }
+      }
+
+      handleWordexCopyEvent(event) {
+        if (this.hasNonCollapsedSelectionInsideEditor()) {
+          return;
+        }
+
+        const payload = this.createWordexClipboardPayload();
+
+        if (payload) {
+          this.copyPayloadToClipboardEvent(event, payload);
+        }
+      }
+
+      handleWordexCutEvent(event) {
+        if (this.hasNonCollapsedSelectionInsideEditor()) {
+          return;
+        }
+
+        const payload = this.createWordexClipboardPayload();
+
+        if (this.copyPayloadToClipboardEvent(event, payload)) {
+          this.removeSelectedWordexBlockAfterCut();
+        }
+      }
+
+      handleWordexPasteEvent(event) {
+        const text = event.clipboardData?.getData("application/x-wordex-blocks") ||
+          event.clipboardData?.getData("text/plain") || "";
+
+        const payload = this.parseWordexClipboardText(text);
+
+        if (!payload) {
+          return;
+        }
+
+        event.preventDefault();
+        this.insertWordexClipboardPayload(payload);
+      }
+
+      async copySelectedWordexBlockToClipboard() {
+        const payload = this.createWordexClipboardPayload();
+
+        if (!payload) {
+          alert("Selecione um bloco/parágrafo para copiar.");
+          return;
+        }
+
+        const copied = await this.writePayloadToSystemClipboard(payload);
+
+        if (!copied) {
+          alert("Bloco copiado apenas para o clipboard interno desta janela.");
+        }
+      }
+
+      async cutSelectedWordexBlockToClipboard() {
+        const payload = this.createWordexClipboardPayload();
+
+        if (!payload) {
+          alert("Selecione um bloco/parágrafo para recortar.");
+          return;
+        }
+
+        await this.writePayloadToSystemClipboard(payload);
+        this.removeSelectedWordexBlockAfterCut();
+      }
+
+      async pasteWordexBlockFromClipboard() {
+        let payload = this.wordexClipboard;
+
+        if (!payload) {
+          payload = await this.readWordexPayloadFromSystemClipboard();
+        }
+
+        if (!payload) {
+          alert("Nenhum bloco Wordex encontrado no clipboard. Use Ctrl+V depois de copiar um bloco Wordex.");
+          return;
+        }
+
+        this.insertWordexClipboardPayload(payload);
+      }
+
+      removeSelectedWordexBlockAfterCut() {
+        const context = this.getSelectedBlockContext();
+
+        if (!context) return;
+
+        context.blocks.splice(context.index, 1);
+        this.ensureRequiredParagraphs();
+
+        const remainingBlocks = this.wordexDocument[context.region] || [];
+        const target = remainingBlocks[Math.min(context.index, remainingBlocks.length - 1)] ||
+          remainingBlocks[context.index - 1] ||
+          remainingBlocks.find(block => block.type === "paragraph") ||
+          null;
+
+        this.selected.region = context.region;
+        this.selectedObject = null;
+        this.selectedCell = null;
+        this.selectedTableMode = null;
+        this.selectedTableRow = null;
+        this.selectedTableColumnIndex = null;
+        this.savedRange = null;
+
+        if (target) {
+          this.selectedBlockId = target.id;
+          this.selectedParagraphId = target.type === "paragraph" ? target.id : null;
+        } else {
+          this.selectedBlockId = null;
+          this.selectedParagraphId = null;
+        }
+
+        this.render();
+        this.saveUndoStateIfChanged();
+      }
+
+      insertWordexClipboardPayload(payload) {
+        if (!payload || !Array.isArray(payload.blocks) || payload.blocks.length === 0) {
+          return;
+        }
+
+        this.syncCurrentEditingState();
+
+        const context = this.getSelectedBlockContext();
+        const targetRegion = context?.region || this.selected.region || "bodyFlow";
+
+        if (!Array.isArray(this.wordexDocument[targetRegion])) {
+          this.wordexDocument[targetRegion] = [];
+        }
+
+        const blocks = this.wordexDocument[targetRegion];
+        const insertIndex = context ? context.index + 1 : blocks.length;
+        const newBlocks = payload.blocks.map(block => this.cloneBlockForPaste(block));
+
+        blocks.splice(insertIndex, 0, ...newBlocks);
+        this.ensureRequiredParagraphs();
+
+        const lastBlock = newBlocks[newBlocks.length - 1];
+        this.selected.region = targetRegion;
+        this.selectedBlockId = lastBlock.id;
+        this.selectedParagraphId = lastBlock.type === "paragraph" ? lastBlock.id : null;
+        this.selectedObject = null;
+        this.selectedCell = null;
+        this.selectedTableMode = null;
+        this.selectedTableRow = null;
+        this.selectedTableColumnIndex = null;
+        this.savedRange = null;
+
+        this.render();
+
+        const paragraph = this.getSelectedParagraphElement();
+
+        if (paragraph) {
+          paragraph.focus();
+          this.placeCaretAtEnd(paragraph);
+          this.saveSelectionIfInsideParagraph();
+        }
+
+        this.saveUndoStateIfChanged();
       }
 
       deleteSelectedParagraph() {
@@ -2508,6 +2891,13 @@
         const width = prompt("Largura da tabela:", table.style.width || "80mm");
         if (!width) return;
 
+        const datasource = prompt(
+          "Datasource da tabela (nome da coleção; vazio = ROOT):",
+          table.dataset.wordexDatasource || ""
+        );
+
+        if (datasource === null) return;
+
         const currentRows = table.rows.length;
         const currentCols = this.getTableColumnCount(table);
 
@@ -2542,6 +2932,13 @@
         }
 
         table.style.width = width;
+
+        if (datasource.trim()) {
+          table.dataset.wordexDatasource = datasource.trim();
+        } else {
+          delete table.dataset.wordexDatasource;
+        }
+
         this.applyAlignment(table, align);
         this.limitObjectWidthToParagraph(table);
         this.syncObjectAfterChange(table);
@@ -2578,7 +2975,11 @@
         }
 
         Array.from(table.rows).forEach((row, rowIndex) => {
-          const rowType = row.dataset.wordexRowType || "";
+          const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+
+          if (rowType) {
+            row.dataset.wordexRowType = rowType;
+          }
 
           if (this.shouldDecolumnizeTableRow(table, row, rowType)) {
             this.decolumnizeTableRow(table, row, rowType, cols);
@@ -3093,13 +3494,97 @@
         this.renderSelection();
       }
 
+      normalizeTableRowType(rowType) {
+        const value = String(rowType || "").trim();
+
+        /*
+          Compatibilidade:
+          - TableHeader deixou de existir como tipo especial e vira GroupHeader.
+          - TableFooter deixou de existir como tipo especial e vira GroupFooter.
+          Como ROOT também é grupo, cabeçalho/rodapé geral são apenas
+          GroupHeader/GroupFooter do ROOT.
+        */
+        if (value === "TableHeader") {
+          return "GroupHeader";
+        }
+
+        if (value === "TableFooter") {
+          return "GroupFooter";
+        }
+
+        return value;
+      }
+
+      normalizeLegacyTableFooterRows(container) {
+        if (!container) return;
+
+        container.querySelectorAll?.('tr[data-wordex-row-type="TableHeader"]').forEach(row => {
+          row.dataset.wordexRowType = "GroupHeader";
+          this.updateTableRowTypeLabel(row);
+        });
+
+        container.querySelectorAll?.('tr[data-wordex-row-type="TableFooter"]').forEach(row => {
+          row.dataset.wordexRowType = "GroupFooter";
+          this.updateTableRowTypeLabel(row);
+        });
+      }
+
+      getTableRowDatasource(row) {
+        return String(row?.dataset?.wordexDatasource || "").trim();
+      }
+
+      isTableRowEnabled(row) {
+        return row?.dataset?.wordexEnabled !== "false";
+      }
+
+      setTableRowEnabled(row, enabled) {
+        if (!row) return;
+
+        if (enabled === false) {
+          row.dataset.wordexEnabled = "false";
+        } else {
+          delete row.dataset.wordexEnabled;
+        }
+
+        this.updateTableRowTypeLabel(row);
+      }
+
+      getTableRowTypeLabel(row) {
+        if (!row) return "";
+
+        const parts = [];
+        const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+        const datasource = this.getTableRowDatasource(row);
+
+        if (rowType) parts.push(rowType);
+        if (datasource) parts.push("ds=" + datasource);
+        if (!this.isTableRowEnabled(row)) parts.push("Enabled=false");
+
+        return parts.join(" | ");
+      }
+
+      updateTableRowTypeLabel(row) {
+        if (!row) return;
+
+        const label = this.getTableRowTypeLabel(row);
+
+        Array.from(row.cells || []).forEach(cell => {
+          if (label) {
+            cell.dataset.rowTypeLabel = label;
+          } else {
+            delete cell.dataset.rowTypeLabel;
+          }
+        });
+      }
+
       shouldDecolumnizeTableRow(table, row, rowType) {
         /*
           A descolunização pertence ao tipo da linha, não à posição.
-          Qualquer linha TableHeader ou GroupHeader vira uma célula única
+          Qualquer linha GroupHeader vira uma célula única
           com colspan total.
         */
-        return rowType === "TableHeader" || rowType === "GroupHeader";
+        rowType = this.normalizeTableRowType(rowType);
+        return rowType === "GroupHeader";
       }
 
       isCellHtmlEmpty(html) {
@@ -3199,21 +3684,12 @@
       }
 
       getAllowedTableRowTypesForRow(table, row) {
-        const rowIndex = Array.from(table.rows).indexOf(row);
-        const lastIndex = table.rows.length - 1;
-
-        if (rowIndex === 0) {
-          return ["TableHeader", "ColumnHeader", "GroupHeader", "Detail", "GroupFooter"];
-        }
-
-        if (rowIndex === lastIndex) {
-          return ["ColumnHeader", "GroupHeader", "Detail", "GroupFooter", "TableFooter"];
-        }
-
         return ["ColumnHeader", "GroupHeader", "Detail", "GroupFooter"];
       }
 
       applySelectedTableRowType(rowType) {
+        rowType = this.normalizeTableRowType(rowType);
+
         if (!rowType) return;
 
         const context = this.getSelectedTableRowContext();
@@ -3223,13 +3699,7 @@
         const allowed = this.getAllowedTableRowTypesForRow(context.table, context.row);
 
         if (!allowed.includes(rowType)) {
-          alert(
-            rowType === "TableHeader"
-              ? "TableHeader só pode ser definido na primeira linha da tabela."
-              : rowType === "TableFooter"
-                ? "TableFooter só pode ser definido na última linha da tabela."
-                : "Tipo de linha inválido para esta posição."
-          );
+          alert("Tipo de linha inválido para esta posição.");
 
           this.syncTableRowTypeToolbar();
           return;
@@ -3239,9 +3709,7 @@
 
         this.normalizeTableRowColumnsForType(context.table, context.row, rowType);
 
-        Array.from(context.row.cells).forEach(cell => {
-          cell.dataset.rowTypeLabel = rowType;
-        });
+        this.updateTableRowTypeLabel(context.row);
 
         this.syncObjectAfterChange(context.table);
         this.selectTableComponent(context.table, context.cell, "row");
@@ -3258,10 +3726,50 @@
 
         this.normalizeTableRowColumnsForType(context.table, context.row, "");
 
-        Array.from(context.row.cells).forEach(cell => {
-          delete cell.dataset.rowTypeLabel;
-        });
+        this.updateTableRowTypeLabel(context.row);
 
+        this.syncObjectAfterChange(context.table);
+        this.selectTableComponent(context.table, context.cell, "row");
+        this.syncTableRowTypeToolbar();
+        this.saveUndoStateIfChanged();
+      }
+
+      configureSelectedTableRow() {
+        const context = this.getSelectedTableRowContext();
+
+        if (!context) return;
+
+        const datasource = prompt(
+          "Datasource da linha (nome da coleção; vazio = contexto atual):",
+          this.getTableRowDatasource(context.row)
+        );
+
+        if (datasource === null) return;
+
+        const enabledText = prompt(
+          "Enabled da linha? Use true ou false:",
+          this.isTableRowEnabled(context.row) ? "true" : "false"
+        );
+
+        if (enabledText === null) return;
+
+        const normalizedEnabled = String(enabledText || "").trim().toLowerCase();
+
+        if (!["true", "false", "1", "0", "sim", "não", "nao", "s", "n", "yes", "no", "y"].includes(normalizedEnabled)) {
+          alert("Enabled inválido. Use true ou false.");
+          return;
+        }
+
+        const isEnabled = ["true", "1", "sim", "s", "yes", "y"].includes(normalizedEnabled);
+
+        if (datasource.trim()) {
+          context.row.dataset.wordexDatasource = datasource.trim();
+        } else {
+          delete context.row.dataset.wordexDatasource;
+        }
+
+        this.setTableRowEnabled(context.row, isEnabled);
+        this.updateTableRowTypeLabel(context.row);
         this.syncObjectAfterChange(context.table);
         this.selectTableComponent(context.table, context.cell, "row");
         this.syncTableRowTypeToolbar();
@@ -3288,7 +3796,15 @@
             : false;
         });
 
-        select.value = context?.row?.dataset.wordexRowType || "";
+        const currentRowType = context?.row
+          ? this.normalizeTableRowType(context.row.dataset.wordexRowType || "")
+          : "";
+
+        if (context?.row && currentRowType !== (context.row.dataset.wordexRowType || "")) {
+          context.row.dataset.wordexRowType = currentRowType;
+        }
+
+        select.value = currentRowType;
       }
 
       getSelectedTableRowContextWithoutAlert() {
@@ -4852,6 +5368,7 @@
 
       getCleanOuterHtml(element) {
         const clone = element.cloneNode(true);
+        this.normalizeLegacyTableFooterRows(clone);
         clone.classList.remove("selected-object");
 
         clone.querySelectorAll(".selected-cell").forEach(item => {
@@ -5028,19 +5545,14 @@
 
         container.querySelectorAll(".wordex-table").forEach(table => {
           Array.from(table.rows).forEach(row => {
-            const rowType = row.dataset.wordexRowType || "";
+            const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
 
             if (rowType) {
+              row.dataset.wordexRowType = rowType;
               this.normalizeTableRowColumnsForType(table, row, rowType);
             }
 
-            Array.from(row.cells).forEach(cell => {
-              if (rowType) {
-                cell.dataset.rowTypeLabel = rowType;
-              } else {
-                delete cell.dataset.rowTypeLabel;
-              }
-            });
+            this.updateTableRowTypeLabel(row);
           });
         });
       }
@@ -5480,6 +5992,873 @@
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
 
+      generateHtmlFromJson() {
+        try {
+          if (!this.reportData) {
+            alert("Carregue um arquivo JSON antes de montar o HTML.");
+            return;
+          }
+
+          this.syncCurrentEditingState();
+
+          const html = this.buildGeneratedReportHtml(this.reportData);
+          const fileName = this.getGeneratedHtmlFileName();
+
+          this.downloadTextFile(fileName, html, "text/html;charset=utf-8");
+        } catch (error) {
+          alert("Erro ao montar HTML com JSON: " + error.message);
+        }
+      }
+
+      getGeneratedHtmlFileName() {
+        const sourceName = String(this.reportDataFileName || "Relatorio")
+          .replace(/\.(json)$/i, "")
+          .replace(/[\\/:*?"<>|]+/g, "_")
+          .trim() || "Relatorio";
+
+        return sourceName + "-montado.html";
+      }
+
+      buildGeneratedReportHtml(data) {
+        const documentClone = this.buildGeneratedDocumentClone(data);
+        const styleElement = document.getElementById("wordex-editor-style");
+        const styleText = styleElement ? styleElement.textContent : "";
+        const page = this.getPageSettings();
+        const title = this.escapeHtml("Relatório Wordex montado");
+        const generatedCss = this.getGeneratedReportCss(page);
+
+        return [
+          "<!DOCTYPE html>",
+          '<html lang="pt-BR">',
+          "<head>",
+          '  <meta charset="UTF-8" />',
+          '  <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+          `  <title>${title}</title>`,
+          "  <style>",
+          styleText,
+          generatedCss,
+          "  </style>",
+          "</head>",
+          "<body>",
+          '  <div class="workspace">',
+          documentClone.outerHTML,
+          "  </div>",
+          "</body>",
+          "</html>"
+        ].join("\n");
+      }
+
+      getGeneratedReportCss(page) {
+        return `
+
+/* Wordex: HTML montado por dados */
+@page {
+  size: ${page.width} ${page.height};
+  margin: ${this.getPageMarginCss()};
+}
+
+body {
+  background: white;
+}
+
+.workspace {
+  padding: 0;
+}
+
+.document {
+  margin: 0 auto;
+  box-shadow: none;
+}
+
+.document-title,
+.empty,
+.wordex-table tr[data-wordex-row-type] td:first-child::before {
+  display: none !important;
+}
+
+.region,
+.region:hover,
+.region.selected,
+.paragraph,
+.paragraph:hover,
+.paragraph:focus,
+.paragraph-block,
+.object-block,
+.paragraph-block.selected-block,
+.object-block.selected-block,
+.selected-object,
+.selected-cell,
+.selected-row-cell,
+.selected-column-cell,
+.wordex-textbox {
+  outline: none !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
+
+.paragraph.is-empty::before,
+.wordex-textbox:empty::before {
+  content: "" !important;
+}
+`;
+      }
+
+      buildGeneratedDocumentClone(data) {
+        const clone = this.documentElement.cloneNode(true);
+        const rootCollection = this.normalizeRootCollection(data);
+        const firstRootItem = rootCollection.length > 0 ? rootCollection[0] : {};
+        const rootScope = this.createDataScope(firstRootItem, "ROOT", firstRootItem, null);
+
+        clone.querySelectorAll(".document-title, .empty").forEach(node => node.remove());
+        this.removeEditorSelectionMarks(clone);
+
+        /*
+          O ROOT é sempre tratado como coleção. O uso recomendado é uma única
+          linha em ROOT, mas duas ou mais linhas serão processadas normalmente
+          pelo mesmo forEach dos demais grupos.
+        */
+        this.expandTablesWithData(clone, rootCollection, null);
+        this.resolveMacrosInElement(clone, [rootScope]);
+        this.cleanGeneratedDocumentNode(clone);
+
+        return clone;
+      }
+
+      normalizeRootCollection(data) {
+        if (Array.isArray(data)) {
+          return data;
+        }
+
+        if (data === undefined || data === null) {
+          return [];
+        }
+
+        return [data];
+      }
+
+      removeEditorSelectionMarks(container) {
+        if (!container) return;
+
+        container.querySelectorAll(".selected, .selected-block, .selected-object, .selected-cell, .selected-row-cell, .selected-column-cell")
+          .forEach(element => {
+            element.classList.remove(
+              "selected",
+              "selected-block",
+              "selected-object",
+              "selected-cell",
+              "selected-row-cell",
+              "selected-column-cell"
+            );
+          });
+      }
+
+      cleanGeneratedDocumentNode(container) {
+        if (!container) return;
+
+        this.normalizeLegacyTableFooterRows(container);
+
+        container.querySelectorAll("*").forEach(element => {
+          element.removeAttribute("contenteditable");
+          element.removeAttribute("data-row-type-label");
+          element.removeAttribute("data-wordex-datasource");
+          element.removeAttribute("data-wordex-enabled");
+          element.removeAttribute("data-wordex-generated");
+          element.classList.remove(
+            "selected",
+            "selected-block",
+            "selected-object",
+            "selected-cell",
+            "selected-row-cell",
+            "selected-column-cell",
+            "is-empty"
+          );
+        });
+
+        container.querySelectorAll("tr[data-wordex-row-type]").forEach(row => {
+          delete row.dataset.wordexRowType;
+          delete row.dataset.wordexDatasource;
+          delete row.dataset.wordexEnabled;
+          delete row.dataset.wordexDecolumnized;
+          delete row.dataset.wordexOriginalColumnCount;
+        });
+      }
+
+      expandTablesWithData(container, rootData, inheritedScopes = null) {
+        if (!container) return;
+
+        const rootCollection = this.normalizeRootCollection(rootData);
+        const scopes = inheritedScopes || [
+          this.createDataScope(rootCollection[0] || {}, "ROOT", rootCollection[0] || {}, null)
+        ];
+
+        Array.from(container.querySelectorAll("table.wordex-table")).forEach(table => {
+          this.expandTableWithData(table, rootCollection, scopes);
+        });
+      }
+
+      expandTableWithData(table, rootData, rootScopes) {
+        if (!table || table.dataset.wordexGenerated === "1") return;
+
+        this.normalizeLegacyTableFooterRows(table);
+
+        const rows = Array.from(table.rows);
+
+        if (rows.length === 0) {
+          return;
+        }
+
+        const reportMap = this.buildTableReportMap(table, rows);
+        const rootCollection = Array.isArray(rootData) ? rootData : this.normalizeRootCollection(rootData);
+        const expandedRows = this.renderTableReportMap(reportMap, rootCollection, rootScopes);
+
+        table.innerHTML = "";
+        expandedRows.forEach(row => table.appendChild(row));
+        table.dataset.wordexGenerated = "1";
+      }
+
+      buildTableReportMap(table, rows) {
+        const datasource = String(table?.dataset?.wordexDatasource || "ROOT").trim() || "ROOT";
+        const entries = rows.map((row, index) => this.createTableReportMapEntry(row, index));
+        const rootGroup = this.createTableReportMapGroup(datasource, null, true);
+        const nextIndex = this.consumeTableReportGroup(rootGroup, entries, 0);
+
+        if (nextIndex < entries.length) {
+          const extra = entries[nextIndex];
+          throw new Error(
+            `Estrutura da tabela inválida: linha ${extra.index + 1} apareceu depois do fechamento do grupo ROOT.`
+          );
+        }
+
+        return rootGroup;
+      }
+
+      createTableReportMapEntry(row, index) {
+        const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+
+        if (rowType && rowType !== (row.dataset.wordexRowType || "")) {
+          row.dataset.wordexRowType = rowType;
+          this.updateTableRowTypeLabel(row);
+        }
+
+        return {
+          kind: "row",
+          row,
+          index,
+          rowType,
+          datasource: this.getTableRowDatasource(row),
+          enabled: this.isTableRowEnabled(row),
+          isPhantom: false
+        };
+      }
+
+      createTableReportMapGroup(datasource, headerEntry = null, isRoot = false) {
+        return {
+          kind: "group",
+          datasource: String(datasource || (isRoot ? "ROOT" : "")).trim(),
+          isRoot: !!isRoot,
+          headers: headerEntry ? [headerEntry] : [],
+          body: [],
+          footer: null,
+          phantomFooter: false
+        };
+      }
+
+      consumeTableReportGroup(group, entries, startIndex) {
+        let index = startIndex;
+        let terminalMode = false;
+
+        while (index < entries.length) {
+          const entry = entries[index];
+          const rowType = entry.rowType;
+
+          if (!rowType) {
+            group.body.push(entry);
+            index++;
+            continue;
+          }
+
+          if (rowType === "ColumnHeader") {
+            if (terminalMode) {
+              throw new Error(
+                `Estrutura da tabela inválida: ColumnHeader na linha ${entry.index + 1} apareceu depois de Detail/GroupFooter. Depois de Detail só são aceitos Detail, GroupFooter ou linha sem tipo.`
+              );
+            }
+
+            group.body.push(entry);
+            index++;
+            continue;
+          }
+
+          if (rowType === "Detail") {
+            group.body.push(entry);
+            terminalMode = true;
+            index++;
+            continue;
+          }
+
+          if (rowType === "GroupFooter") {
+            group.footer = entry;
+            return index + 1;
+          }
+
+          if (rowType === "GroupHeader") {
+            if (terminalMode) {
+              throw new Error(
+                `Estrutura da tabela inválida: GroupHeader na linha ${entry.index + 1} apareceu depois de Detail/GroupFooter. Depois de Detail só são aceitos Detail, GroupFooter ou linha sem tipo.`
+              );
+            }
+
+            const datasource = String(entry.datasource || "").trim();
+            const belongsToCurrentGroup = !datasource || datasource === group.datasource;
+
+            if (belongsToCurrentGroup && group.body.length === 0) {
+              group.headers.push(entry);
+              index++;
+              continue;
+            }
+
+            if (!datasource) {
+              throw new Error(
+                `Estrutura da tabela inválida: GroupHeader na linha ${entry.index + 1} precisa de datasource para abrir subgrupo.`
+              );
+            }
+
+            const childGroup = this.createTableReportMapGroup(datasource, entry, false);
+            index = this.consumeTableReportGroup(childGroup, entries, index + 1);
+            group.body.push(childGroup);
+            terminalMode = true;
+            continue;
+          }
+
+          throw new Error(`Tipo de linha inválido na linha ${entry.index + 1}: ${rowType}`);
+        }
+
+        group.footer = this.createPhantomGroupFooterEntry(entries.length);
+        group.phantomFooter = true;
+        return index;
+      }
+
+      createPhantomGroupFooterEntry(index) {
+        return {
+          kind: "row",
+          row: null,
+          index,
+          rowType: "GroupFooter",
+          datasource: "",
+          enabled: false,
+          isPhantom: true
+        };
+      }
+
+      renderTableReportMap(reportMap, rootCollection, rootScopes) {
+        const rootItems = this.createInitialReportItems(reportMap.datasource, rootCollection, rootScopes);
+        const expandedRows = [];
+
+        rootItems.forEach(item => {
+          expandedRows.push(...this.renderReportGroup(reportMap, item));
+        });
+
+        return expandedRows;
+      }
+
+      createInitialReportItems(datasource, rootCollection, rootScopes) {
+        const tableDatasource = String(datasource || "ROOT").trim() || "ROOT";
+        const roots = this.normalizeRootCollection(rootCollection);
+        const items = [];
+
+        if (tableDatasource === "ROOT") {
+          roots.forEach(rootItem => {
+            items.push({
+              value: rootItem,
+              root: rootItem,
+              collectionName: "ROOT"
+            });
+          });
+
+          return items;
+        }
+
+        roots.forEach(rootItem => {
+          this.resolveDatasourceItems(rootItem, tableDatasource, rootItem).forEach(child => {
+            items.push({
+              value: child.value,
+              root: rootItem,
+              collectionName: this.getDatasourceCollectionName(tableDatasource)
+            });
+          });
+        });
+
+        return items;
+      }
+
+      renderReportGroup(group, item) {
+        const rows = [];
+        const scope = this.createDataScope(
+          item.value,
+          group.datasource || item.collectionName || "ROOT",
+          item.root,
+          null
+        );
+
+        group.headers.forEach(entry => {
+          rows.push(...this.renderReportMapRow(entry, item.value, item.root, scope, {
+            ignoreDatasource: true
+          }));
+        });
+
+        group.body.forEach(entry => {
+          if (entry.kind === "group") {
+            const childItems = this.resolveDatasourceItems(item.value, entry.datasource, item.root);
+
+            childItems.forEach(childItem => {
+              rows.push(...this.renderReportGroup(entry, {
+                value: childItem.value,
+                root: item.root,
+                collectionName: this.getDatasourceCollectionName(entry.datasource)
+              }));
+            });
+
+            return;
+          }
+
+          if (entry.rowType === "Detail") {
+            rows.push(...this.renderDetailMapRow(entry, item.value, item.root));
+            return;
+          }
+
+          rows.push(...this.renderReportMapRow(entry, item.value, item.root, scope));
+        });
+
+        if (group.footer) {
+          rows.push(...this.renderReportMapRow(group.footer, item.value, item.root, scope, {
+            ignoreDatasource: group.footer.datasource === group.datasource
+          }));
+        }
+
+        return rows;
+      }
+
+      renderDetailMapRow(entry, currentValue, rootData) {
+        if (!entry.enabled) return [];
+
+        const datasource = String(entry.datasource || "").trim();
+
+        if (!datasource) {
+          const scope = this.createDataScope(currentValue, "", rootData, null);
+          return [this.cloneReportMapRow(entry.row, scope, rootData)];
+        }
+
+        return this.resolveDatasourceItems(currentValue, datasource, rootData).map(item => {
+          const scope = this.createDataScope(
+            item.value,
+            this.getDatasourceCollectionName(datasource),
+            rootData,
+            null
+          );
+
+          return this.cloneReportMapRow(entry.row, scope, rootData);
+        });
+      }
+
+      renderReportMapRow(entry, currentValue, rootData, currentScope, options = {}) {
+        if (!entry || !entry.enabled || entry.isPhantom || !entry.row) {
+          return [];
+        }
+
+        const datasource = String(entry.datasource || "").trim();
+
+        if (datasource && !options.ignoreDatasource) {
+          const items = this.resolveDatasourceItems(currentValue, datasource, rootData);
+
+          return items.map(item => {
+            const scope = this.createDataScope(
+              item.value,
+              this.getDatasourceCollectionName(datasource),
+              rootData,
+              null
+            );
+
+            return this.cloneReportMapRow(entry.row, scope, rootData);
+          });
+        }
+
+        return [this.cloneReportMapRow(entry.row, currentScope, rootData)];
+      }
+
+      cloneReportMapRow(row, scope, rootData) {
+        const clone = row.cloneNode(true);
+
+        this.expandTablesWithData(clone, rootData, [scope]);
+        this.resolveMacrosInElement(clone, [scope]);
+
+        return clone;
+      }
+
+      resolveDatasourceItems(currentValue, datasource, rootData) {
+        const value = this.resolveDatasourceValue(currentValue, datasource, rootData);
+
+        if (Array.isArray(value)) {
+          return value.map(item => ({ value: item }));
+        }
+
+        if (value && typeof value === "object") {
+          if (Array.isArray(value.$items)) {
+            return value.$items.map(item => ({ value: item }));
+          }
+
+          if (Array.isArray(value.items)) {
+            return value.items.map(item => ({ value: item }));
+          }
+
+          return [{ value }];
+        }
+
+        return [];
+      }
+
+      resolveDatasourceValue(currentValue, datasource, rootData) {
+        const sourceName = String(datasource || "").trim();
+
+        if (!sourceName || sourceName === "." || sourceName === "$item") {
+          return currentValue;
+        }
+
+        if (sourceName === "ROOT" || sourceName === "$root") {
+          return rootData;
+        }
+
+        const parts = sourceName
+          .split(".")
+          .map(part => part.trim())
+          .filter(Boolean);
+
+        return this.getValueByPath(currentValue, parts);
+      }
+
+      getDatasourceCollectionName(datasource) {
+        const parts = String(datasource || "")
+          .split(".")
+          .map(part => part.trim())
+          .filter(Boolean);
+
+        return parts.length > 0 ? parts[parts.length - 1] : "";
+      }
+
+      cloneReportRow(row, scopes, rootData) {
+        const clone = row.cloneNode(true);
+        this.expandTablesWithData(clone, rootData, scopes);
+        this.resolveMacrosInElement(clone, scopes);
+        return clone;
+      }
+
+      inferGroupCollectionNameFromRows(rows, currentValue) {
+        const arrays = this.getArrayProperties(currentValue);
+
+        if (arrays.length === 0) return null;
+
+        const groupRows = rows.filter(row => {
+          const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+          return rowType === "GroupHeader" || rowType === "GroupFooter";
+        });
+
+        const macroPaths = groupRows.length > 0
+          ? groupRows.flatMap(row => this.collectMacroPaths(row))
+          : rows.flatMap(row => this.collectMacroPaths(row));
+
+        const explicit = this.findCollectionNameReferencedByMacros(arrays, macroPaths);
+        if (explicit) return explicit;
+
+        const nonTotal = arrays.find(item => !this.isTotalCollectionName(item.name));
+        return (nonTotal || arrays[0]).name;
+      }
+
+      cloneReportRow(row, scopes, rootData) {
+        const clone = row.cloneNode(true);
+        this.expandTablesWithData(clone, rootData, scopes);
+        this.resolveMacrosInElement(clone, scopes);
+        return clone;
+      }
+
+      inferGroupCollectionName(table, rootData) {
+        const arrays = this.getArrayProperties(rootData);
+
+        if (arrays.length === 0) return null;
+
+        const macroPaths = this.collectMacroPaths(table);
+
+        const explicit = this.findCollectionNameReferencedByMacros(arrays, macroPaths);
+        if (explicit) return explicit;
+
+        const nonTotal = arrays.find(item => !this.isTotalCollectionName(item.name));
+        return (nonTotal || arrays[0]).name;
+      }
+
+      inferRootDetailCollectionName(detailRows, rootData) {
+        const arrays = this.getArrayProperties(rootData);
+
+        if (arrays.length === 0) return null;
+
+        const macroPaths = detailRows.flatMap(row => this.collectMacroPaths(row));
+        const explicit = this.findCollectionNameReferencedByMacros(arrays, macroPaths);
+
+        if (explicit) return explicit;
+
+        const nonTotal = arrays.find(item => !this.isTotalCollectionName(item.name));
+        return (nonTotal || arrays[0]).name;
+      }
+
+      inferDetailCollectionName(detailRows, groupItem) {
+        const arrays = this.getArrayProperties(groupItem);
+
+        if (arrays.length === 0) return null;
+
+        const macroPaths = detailRows.flatMap(row => this.collectMacroPaths(row));
+        const explicit = this.findCollectionNameReferencedByMacros(arrays, macroPaths);
+
+        if (explicit) return explicit;
+
+        const nonTotal = arrays.find(item => !this.isTotalCollectionName(item.name));
+        return (nonTotal || arrays[0]).name;
+      }
+
+      findCollectionNameReferencedByMacros(collections, macroPaths) {
+        for (const item of collections) {
+          const singular = this.singularizeCollectionName(item.name);
+
+          if (macroPaths.some(path => path === item.name || path.startsWith(item.name + "."))) {
+            return item.name;
+          }
+
+          if (singular && macroPaths.some(path => path === singular || path.startsWith(singular + "."))) {
+            return item.name;
+          }
+        }
+
+        return null;
+      }
+
+      getArrayProperties(value) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+
+        return Object.keys(value)
+          .filter(key => Array.isArray(value[key]))
+          .map(key => ({ name: key, value: value[key] }));
+      }
+
+      isTotalCollectionName(name) {
+        return /^Totais/i.test(String(name || ""));
+      }
+
+      getCollectionFromValue(value, collectionName) {
+        if (!value || !collectionName || !Array.isArray(value[collectionName])) {
+          return [];
+        }
+
+        return value[collectionName];
+      }
+
+      collectMacroPaths(element) {
+        const paths = [];
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+
+        while (walker.nextNode()) {
+          const text = walker.currentNode.nodeValue || "";
+          const matches = text.matchAll(/{{\s*([^{}]+?)\s*}}/g);
+
+          for (const match of matches) {
+            paths.push(match[1].trim());
+          }
+        }
+
+        if (element.attributes) {
+          Array.from(element.attributes).forEach(attribute => {
+            const matches = String(attribute.value || "").matchAll(/{{\s*([^{}]+?)\s*}}/g);
+
+            for (const match of matches) {
+              paths.push(match[1].trim());
+            }
+          });
+        }
+
+        element.querySelectorAll?.("*").forEach(child => {
+          Array.from(child.attributes || []).forEach(attribute => {
+            const matches = String(attribute.value || "").matchAll(/{{\s*([^{}]+?)\s*}}/g);
+
+            for (const match of matches) {
+              paths.push(match[1].trim());
+            }
+          });
+        });
+
+        return paths;
+      }
+
+      resolveMacrosInElement(element, scopes) {
+        if (!element) return;
+
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        const textNodes = [];
+
+        while (walker.nextNode()) {
+          textNodes.push(walker.currentNode);
+        }
+
+        textNodes.forEach(node => {
+          node.nodeValue = this.resolveMacrosInText(node.nodeValue || "", scopes);
+        });
+
+        const allElements = [element, ...Array.from(element.querySelectorAll?.("*") || [])];
+
+        allElements.forEach(child => {
+          Array.from(child.attributes || []).forEach(attribute => {
+            if (!String(attribute.value || "").includes("{{")) return;
+            child.setAttribute(attribute.name, this.resolveMacrosInText(attribute.value, scopes));
+          });
+        });
+      }
+
+      resolveMacrosInText(text, scopes) {
+        return String(text || "").replace(/{{\s*([^{}]+?)\s*}}/g, (_match, path) => {
+          return this.escapeHtml(this.stringifyResolvedValue(this.resolveDataPath(path, scopes)));
+        });
+      }
+
+      resolveDataPath(path, scopes) {
+        const parts = String(path || "")
+          .trim()
+          .split(".")
+          .map(part => part.trim())
+          .filter(Boolean);
+
+        if (parts.length === 0) return "";
+
+        for (const scope of scopes || []) {
+          const value = this.getValueByPath(scope, parts);
+
+          if (value !== undefined && value !== null) {
+            return value;
+          }
+        }
+
+        return "";
+      }
+
+      getValueByPath(source, parts) {
+        let value = source;
+        let previousPart = "";
+
+        for (const part of parts) {
+          if (value === undefined || value === null) return undefined;
+
+          if (Array.isArray(value)) {
+            if (/^\d+$/.test(part)) {
+              value = value[Number(part)];
+              previousPart = part;
+              continue;
+            }
+
+            /*
+              Coleções normais nunca são reduzidas automaticamente ao primeiro item.
+              Assim, {{Produtos.Nome}} não pega o primeiro produto por acidente fora do
+              contexto Detail/Produto corrente.
+
+              A exceção deliberada são coleções de totais, como TotaisProdutos, porque
+              elas representam um resumo do grupo corrente e só são usadas quando o
+              template as referencia explicitamente, normalmente no GroupFooter.
+            */
+            if (this.isTotalCollectionName(previousPart)) {
+              value = value.length > 0 ? value[0]?.[part] : undefined;
+              previousPart = part;
+              continue;
+            }
+
+            return undefined;
+          }
+
+          if (typeof value !== "object") {
+            return undefined;
+          }
+
+          if (Object.prototype.hasOwnProperty.call(value, part)) {
+            value = value[part];
+            previousPart = part;
+          } else {
+            return undefined;
+          }
+        }
+
+        return value;
+      }
+
+      stringifyResolvedValue(value) {
+        if (value === undefined || value === null) return "";
+        if (Array.isArray(value)) return value.map(item => this.stringifyResolvedValue(item)).join(", ");
+        if (typeof value === "object") return JSON.stringify(value);
+        return String(value);
+      }
+
+      createDataScope(value, collectionName, rootData, parentValue, parentCollectionName = "") {
+        /*
+          Cada escopo representa a linha corrente de um nível do JSON.
+          O nome plural da coleção e sua forma singular apontam para essa linha.
+
+          Exemplos:
+          - collectionName = "Clientes"  => Cliente.Nome é o cliente corrente.
+          - collectionName = "Produtos"  => Produto.Nome é o produto corrente.
+
+          A resolução usa uma pilha de escopos, sempre do mais interno para o mais externo.
+        */
+        const scope = {};
+
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+          Object.assign(scope, value);
+        }
+
+        scope.$value = value;
+        scope.$item = value;
+        scope.$root = rootData;
+        scope.$collectionName = collectionName || "";
+
+        if (parentValue !== undefined && parentValue !== null) {
+          scope.$parent = parentValue;
+
+          if (parentCollectionName) {
+            scope[parentCollectionName] = parentValue;
+
+            const parentSingular = this.singularizeCollectionName(parentCollectionName);
+
+            if (parentSingular && parentSingular !== parentCollectionName) {
+              scope[parentSingular] = parentValue;
+            }
+          }
+        }
+
+        if (collectionName) {
+          scope[collectionName] = value;
+
+          const singular = this.singularizeCollectionName(collectionName);
+
+          if (singular && singular !== collectionName) {
+            scope[singular] = value;
+          }
+        }
+
+        return scope;
+      }
+
+      singularizeCollectionName(name) {
+        const text = String(name || "").trim();
+
+        if (!text) return "";
+        if (text.endsWith("ões")) return text.slice(0, -3) + "ão";
+        if (text.endsWith("ães")) return text.slice(0, -3) + "ãe";
+        if (text.endsWith("is")) return text.slice(0, -2) + "il";
+        if (text.endsWith("es")) return text.slice(0, -2);
+        if (text.endsWith("s")) return text.slice(0, -1);
+
+        return text;
+      }
+
       chooseJsonFile() {
         const input = document.getElementById("jsonFileInput");
 
@@ -5498,7 +6877,7 @@
 
         reader.onload = () => {
           try {
-            const data = JSON.parse(String(reader.result || ""));
+            const data = JSON.parse(String(reader.result || "").replace(/^\uFEFF/, ""));
             this.reportData = data;
             this.reportDataFileName = file.name || "JSON carregado";
             alert("JSON carregado: " + this.reportDataFileName);
