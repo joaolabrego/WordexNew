@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wordex - MVP Contínuo v191</title>
+  <title>Wordex - MVP Contínuo v192</title>
 
   <style id="wordex-editor-style">
     * { box-sizing: border-box; }
@@ -661,7 +661,7 @@
         this.documentElement = document.getElementById(documentId);
 
         this.wordexDocument = {
-          version: "1.91",
+          version: "1.92",
           mode: "continuous",
           description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas, objetos e montagem HTML por dados e clipboard interno).",
           headerTemplate: [],
@@ -1590,7 +1590,7 @@
         return {
           source: "Wordex",
           kind: "blocks",
-          version: "1.91",
+          version: "1.92",
           createdAt: new Date().toISOString(),
           region: context.region,
           blocks: [this.cloneBlockForClipboard(context.block)]
@@ -6002,12 +6002,28 @@
           this.syncCurrentEditingState();
 
           const html = this.buildGeneratedReportHtml(this.reportData);
-          const fileName = this.getGeneratedHtmlFileName();
-
-          this.downloadTextFile(fileName, html, "text/html;charset=utf-8");
+          this.openGeneratedHtmlInNewTab(html);
         } catch (error) {
           alert("Erro ao montar HTML com JSON: " + error.message);
         }
+      }
+
+      openGeneratedHtmlInNewTab(html) {
+        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const openedWindow = window.open(url, "_blank", "noopener");
+
+        if (!openedWindow) {
+          URL.revokeObjectURL(url);
+          alert("O navegador bloqueou a nova aba. Libere pop-ups para visualizar o HTML montado.");
+          return;
+        }
+
+        /*
+          Mantém a URL temporária viva tempo suficiente para a nova aba
+          carregar o HTML montado antes de liberar o objeto Blob.
+        */
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
       }
 
       getGeneratedHtmlFileName() {

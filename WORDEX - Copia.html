@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wordex - MVP Contínuo v184</title>
+  <title>Wordex - MVP Contínuo v191</title>
 
   <style id="wordex-editor-style">
     * { box-sizing: border-box; }
@@ -535,6 +535,7 @@
         <option value="GroupFooter">GroupFooter</option>
               </select>
       <button onclick="wordex.clearSelectedTableRowType()">Limpar</button>
+      <button onclick="wordex.configureSelectedTableRow()">Config linha</button>
     </div>
 
     <div class="toolbar-group">
@@ -660,7 +661,7 @@
         this.documentElement = document.getElementById(documentId);
 
         this.wordexDocument = {
-          version: "1.89",
+          version: "1.91",
           mode: "continuous",
           description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas, objetos e montagem HTML por dados e clipboard interno).",
           headerTemplate: [],
@@ -1589,7 +1590,7 @@
         return {
           source: "Wordex",
           kind: "blocks",
-          version: "1.89",
+          version: "1.91",
           createdAt: new Date().toISOString(),
           region: context.region,
           blocks: [this.cloneBlockForClipboard(context.block)]
@@ -2891,7 +2892,7 @@
         if (!width) return;
 
         const datasource = prompt(
-          "Datasource da tabela (nome da propriedade coleção; vazio = sem datasource):",
+          "Datasource da tabela (nome da coleção; vazio = ROOT):",
           table.dataset.wordexDatasource || ""
         );
 
@@ -3497,10 +3498,16 @@
         const value = String(rowType || "").trim();
 
         /*
-          v189: TableFooter deixou de existir como tipo especial.
-          Arquivos antigos que ainda tenham TableFooter são tratados como
-          GroupFooter, isto é, rodapé do grupo corrente/ROOT.
+          Compatibilidade:
+          - TableHeader deixou de existir como tipo especial e vira GroupHeader.
+          - TableFooter deixou de existir como tipo especial e vira GroupFooter.
+          Como ROOT também é grupo, cabeçalho/rodapé geral são apenas
+          GroupHeader/GroupFooter do ROOT.
         */
+        if (value === "TableHeader") {
+          return "GroupHeader";
+        }
+
         if (value === "TableFooter") {
           return "GroupFooter";
         }
@@ -3511,12 +3518,62 @@
       normalizeLegacyTableFooterRows(container) {
         if (!container) return;
 
+        container.querySelectorAll?.('tr[data-wordex-row-type="TableHeader"]').forEach(row => {
+          row.dataset.wordexRowType = "GroupHeader";
+          this.updateTableRowTypeLabel(row);
+        });
+
         container.querySelectorAll?.('tr[data-wordex-row-type="TableFooter"]').forEach(row => {
           row.dataset.wordexRowType = "GroupFooter";
+          this.updateTableRowTypeLabel(row);
+        });
+      }
 
-          Array.from(row.cells || []).forEach(cell => {
-            cell.dataset.rowTypeLabel = "GroupFooter";
-          });
+      getTableRowDatasource(row) {
+        return String(row?.dataset?.wordexDatasource || "").trim();
+      }
+
+      isTableRowEnabled(row) {
+        return row?.dataset?.wordexEnabled !== "false";
+      }
+
+      setTableRowEnabled(row, enabled) {
+        if (!row) return;
+
+        if (enabled === false) {
+          row.dataset.wordexEnabled = "false";
+        } else {
+          delete row.dataset.wordexEnabled;
+        }
+
+        this.updateTableRowTypeLabel(row);
+      }
+
+      getTableRowTypeLabel(row) {
+        if (!row) return "";
+
+        const parts = [];
+        const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+        const datasource = this.getTableRowDatasource(row);
+
+        if (rowType) parts.push(rowType);
+        if (datasource) parts.push("ds=" + datasource);
+        if (!this.isTableRowEnabled(row)) parts.push("Enabled=false");
+
+        return parts.join(" | ");
+      }
+
+      updateTableRowTypeLabel(row) {
+        if (!row) return;
+
+        const label = this.getTableRowTypeLabel(row);
+
+        Array.from(row.cells || []).forEach(cell => {
+          if (label) {
+            cell.dataset.rowTypeLabel = label;
+          } else {
+            delete cell.dataset.rowTypeLabel;
+          }
         });
       }
 
@@ -3652,9 +3709,7 @@
 
         this.normalizeTableRowColumnsForType(context.table, context.row, rowType);
 
-        Array.from(context.row.cells).forEach(cell => {
-          cell.dataset.rowTypeLabel = rowType;
-        });
+        this.updateTableRowTypeLabel(context.row);
 
         this.syncObjectAfterChange(context.table);
         this.selectTableComponent(context.table, context.cell, "row");
@@ -3671,10 +3726,50 @@
 
         this.normalizeTableRowColumnsForType(context.table, context.row, "");
 
-        Array.from(context.row.cells).forEach(cell => {
-          delete cell.dataset.rowTypeLabel;
-        });
+        this.updateTableRowTypeLabel(context.row);
 
+        this.syncObjectAfterChange(context.table);
+        this.selectTableComponent(context.table, context.cell, "row");
+        this.syncTableRowTypeToolbar();
+        this.saveUndoStateIfChanged();
+      }
+
+      configureSelectedTableRow() {
+        const context = this.getSelectedTableRowContext();
+
+        if (!context) return;
+
+        const datasource = prompt(
+          "Datasource da linha (nome da coleção; vazio = contexto atual):",
+          this.getTableRowDatasource(context.row)
+        );
+
+        if (datasource === null) return;
+
+        const enabledText = prompt(
+          "Enabled da linha? Use true ou false:",
+          this.isTableRowEnabled(context.row) ? "true" : "false"
+        );
+
+        if (enabledText === null) return;
+
+        const normalizedEnabled = String(enabledText || "").trim().toLowerCase();
+
+        if (!["true", "false", "1", "0", "sim", "não", "nao", "s", "n", "yes", "no", "y"].includes(normalizedEnabled)) {
+          alert("Enabled inválido. Use true ou false.");
+          return;
+        }
+
+        const isEnabled = ["true", "1", "sim", "s", "yes", "y"].includes(normalizedEnabled);
+
+        if (datasource.trim()) {
+          context.row.dataset.wordexDatasource = datasource.trim();
+        } else {
+          delete context.row.dataset.wordexDatasource;
+        }
+
+        this.setTableRowEnabled(context.row, isEnabled);
+        this.updateTableRowTypeLabel(context.row);
         this.syncObjectAfterChange(context.table);
         this.selectTableComponent(context.table, context.cell, "row");
         this.syncTableRowTypeToolbar();
@@ -5457,13 +5552,7 @@
               this.normalizeTableRowColumnsForType(table, row, rowType);
             }
 
-            Array.from(row.cells).forEach(cell => {
-              if (rowType) {
-                cell.dataset.rowTypeLabel = rowType;
-              } else {
-                delete cell.dataset.rowTypeLabel;
-              }
-            });
+            this.updateTableRowTypeLabel(row);
           });
         });
       }
@@ -6072,6 +6161,8 @@ body {
           element.removeAttribute("contenteditable");
           element.removeAttribute("data-row-type-label");
           element.removeAttribute("data-wordex-datasource");
+          element.removeAttribute("data-wordex-enabled");
+          element.removeAttribute("data-wordex-generated");
           element.classList.remove(
             "selected",
             "selected-block",
@@ -6085,6 +6176,8 @@ body {
 
         container.querySelectorAll("tr[data-wordex-row-type]").forEach(row => {
           delete row.dataset.wordexRowType;
+          delete row.dataset.wordexDatasource;
+          delete row.dataset.wordexEnabled;
           delete row.dataset.wordexDecolumnized;
           delete row.dataset.wordexOriginalColumnCount;
         });
@@ -6093,12 +6186,13 @@ body {
       expandTablesWithData(container, rootData, inheritedScopes = null) {
         if (!container) return;
 
-        const rootCollection = inheritedScopes ? null : this.normalizeRootCollection(rootData);
-        const firstRootItem = rootCollection && rootCollection.length > 0 ? rootCollection[0] : rootData;
-        const scopes = inheritedScopes || [this.createDataScope(firstRootItem, "ROOT", firstRootItem, null)];
+        const rootCollection = this.normalizeRootCollection(rootData);
+        const scopes = inheritedScopes || [
+          this.createDataScope(rootCollection[0] || {}, "ROOT", rootCollection[0] || {}, null)
+        ];
 
         Array.from(container.querySelectorAll("table.wordex-table")).forEach(table => {
-          this.expandTableWithData(table, inheritedScopes ? rootData : rootCollection, scopes);
+          this.expandTableWithData(table, rootCollection, scopes);
         });
       }
 
@@ -6108,165 +6202,353 @@ body {
         this.normalizeLegacyTableFooterRows(table);
 
         const rows = Array.from(table.rows);
-        const typedRows = rows.filter(row => this.normalizeTableRowType(row.dataset.wordexRowType || ""));
 
-        if (typedRows.length === 0) {
-          this.resolveMacrosInElement(table, rootScopes);
+        if (rows.length === 0) {
           return;
         }
 
-        const expandedRows = [];
+        const reportMap = this.buildTableReportMap(table, rows);
         const rootCollection = Array.isArray(rootData) ? rootData : this.normalizeRootCollection(rootData);
-
-        rootCollection.forEach(rootItem => {
-          const rootScope = this.createDataScope(rootItem, "ROOT", rootItem, null);
-          const rootItemScopes = [rootScope];
-
-          expandedRows.push(
-            ...this.expandReportRowsRecursively(
-              rows,
-              rootItem,
-              rootItemScopes,
-              rootItem,
-              "ROOT",
-              table.dataset.wordexDatasource || ""
-            )
-          );
-        });
+        const expandedRows = this.renderTableReportMap(reportMap, rootCollection, rootScopes);
 
         table.innerHTML = "";
         expandedRows.forEach(row => table.appendChild(row));
         table.dataset.wordexGenerated = "1";
       }
 
-      expandReportRowsRecursively(rows, currentValue, scopes, rootData, currentCollectionName = "", explicitCollectionName = "") {
-        if (!Array.isArray(rows) || rows.length === 0) return [];
+      buildTableReportMap(table, rows) {
+        const datasource = String(table?.dataset?.wordexDatasource || "ROOT").trim() || "ROOT";
+        const entries = rows.map((row, index) => this.createTableReportMapEntry(row, index));
+        const rootGroup = this.createTableReportMapGroup(datasource, null, true);
+        const nextIndex = this.consumeTableReportGroup(rootGroup, entries, 0);
 
-        const hasGroupRows = rows.some(row => {
-          const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
-          return rowType === "GroupHeader" || rowType === "GroupFooter";
-        });
-
-        if (hasGroupRows) {
-          return this.expandGroupedRowsRecursively(
-            rows,
-            currentValue,
-            scopes,
-            rootData,
-            currentCollectionName,
-            explicitCollectionName
+        if (nextIndex < entries.length) {
+          const extra = entries[nextIndex];
+          throw new Error(
+            `Estrutura da tabela inválida: linha ${extra.index + 1} apareceu depois do fechamento do grupo ROOT.`
           );
         }
 
-        return this.expandUngroupedRowsRecursively(
-          rows,
-          currentValue,
-          scopes,
-          rootData,
-          currentCollectionName,
-          explicitCollectionName
-        );
+        return rootGroup;
       }
 
-      expandGroupedRowsRecursively(rows, currentValue, scopes, rootData, currentCollectionName = "", explicitCollectionName = "") {
-        const collectionName = String(explicitCollectionName || "").trim()
-          || this.inferGroupCollectionNameFromRows(rows, currentValue);
-        const collection = this.getCollectionFromValue(currentValue, collectionName);
+      createTableReportMapEntry(row, index) {
+        const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
 
-        if (collection.length === 0) {
-          return rows
-            .filter(row => row.dataset.wordexRowType !== "Detail")
-            .map(row => this.cloneReportRow(row, scopes, rootData));
+        if (rowType && rowType !== (row.dataset.wordexRowType || "")) {
+          row.dataset.wordexRowType = rowType;
+          this.updateTableRowTypeLabel(row);
         }
 
-        const expandedRows = [];
+        return {
+          kind: "row",
+          row,
+          index,
+          rowType,
+          datasource: this.getTableRowDatasource(row),
+          enabled: this.isTableRowEnabled(row),
+          isPhantom: false
+        };
+      }
 
-        collection.forEach(item => {
-          const itemScope = this.createDataScope(
-            item,
-            collectionName,
-            rootData,
-            currentValue,
-            currentCollectionName
-          );
+      createTableReportMapGroup(datasource, headerEntry = null, isRoot = false) {
+        return {
+          kind: "group",
+          datasource: String(datasource || (isRoot ? "ROOT" : "")).trim(),
+          isRoot: !!isRoot,
+          headers: headerEntry ? [headerEntry] : [],
+          body: [],
+          footer: null,
+          phantomFooter: false
+        };
+      }
 
-          const itemScopes = [itemScope, ...scopes];
+      consumeTableReportGroup(group, entries, startIndex) {
+        let index = startIndex;
+        let terminalMode = false;
 
-          rows.forEach(row => {
-            const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+        while (index < entries.length) {
+          const entry = entries[index];
+          const rowType = entry.rowType;
 
-            if (rowType === "Detail") {
-              expandedRows.push(
-                ...this.expandDetailRowRecursively(
-                  row,
-                  item,
-                  itemScopes,
-                  rootData,
-                  collectionName
-                )
+          if (!rowType) {
+            group.body.push(entry);
+            index++;
+            continue;
+          }
+
+          if (rowType === "ColumnHeader") {
+            if (terminalMode) {
+              throw new Error(
+                `Estrutura da tabela inválida: ColumnHeader na linha ${entry.index + 1} apareceu depois de Detail/GroupFooter. Depois de Detail só são aceitos Detail, GroupFooter ou linha sem tipo.`
               );
-              return;
             }
 
-            /*
-              GroupFooter é opcional e é renderizado depois das linhas Detail do item corrente.
-              O motor não varre coleções de totais automaticamente. Totais como
-              {{TotaisProdutos.PreçoSum}} só aparecem se o próprio template os referenciar,
-              normalmente em um GroupFooter do grupo corrente.
-            */
-            expandedRows.push(this.cloneReportRow(row, itemScopes, rootData));
+            group.body.push(entry);
+            index++;
+            continue;
+          }
+
+          if (rowType === "Detail") {
+            group.body.push(entry);
+            terminalMode = true;
+            index++;
+            continue;
+          }
+
+          if (rowType === "GroupFooter") {
+            group.footer = entry;
+            return index + 1;
+          }
+
+          if (rowType === "GroupHeader") {
+            if (terminalMode) {
+              throw new Error(
+                `Estrutura da tabela inválida: GroupHeader na linha ${entry.index + 1} apareceu depois de Detail/GroupFooter. Depois de Detail só são aceitos Detail, GroupFooter ou linha sem tipo.`
+              );
+            }
+
+            const datasource = String(entry.datasource || "").trim();
+            const belongsToCurrentGroup = !datasource || datasource === group.datasource;
+
+            if (belongsToCurrentGroup && group.body.length === 0) {
+              group.headers.push(entry);
+              index++;
+              continue;
+            }
+
+            if (!datasource) {
+              throw new Error(
+                `Estrutura da tabela inválida: GroupHeader na linha ${entry.index + 1} precisa de datasource para abrir subgrupo.`
+              );
+            }
+
+            const childGroup = this.createTableReportMapGroup(datasource, entry, false);
+            index = this.consumeTableReportGroup(childGroup, entries, index + 1);
+            group.body.push(childGroup);
+            terminalMode = true;
+            continue;
+          }
+
+          throw new Error(`Tipo de linha inválido na linha ${entry.index + 1}: ${rowType}`);
+        }
+
+        group.footer = this.createPhantomGroupFooterEntry(entries.length);
+        group.phantomFooter = true;
+        return index;
+      }
+
+      createPhantomGroupFooterEntry(index) {
+        return {
+          kind: "row",
+          row: null,
+          index,
+          rowType: "GroupFooter",
+          datasource: "",
+          enabled: false,
+          isPhantom: true
+        };
+      }
+
+      renderTableReportMap(reportMap, rootCollection, rootScopes) {
+        const rootItems = this.createInitialReportItems(reportMap.datasource, rootCollection, rootScopes);
+        const expandedRows = [];
+
+        rootItems.forEach(item => {
+          expandedRows.push(...this.renderReportGroup(reportMap, item));
+        });
+
+        return expandedRows;
+      }
+
+      createInitialReportItems(datasource, rootCollection, rootScopes) {
+        const tableDatasource = String(datasource || "ROOT").trim() || "ROOT";
+        const roots = this.normalizeRootCollection(rootCollection);
+        const items = [];
+
+        if (tableDatasource === "ROOT") {
+          roots.forEach(rootItem => {
+            items.push({
+              value: rootItem,
+              root: rootItem,
+              collectionName: "ROOT"
+            });
+          });
+
+          return items;
+        }
+
+        roots.forEach(rootItem => {
+          this.resolveDatasourceItems(rootItem, tableDatasource, rootItem).forEach(child => {
+            items.push({
+              value: child.value,
+              root: rootItem,
+              collectionName: this.getDatasourceCollectionName(tableDatasource)
+            });
           });
         });
 
-        return expandedRows;
+        return items;
       }
 
-      expandUngroupedRowsRecursively(rows, currentValue, scopes, rootData, currentCollectionName = "", explicitCollectionName = "") {
-        const expandedRows = [];
+      renderReportGroup(group, item) {
+        const rows = [];
+        const scope = this.createDataScope(
+          item.value,
+          group.datasource || item.collectionName || "ROOT",
+          item.root,
+          null
+        );
 
-        rows.forEach(row => {
-          const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+        group.headers.forEach(entry => {
+          rows.push(...this.renderReportMapRow(entry, item.value, item.root, scope, {
+            ignoreDatasource: true
+          }));
+        });
 
-          if (rowType === "Detail") {
-            expandedRows.push(
-              ...this.expandDetailRowRecursively(
-                row,
-                currentValue,
-                scopes,
-                rootData,
-                currentCollectionName,
-                explicitCollectionName
-              )
-            );
+        group.body.forEach(entry => {
+          if (entry.kind === "group") {
+            const childItems = this.resolveDatasourceItems(item.value, entry.datasource, item.root);
+
+            childItems.forEach(childItem => {
+              rows.push(...this.renderReportGroup(entry, {
+                value: childItem.value,
+                root: item.root,
+                collectionName: this.getDatasourceCollectionName(entry.datasource)
+              }));
+            });
+
             return;
           }
 
-          expandedRows.push(this.cloneReportRow(row, scopes, rootData));
+          if (entry.rowType === "Detail") {
+            rows.push(...this.renderDetailMapRow(entry, item.value, item.root));
+            return;
+          }
+
+          rows.push(...this.renderReportMapRow(entry, item.value, item.root, scope));
         });
 
-        return expandedRows;
-      }
-
-      expandDetailRowRecursively(row, currentValue, scopes, rootData, currentCollectionName = "", explicitCollectionName = "") {
-        const collectionName = String(explicitCollectionName || "").trim()
-          || this.inferDetailCollectionName([row], currentValue);
-        const collection = this.getCollectionFromValue(currentValue, collectionName);
-
-        if (collection.length === 0) {
-          return [this.cloneReportRow(row, scopes, rootData)];
+        if (group.footer) {
+          rows.push(...this.renderReportMapRow(group.footer, item.value, item.root, scope, {
+            ignoreDatasource: group.footer.datasource === group.datasource
+          }));
         }
 
-        return collection.map(item => {
-          const detailScope = this.createDataScope(
-            item,
-            collectionName,
+        return rows;
+      }
+
+      renderDetailMapRow(entry, currentValue, rootData) {
+        if (!entry.enabled) return [];
+
+        const datasource = String(entry.datasource || "").trim();
+
+        if (!datasource) {
+          const scope = this.createDataScope(currentValue, "", rootData, null);
+          return [this.cloneReportMapRow(entry.row, scope, rootData)];
+        }
+
+        return this.resolveDatasourceItems(currentValue, datasource, rootData).map(item => {
+          const scope = this.createDataScope(
+            item.value,
+            this.getDatasourceCollectionName(datasource),
             rootData,
-            currentValue,
-            currentCollectionName
+            null
           );
 
-          return this.cloneReportRow(row, [detailScope, ...scopes], rootData);
+          return this.cloneReportMapRow(entry.row, scope, rootData);
         });
+      }
+
+      renderReportMapRow(entry, currentValue, rootData, currentScope, options = {}) {
+        if (!entry || !entry.enabled || entry.isPhantom || !entry.row) {
+          return [];
+        }
+
+        const datasource = String(entry.datasource || "").trim();
+
+        if (datasource && !options.ignoreDatasource) {
+          const items = this.resolveDatasourceItems(currentValue, datasource, rootData);
+
+          return items.map(item => {
+            const scope = this.createDataScope(
+              item.value,
+              this.getDatasourceCollectionName(datasource),
+              rootData,
+              null
+            );
+
+            return this.cloneReportMapRow(entry.row, scope, rootData);
+          });
+        }
+
+        return [this.cloneReportMapRow(entry.row, currentScope, rootData)];
+      }
+
+      cloneReportMapRow(row, scope, rootData) {
+        const clone = row.cloneNode(true);
+
+        this.expandTablesWithData(clone, rootData, [scope]);
+        this.resolveMacrosInElement(clone, [scope]);
+
+        return clone;
+      }
+
+      resolveDatasourceItems(currentValue, datasource, rootData) {
+        const value = this.resolveDatasourceValue(currentValue, datasource, rootData);
+
+        if (Array.isArray(value)) {
+          return value.map(item => ({ value: item }));
+        }
+
+        if (value && typeof value === "object") {
+          if (Array.isArray(value.$items)) {
+            return value.$items.map(item => ({ value: item }));
+          }
+
+          if (Array.isArray(value.items)) {
+            return value.items.map(item => ({ value: item }));
+          }
+
+          return [{ value }];
+        }
+
+        return [];
+      }
+
+      resolveDatasourceValue(currentValue, datasource, rootData) {
+        const sourceName = String(datasource || "").trim();
+
+        if (!sourceName || sourceName === "." || sourceName === "$item") {
+          return currentValue;
+        }
+
+        if (sourceName === "ROOT" || sourceName === "$root") {
+          return rootData;
+        }
+
+        const parts = sourceName
+          .split(".")
+          .map(part => part.trim())
+          .filter(Boolean);
+
+        return this.getValueByPath(currentValue, parts);
+      }
+
+      getDatasourceCollectionName(datasource) {
+        const parts = String(datasource || "")
+          .split(".")
+          .map(part => part.trim())
+          .filter(Boolean);
+
+        return parts.length > 0 ? parts[parts.length - 1] : "";
+      }
+
+      cloneReportRow(row, scopes, rootData) {
+        const clone = row.cloneNode(true);
+        this.expandTablesWithData(clone, rootData, scopes);
+        this.resolveMacrosInElement(clone, scopes);
+        return clone;
       }
 
       inferGroupCollectionNameFromRows(rows, currentValue) {
