@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wordex - MVP Contínuo v192</title>
+  <title>Wordex - MVP Contínuo v198</title>
 
   <style id="wordex-editor-style">
     * { box-sizing: border-box; }
@@ -661,7 +661,7 @@
         this.documentElement = document.getElementById(documentId);
 
         this.wordexDocument = {
-          version: "1.92",
+          version: "1.98",
           mode: "continuous",
           description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas, objetos e montagem HTML por dados e clipboard interno).",
           headerTemplate: [],
@@ -1590,7 +1590,7 @@
         return {
           source: "Wordex",
           kind: "blocks",
-          version: "1.92",
+          version: "1.98",
           createdAt: new Date().toISOString(),
           region: context.region,
           blocks: [this.cloneBlockForClipboard(context.block)]
@@ -6054,13 +6054,63 @@
           styleText,
           generatedCss,
           "  </style>",
+          this.getGeneratedPagedJsConfigScript(),
           "</head>",
-          "<body>",
-          '  <div class="workspace">',
+          '<body class="wordex-generated-report">',
+          '  <div id="wordex-report-source" class="workspace">',
           documentClone.outerHTML,
           "  </div>",
+          '  <div id="wordex-paged-output"></div>',
+          '  <script src="https://unpkg.com/pagedjs/dist/paged.polyfill.js"><\/script>',
+          this.getGeneratedPagedJsStartScript(),
           "</body>",
           "</html>"
+        ].join("\n");
+      }
+
+      getGeneratedPagedJsConfigScript() {
+        return [
+          "  <script>",
+          "    window.PagedConfig = { auto: false };",
+          "  <\/script>"
+        ].join("\n");
+      }
+
+      getGeneratedPagedJsStartScript() {
+        return [
+          "  <script>",
+          "    (function () {",
+          "      function showPagedError(message) {",
+          "        var warning = document.createElement('div');",
+          "        warning.style.cssText = 'margin:12px;padding:10px;border:1px solid #c00;background:#fff2f2;color:#900;font-family:Arial,sans-serif;font-size:13px';",
+          "        warning.textContent = message;",
+          "        document.body.insertBefore(warning, document.body.firstChild);",
+          "      }",
+          "      function startPagedWordex() {",
+          "        var source = document.getElementById('wordex-report-source');",
+          "        var output = document.getElementById('wordex-paged-output');",
+          "        if (!source || !output) return;",
+          "        if (!window.Paged || !window.Paged.Previewer) {",
+          "          showPagedError('Paged.js não foi carregado. O relatório continua em fluxo contínuo.');",
+          "          return;",
+          "        }",
+          "        var previewer = new window.Paged.Previewer();",
+          "        previewer.preview(source, [], output).then(function (flow) {",
+          "          document.body.classList.add('wordex-paged-ready');",
+          "          document.documentElement.classList.add('wordex-paged-ready');",
+          "          console.log('Wordex/Paged.js:', flow.total, 'páginas.');",
+          "        }).catch(function (error) {",
+          "          console.error('Erro ao paginar com Paged.js:', error);",
+          "          showPagedError('Erro ao paginar com Paged.js. O relatório continua em fluxo contínuo.');",
+          "        });",
+          "      }",
+          "      if (document.readyState === 'loading') {",
+          "        document.addEventListener('DOMContentLoaded', startPagedWordex);",
+          "      } else {",
+          "        startPagedWordex();",
+          "      }",
+          "    }());",
+          "  <\/script>"
         ].join("\n");
       }
 
@@ -6077,6 +6127,10 @@ body {
   background: white;
 }
 
+body.wordex-generated-report {
+  margin: 0;
+}
+
 .workspace {
   padding: 0;
 }
@@ -6084,6 +6138,37 @@ body {
 .document {
   margin: 0 auto;
   box-shadow: none;
+}
+
+body.wordex-generated-report.wordex-paged-ready #wordex-report-source {
+  display: none !important;
+}
+
+body.wordex-generated-report #wordex-paged-output .pagedjs_pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 0;
+  background: #d8d8d8;
+}
+
+body.wordex-generated-report #wordex-paged-output .pagedjs_page {
+  background: white;
+  box-shadow: 0 0 10px rgba(0,0,0,.35);
+}
+
+@media print {
+  body.wordex-generated-report #wordex-paged-output .pagedjs_pages {
+    display: block;
+    padding: 0;
+    background: white;
+  }
+
+  body.wordex-generated-report #wordex-paged-output .pagedjs_page {
+    box-shadow: none;
+    margin: 0;
+  }
 }
 
 .document-title,
