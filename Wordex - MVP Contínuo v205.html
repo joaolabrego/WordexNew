@@ -1,9 +1,8 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wordex - MVP Contínuo v215</title>
+<html lang="pt-BR"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wordex - MVP Contínuo v205</title>
 
   <style id="wordex-editor-style">
     * { box-sizing: border-box; }
@@ -465,16 +464,16 @@
 
     <div class="toolbar-group">
       <span class="toolbar-title">Página</span>
-      <select id="pageFormat" onchange="wordex.applyPageSettingsFromToolbar()"></select>
+      <select id="pageFormat" onchange="wordex.applyPageSettingsFromToolbar()"><option value="A0">A0</option><option value="A1">A1</option><option value="A2">A2</option><option value="A3">A3</option><option value="A4">A4</option><option value="A5">A5</option><option value="A6">A6</option><option value="A7">A7</option><option value="A8">A8</option><option value="A9">A9</option><option value="A10">A10</option><option value="B0">B0</option><option value="B1">B1</option><option value="B2">B2</option><option value="B3">B3</option><option value="B4">B4</option><option value="B5">B5</option><option value="B6">B6</option><option value="B7">B7</option><option value="B8">B8</option><option value="B9">B9</option><option value="B10">B10</option><option value="C0">C0</option><option value="C1">C1</option><option value="C2">C2</option><option value="C3">C3</option><option value="C4">C4</option><option value="C5">C5</option><option value="C6">C6</option><option value="C7">C7</option><option value="C8">C8</option><option value="C9">C9</option><option value="C10">C10</option><option value="Letter">Carta</option><option value="Legal">Legal</option><option value="Executive">Executivo</option><option value="Tabloid">Tabloide</option><option value="Ledger">Ledger</option><option value="ANSI_A">ANSI A</option><option value="ANSI_B">ANSI B</option><option value="ANSI_C">ANSI C</option><option value="ANSI_D">ANSI D</option><option value="ANSI_E">ANSI E</option></select>
       <select id="pageOrientation" onchange="wordex.applyPageSettingsFromToolbar()">
         <option value="portrait">Retrato</option>
         <option value="landscape">Paisagem</option>
       </select>
       <span class="toolbar-label">Margens</span>
-      <input id="marginTop" type="text" value="25mm" title="Margem superior" onchange="wordex.applyPageSettingsFromToolbar()" />
-      <input id="marginRight" type="text" value="15mm" title="Margem direita" onchange="wordex.applyPageSettingsFromToolbar()" />
-      <input id="marginBottom" type="text" value="20mm" title="Margem inferior" onchange="wordex.applyPageSettingsFromToolbar()" />
-      <input id="marginLeft" type="text" value="15mm" title="Margem esquerda" onchange="wordex.applyPageSettingsFromToolbar()" />
+      <input id="marginTop" type="text" value="25mm" title="Margem superior" onchange="wordex.applyPageSettingsFromToolbar()">
+      <input id="marginRight" type="text" value="15mm" title="Margem direita" onchange="wordex.applyPageSettingsFromToolbar()">
+      <input id="marginBottom" type="text" value="20mm" title="Margem inferior" onchange="wordex.applyPageSettingsFromToolbar()">
+      <input id="marginLeft" type="text" value="15mm" title="Margem esquerda" onchange="wordex.applyPageSettingsFromToolbar()">
       <button onclick="wordex.applyPageSettingsFromToolbar()">Aplicar</button>
     </div>
 
@@ -494,7 +493,7 @@
         <option value="9pt">9</option>
         <option value="10pt">10</option>
         <option value="11pt">11</option>
-        <option value="12pt" selected>12</option>
+        <option value="12pt" selected="">12</option>
         <option value="14pt">14</option>
         <option value="16pt">16</option>
         <option value="18pt">18</option>
@@ -507,7 +506,7 @@
       <button class="compact" onclick="wordex.toggleUnderline()"><u>S</u></button>
       <button onclick="wordex.clearTextEmphasis()">Normal</button>
       <span class="toolbar-label">Cor</span>
-      <input id="fontColor" type="color" value="#000000" onchange="wordex.applyTextColor(this.value)" />
+      <input id="fontColor" type="color" value="#000000" onchange="wordex.applyTextColor(this.value)">
     </div>
 
     <div class="toolbar-group">
@@ -527,7 +526,7 @@
 
     <div class="toolbar-group">
       <span class="toolbar-title">Linha</span>
-      <select id="tableRowType" onchange="wordex.applySelectedTableRowType(this.value)">
+      <select id="tableRowType" onchange="wordex.applySelectedTableRowType(this.value)" disabled="">
         <option value="">Tipo da linha</option>
         <option value="ColumnHeader">ColumnHeader</option>
         <option value="GroupHeader">GroupHeader</option>
@@ -540,17 +539,17 @@
 
     <div class="toolbar-group">
       <span class="toolbar-title">Borda</span>
-      <input id="borderColor" type="color" value="#000000" />
+      <input id="borderColor" type="color" value="#000000">
       <select id="borderWidth" class="small">
         <option value="0">0</option>
-        <option value="1px" selected>1px</option>
+        <option value="1px" selected="">1px</option>
         <option value="2px">2px</option>
         <option value="3px">3px</option>
         <option value="4px">4px</option>
         <option value="6px">6px</option>
       </select>
       <select id="borderStyle" class="small">
-        <option value="solid" selected>solid</option>
+        <option value="solid" selected="">solid</option>
         <option value="dashed">dashed</option>
         <option value="dotted">dotted</option>
         <option value="double">double</option>
@@ -559,7 +558,7 @@
       <select id="borderRadius" class="small">
         <option value="0">0</option>
         <option value="2px">2px</option>
-        <option value="4px" selected>4px</option>
+        <option value="4px" selected="">4px</option>
         <option value="8px">8px</option>
         <option value="12px">12px</option>
         <option value="16px">16px</option>
@@ -583,7 +582,7 @@
 
     <div class="toolbar-group">
       <span class="toolbar-title">Dados</span>
-      <input id="jsonFileInput" type="file" accept=".json,application/json" style="display:none" onchange="wordex.loadJsonFile(this.files[0]); this.value='';" />
+      <input id="jsonFileInput" type="file" accept=".json,application/json" style="display:none" onchange="wordex.loadJsonFile(this.files[0]); this.value='';">
       <button onclick="wordex.chooseJsonFile()">Carregar JSON</button>
       <button onclick="wordex.clearJsonData()">Limpar JSON</button>
       <button class="primary" onclick="wordex.generateHtmlFromJson()">Montar HTML</button>
@@ -592,19 +591,250 @@
     <div class="toolbar-group">
       <span class="toolbar-title">Saída</span>
       <button onclick="wordex.saveWordexHtml()">Salvar Wordex HTML</button>
-      <button class="primary" onclick="wordex.generatePdfWithJsPdf()">Gerar PDF</button>
       <button class="primary" onclick="window.print()">Imprimir fluxo</button>
     </div>
 
   </div>
 
   <div class="workspace">
-    <div id="document" class="document"></div>
+    <div id="document" class="document" style="width: 210mm; min-height: 297mm; --wordex-header-footer-max-height: 89.1mm;"><div class="document-title">Wordex — A4 retrato — 210mm x 297mm</div><section class="region header-template" data-region="headerTemplate"><div class="paragraph-block" data-block-id="paragraph_ielo106r"><div class="paragraph" contenteditable="true" data-block-id="paragraph_ielo106r" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo header</div></div><div class="paragraph-block" data-block-id="paragraph_6qqyj016"><div class="paragraph" contenteditable="true" data-block-id="paragraph_6qqyj016" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo header</div></div></section><section class="region body-flow" data-region="bodyFlow"><div class="paragraph-block" data-block-id="paragraph_j6lnb1fx"><div class="paragraph is-empty" contenteditable="true" data-block-id="paragraph_j6lnb1fx" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;"></div></div><div class="paragraph-block" data-block-id="paragraph_3paciqxo"><div class="paragraph" contenteditable="true" data-block-id="paragraph_3paciqxo" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div><div class="paragraph-block" data-block-id="paragraph_5xnp1h3y"><div class="paragraph" contenteditable="true" data-block-id="paragraph_5xnp1h3y" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div><div class="paragraph-block" data-block-id="paragraph_jnu3reh5"><div class="paragraph" contenteditable="true" data-block-id="paragraph_jnu3reh5" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div><div class="paragraph-block" data-block-id="paragraph_llz6y4w6"><div class="paragraph" contenteditable="true" data-block-id="paragraph_llz6y4w6" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div><div class="paragraph-block" data-block-id="paragraph_8vlpxmze"><div class="paragraph" contenteditable="true" data-block-id="paragraph_8vlpxmze" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div><div class="paragraph-block" data-block-id="paragraph_fbxgwh5q"><div class="paragraph" contenteditable="true" data-block-id="paragraph_fbxgwh5q" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div><div class="paragraph-block" data-block-id="paragraph_gea86r27"><div class="paragraph" contenteditable="true" data-block-id="paragraph_gea86r27" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div><div class="paragraph-block" data-block-id="paragraph_hj7r5nzf"><div class="paragraph" contenteditable="true" data-block-id="paragraph_hj7r5nzf" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div><div class="paragraph-block" data-block-id="paragraph_10hp55fy"><div class="paragraph" contenteditable="true" data-block-id="paragraph_10hp55fy" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div><div class="paragraph-block" data-block-id="paragraph_qqp1cwld"><div class="paragraph" contenteditable="true" data-block-id="paragraph_qqp1cwld" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div><div class="paragraph-block" data-block-id="paragraph_v88spfry"><div class="paragraph" contenteditable="true" data-block-id="paragraph_v88spfry" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div><div class="paragraph-block" data-block-id="paragraph_15cbst9g"><div class="paragraph" contenteditable="true" data-block-id="paragraph_15cbst9g" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div><div class="paragraph-block" data-block-id="paragraph_r63psgz6"><div class="paragraph" contenteditable="true" data-block-id="paragraph_r63psgz6" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div><div class="paragraph-block" data-block-id="paragraph_uq8r7bfn"><div class="paragraph" contenteditable="true" data-block-id="paragraph_uq8r7bfn" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo body</div></div></section><section class="region footer-template selected" data-region="footerTemplate"><div class="paragraph-block" data-block-id="paragraph_gst6oa30"><div class="paragraph" contenteditable="true" data-block-id="paragraph_gst6oa30" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo footer</div></div><div class="paragraph-block selected-block" data-block-id="paragraph_pzkmk1w6"><div class="paragraph" contenteditable="true" data-block-id="paragraph_pzkmk1w6" data-empty-text="Parágrafo vazio" style="font-family: Arial; font-size: 12pt; color: rgb(0, 0, 0); text-align: left;">Novo parágrafo footer</div></div></section></div>
   </div>
 
 
 
-  <script>
+  <script id="wordexSavedDocument" type="application/json">{
+  "savedAt": "2026-05-27T03:42:24.046Z",
+  "wordexDocument": {
+    "version": "2.06",
+    "mode": "continuous",
+    "description": "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas, objetos e montagem HTML por dados e clipboard interno).",
+    "headerTemplate": [
+      {
+        "id": "paragraph_ielo106r",
+        "type": "paragraph",
+        "html": "Novo parágrafo header",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_6qqyj016",
+        "type": "paragraph",
+        "html": "Novo parágrafo header",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      }
+    ],
+    "bodyFlow": [
+      {
+        "id": "paragraph_j6lnb1fx",
+        "type": "paragraph",
+        "html": "",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_3paciqxo",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_5xnp1h3y",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_jnu3reh5",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_llz6y4w6",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_8vlpxmze",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_fbxgwh5q",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_gea86r27",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_hj7r5nzf",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_10hp55fy",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_qqp1cwld",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_v88spfry",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_15cbst9g",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_r63psgz6",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_uq8r7bfn",
+        "type": "paragraph",
+        "html": "Novo parágrafo body",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      }
+    ],
+    "footerTemplate": [
+      {
+        "id": "paragraph_gst6oa30",
+        "type": "paragraph",
+        "html": "Novo parágrafo footer",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "paragraph_pzkmk1w6",
+        "type": "paragraph",
+        "html": "Novo parágrafo footer",
+        "style": {
+          "fontFamily": "Arial",
+          "fontSize": "12pt",
+          "color": "#000000",
+          "textAlign": "left"
+        }
+      }
+    ],
+    "page": {
+      "format": "A4",
+      "orientation": "portrait",
+      "width": "210mm",
+      "height": "297mm",
+      "marginTop": "22.51mm",
+      "marginRight": "15mm",
+      "marginBottom": "22.51mm",
+      "marginLeft": "15mm"
+    }
+  }
+}</script><script>
     class WordexEditor {
       static objectSelector = ".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox";
 
@@ -662,7 +892,7 @@
         this.documentElement = document.getElementById(documentId);
 
         this.wordexDocument = {
-          version: "2.15",
+          version: "2.06",
           mode: "continuous",
           description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas, objetos e montagem HTML por dados e clipboard interno).",
           headerTemplate: [],
@@ -1591,7 +1821,7 @@
         return {
           source: "Wordex",
           kind: "blocks",
-          version: "2.15",
+          version: "2.06",
           createdAt: new Date().toISOString(),
           region: context.region,
           blocks: [this.cloneBlockForClipboard(context.block)]
@@ -6004,177 +6234,6 @@
         }
       }
 
-      generatePdfWithJsPdf() {
-        try {
-          this.syncCurrentEditingState();
-
-          const html = this.injectJsPdfAutoGenerationScript(
-            this.buildGeneratedReportHtml(this.reportData)
-          );
-
-          this.openGeneratedHtmlInNewTab(html);
-        } catch (error) {
-          alert("Erro ao gerar PDF: " + error.message);
-        }
-      }
-
-      injectJsPdfAutoGenerationScript(html) {
-        const script = [
-          "<script>",
-          "  (function () {",
-          "    var statusBox = null;",
-          "    function setStatus(message, isError) {",
-          "      if (!statusBox) {",
-          "        statusBox = document.createElement('div');",
-          "        statusBox.style.cssText = 'position:fixed;left:16px;right:16px;top:16px;z-index:999999;padding:10px 12px;border:1px solid #555;background:#fffff5;color:#222;font-family:Arial,sans-serif;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.25)';",
-          "        document.body.appendChild(statusBox);",
-          "      }",
-          "      statusBox.style.borderColor = isError ? '#c00' : '#555';",
-          "      statusBox.style.background = isError ? '#fff2f2' : '#fffff5';",
-          "      statusBox.style.color = isError ? '#900' : '#222';",
-          "      statusBox.textContent = message;",
-          "    }",
-          "    function loadScriptFromSources(sources) {",
-          "      return new Promise(function (resolve, reject) {",
-          "        var index = 0;",
-          "        function tryNext() {",
-          "          if (index >= sources.length) {",
-          "            reject(new Error('Não foi possível carregar biblioteca externa.'));",
-          "            return;",
-          "          }",
-          "          var script = document.createElement('script');",
-          "          script.src = sources[index++];",
-          "          script.onload = function () { resolve(); };",
-          "          script.onerror = function () { script.remove(); tryNext(); };",
-          "          document.head.appendChild(script);",
-          "        }",
-          "        tryNext();",
-          "      });",
-          "    }",
-          "    function waitForPagedReady(timeoutMs) {",
-          "      return new Promise(function (resolve, reject) {",
-          "        var startedAt = Date.now();",
-          "        function check() {",
-          "          var pages = document.querySelectorAll('#wordex-paged-output .pagedjs_page');",
-          "          if (document.body.classList.contains('wordex-paged-ready') && pages.length > 0) {",
-          "            resolve(Array.prototype.slice.call(pages));",
-          "            return;",
-          "          }",
-          "          if (Date.now() - startedAt > timeoutMs) {",
-          "            reject(new Error('A paginação não terminou dentro do tempo esperado.'));",
-          "            return;",
-          "          }",
-          "          setTimeout(check, 250);",
-          "        }",
-          "        check();",
-          "      });",
-          "    }",
-          "    function normalizeBlankText(text) {",
-          "      return String(text || '')",
-          "        .replace(/\u200B/g, '')",
-          "        .replace(/\u00A0/g, ' ')",
-          "        .replace(/\s+/g, '')",
-          "        .trim();",
-          "    }",
-          "    function pageHasVisualObject(page) {",
-          "      if (!page) return false;",
-          "      return !!page.querySelector('.pagedjs_page_content table, .pagedjs_page_content img, .pagedjs_page_content svg, .pagedjs_page_content canvas, .pagedjs_page_content .dynamic-image-box, .pagedjs_page_content .wordex-table, .pagedjs_page_content .wordex-chart-box, .pagedjs_page_content .wordex-textbox');",
-          "    }",
-          "    function isTrailingPageBlank(page) {",
-          "      if (!page) return true;",
-          "      var content = page.querySelector('.pagedjs_page_content');",
-          "      if (!content) return true;",
-          "      if (pageHasVisualObject(page)) return false;",
-          "      return normalizeBlankText(content.innerText || content.textContent || '') === '';",
-          "    }",
-          "    function removeTrailingBlankPages(pages) {",
-          "      var result = Array.prototype.slice.call(pages || []);",
-          "      while (result.length > 1 && isTrailingPageBlank(result[result.length - 1])) {",
-          "        var removed = result.pop();",
-          "        if (removed && removed.parentNode) {",
-          "          removed.parentNode.removeChild(removed);",
-          "        }",
-          "      }",
-          "      return result;",
-          "    }",
-          "    function getJsPdfConstructor() {",
-          "      return window.jspdf && window.jspdf.jsPDF;",
-          "    }",
-          "    async function generatePdfFromPagedPages() {",
-          "      try {",
-          "        setStatus('Aguardando paginação do relatório...');",
-          "        var pages = await waitForPagedReady(60000);",
-          "        var originalPageCount = pages.length;",
-          "        pages = removeTrailingBlankPages(pages);",
-          "        if (pages.length < originalPageCount) {",
-          "          setStatus('Removida(s) ' + (originalPageCount - pages.length) + ' página(s) vazia(s) no final.');",
-          "        }",
-          "        await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());",
-          "        setStatus('Carregando jsPDF e html2canvas...');",
-          "        if (!window.jspdf || !window.jspdf.jsPDF) {",
-          "          await loadScriptFromSources([",
-          "            'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',",
-          "            'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'",
-          "          ]);",
-          "        }",
-          "        if (!window.html2canvas) {",
-          "          await loadScriptFromSources([",
-          "            'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',",
-          "            'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'",
-          "          ]);",
-          "        }",
-          "        var JsPDF = getJsPdfConstructor();",
-          "        if (!JsPDF || !window.html2canvas) {",
-          "          throw new Error('jsPDF ou html2canvas indisponível.');",
-          "        }",
-          "        var firstRect = pages[0].getBoundingClientRect();",
-          "        var pdfWidth = firstRect.width * 0.75;",
-          "        var pdfHeight = firstRect.height * 0.75;",
-          "        var pdf = new JsPDF({",
-          "          orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',",
-          "          unit: 'pt',",
-          "          format: [pdfWidth, pdfHeight],",
-          "          compress: true",
-          "        });",
-          "        for (var i = 0; i < pages.length; i++) {",
-          "          setStatus('Gerando PDF: página ' + (i + 1) + ' de ' + pages.length + '...');",
-          "          var page = pages[i];",
-          "          var canvas = await window.html2canvas(page, {",
-          "            scale: 2,",
-          "            useCORS: true,",
-          "            backgroundColor: '#ffffff',",
-          "            logging: false",
-          "          });",
-          "          var imageData = canvas.toDataURL('image/jpeg', 0.95);",
-          "          var rect = page.getBoundingClientRect();",
-          "          var pageWidth = rect.width * 0.75;",
-          "          var pageHeight = rect.height * 0.75;",
-          "          if (i > 0) {",
-          "            pdf.addPage([pageWidth, pageHeight], pageWidth > pageHeight ? 'landscape' : 'portrait');",
-          "          }",
-          "          pdf.addImage(imageData, 'JPEG', 0, 0, pageWidth, pageHeight);",
-          "        }",
-          "        setStatus('Abrindo PDF...');",
-          "        var pdfBlob = pdf.output('blob');",
-          "        var pdfUrl = URL.createObjectURL(pdfBlob);",
-          "        window.location.href = pdfUrl;",
-          "      } catch (error) {",
-          "        console.error('Wordex/jsPDF:', error);",
-          "        setStatus('Erro ao gerar PDF: ' + error.message, true);",
-          "      }",
-          "    }",
-          "    if (document.readyState === 'loading') {",
-          "      document.addEventListener('DOMContentLoaded', generatePdfFromPagedPages);",
-          "    } else {",
-          "      generatePdfFromPagedPages();",
-          "    }",
-          "  }());",
-          "<\/script>"
-        ].join("\n");
-
-        return String(html || "").replace(/<\/body>\s*<\/html>\s*$/i, script + "\n</body>\n</html>");
-      }
-
       openGeneratedHtmlInNewTab(html) {
         const blob = new Blob([html], { type: "text/html;charset=utf-8" });
         const url = URL.createObjectURL(blob);
@@ -7401,5 +7460,5 @@ body.wordex-generated-report #wordex-paged-output .pagedjs_page {
 
     const wordex = new WordexEditor("document");
   </script>
-</body>
-</html>
+
+</body></html>
