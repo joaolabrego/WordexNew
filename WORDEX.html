@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wordex - MVP Contínuo v198</title>
+  <title>Wordex - MVP Contínuo v205</title>
 
   <style id="wordex-editor-style">
     * { box-sizing: border-box; }
@@ -661,7 +661,7 @@
         this.documentElement = document.getElementById(documentId);
 
         this.wordexDocument = {
-          version: "1.98",
+          version: "2.05",
           mode: "continuous",
           description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas, objetos e montagem HTML por dados e clipboard interno).",
           headerTemplate: [],
@@ -1590,7 +1590,7 @@
         return {
           source: "Wordex",
           kind: "blocks",
-          version: "1.98",
+          version: "2.05",
           createdAt: new Date().toISOString(),
           region: context.region,
           blocks: [this.cloneBlockForClipboard(context.block)]
@@ -5994,17 +5994,12 @@
 
       generateHtmlFromJson() {
         try {
-          if (!this.reportData) {
-            alert("Carregue um arquivo JSON antes de montar o HTML.");
-            return;
-          }
-
           this.syncCurrentEditingState();
 
           const html = this.buildGeneratedReportHtml(this.reportData);
           this.openGeneratedHtmlInNewTab(html);
         } catch (error) {
-          alert("Erro ao montar HTML com JSON: " + error.message);
+          alert("Erro ao montar HTML: " + error.message);
         }
       }
 
@@ -6406,20 +6401,25 @@ body.wordex-generated-report #wordex-paged-output .pagedjs_page {
 
       buildGeneratedDocumentClone(data) {
         const clone = this.documentElement.cloneNode(true);
-        const rootCollection = this.normalizeRootCollection(data);
-        const firstRootItem = rootCollection.length > 0 ? rootCollection[0] : {};
-        const rootScope = this.createDataScope(firstRootItem, "ROOT", firstRootItem, null);
+        const hasReportData = data !== undefined && data !== null;
 
         clone.querySelectorAll(".document-title, .empty").forEach(node => node.remove());
         this.removeEditorSelectionMarks(clone);
 
-        /*
-          O ROOT é sempre tratado como coleção. O uso recomendado é uma única
-          linha em ROOT, mas duas ou mais linhas serão processadas normalmente
-          pelo mesmo forEach dos demais grupos.
-        */
-        this.expandTablesWithData(clone, rootCollection, null);
-        this.resolveMacrosInElement(clone, [rootScope]);
+        if (hasReportData) {
+          const rootCollection = this.normalizeRootCollection(data);
+          const firstRootItem = rootCollection.length > 0 ? rootCollection[0] : {};
+          const rootScope = this.createDataScope(firstRootItem, "ROOT", firstRootItem, null);
+
+          /*
+            O ROOT é sempre tratado como coleção. O uso recomendado é uma única
+            linha em ROOT, mas duas ou mais linhas serão processadas normalmente
+            pelo mesmo forEach dos demais grupos.
+          */
+          this.expandTablesWithData(clone, rootCollection, null);
+          this.resolveMacrosInElement(clone, [rootScope]);
+        }
+
         this.cleanGeneratedDocumentNode(clone);
 
         return clone;
