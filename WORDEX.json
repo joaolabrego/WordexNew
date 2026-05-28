@@ -37,16 +37,13 @@
                 "TotaisProdutos": [
                     {
                         "ClienteId": "1",
-                        "PreçoCount": "2",
                         "PreçoSum": "150,00",
-                        "PreçoMin": "50,00",
-                        "PreçoMax": "100,00",
-                        "PreçoAvg": "75,00",
-                        "QuantidadeCount": "2",
-                        "QuantidadeSum": "3",
-                        "QuantidadeMin": "1",
-                        "QuantidadeMax": "2",
-                        "QuantidadeAvg": "1,5"
+                        "QuantidadeSum": "3"
+                    },
+                    {
+                        "ClienteId": "2",
+                        "PreçoSum": "200,00",
+                        "QuantidadeSum": "3"
                     }
                 ]
             },
@@ -71,17 +68,14 @@
                 ],
                 "TotaisProdutos": [
                     {
+                        "ClienteId": "1",
+                        "PreçoSum": "150,00",
+                        "QuantidadeSum": "3"
+                    },
+                    {
                         "ClienteId": "2",
-                        "PreçoCount": "1",
                         "PreçoSum": "200,00",
-                        "PreçoMin": "200,00",
-                        "PreçoMax": "200,00",
-                        "PreçoAvg": "200,00",
-                        "QuantidadeCount": "1",
-                        "QuantidadeSum": "3",
-                        "QuantidadeMin": "3",
-                        "QuantidadeMax": "3",
-                        "QuantidadeAvg": "3,0"
+                        "QuantidadeSum": "3"
                     }
                 ]
             }
@@ -97,6 +91,12 @@
             "QuantidadeMin": "1",
             "QuantidadeMax": "3",
             "QuantidadeAvg": "2,0"
+        },
+        "TotaisProdutosGrafico": {
+            "CategoriaId": "1",
+            "PreçoSum": "100,00",
+            "PreçoSum_Value": "100,55",
+            "PreçoSum_Label": "Preço"
         }
     }
 ]
