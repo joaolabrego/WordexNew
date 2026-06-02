@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wordex - MVP Contínuo v232 base atual</title>
+  <title>Wordex - MVP Contínuo v255 alinhamento de tabela e objeto</title>
 
   <style id="wordex-editor-style">
     * { box-sizing: border-box; }
@@ -18,102 +18,328 @@
     .toolbar {
       position: sticky;
       top: 0;
-      z-index: 100;
+      z-index: 1000;
+      display: block;
+      padding: 0;
+      background: linear-gradient(#fbfbfb, #f2f2f2);
+      color: #222;
+      border-bottom: 1px solid #c7c7c7;
+      box-shadow: 0 1px 4px rgba(0,0,0,.18);
+      font-family: "Segoe UI", Arial, sans-serif;
+      overflow: visible;
+    }
+
+    .ribbon-content {
+      position: relative;
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       align-items: stretch;
-      gap: 8px;
-      padding: 8px;
-      background: #202020;
-      color: white;
-      border-bottom: 1px solid #111;
+      gap: 0;
+      min-height: 72px;
+      padding: 0 8px 4px;
+      overflow-x: auto;
+      overflow-y: visible;
+      scrollbar-width: thin;
     }
 
     .toolbar-group {
+      position: relative;
       display: flex;
+      flex: 0 0 auto;
       flex-wrap: wrap;
-      align-items: center;
-      gap: 5px;
-      padding: 6px;
-      border: 1px solid #454545;
-      border-radius: 8px;
-      background: #2a2a2a;
+      align-content: flex-start;
+      align-items: flex-start;
+      gap: 2px;
+      min-height: 70px;
+      max-height: 76px;
+      padding: 4px 6px 16px;
+      border-right: 1px solid #d1d1d1;
+      background: transparent;
     }
 
     .toolbar-title {
-      align-self: stretch;
-      display: inline-flex;
-      align-items: center;
-      padding: 0 6px;
-      border-right: 1px solid #555;
-      color: #d5d5d5;
-      font-size: 11px;
-      font-weight: bold;
-      text-transform: uppercase;
-      letter-spacing: .03em;
+      position: absolute;
+      left: 6px;
+      right: 6px;
+      bottom: 2px;
+      display: block;
+      padding-top: 3px;
+      border-top: 1px solid transparent;
+      color: #6d6d6d;
+      font-size: 10px;
+      line-height: 1.1;
+      font-weight: 400;
+      text-align: center;
+      text-transform: none;
+      letter-spacing: 0;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .toolbar button,
     .toolbar select,
     .toolbar input[type="color"],
     .toolbar input[type="text"] {
-      border: 0;
-      padding: 5px 8px;
-      border-radius: 4px;
-      background: #f2f2f2;
+      border: 1px solid transparent;
+      padding: 2px 5px;
+      border-radius: 3px;
+      background: transparent;
+      color: #222;
       cursor: pointer;
       font: inherit;
-      font-size: 13px;
-      min-height: 30px;
+      font-size: 11px;
+      min-height: 21px;
+    }
+
+    .toolbar button {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      min-width: 30px;
+      max-width: 72px;
+      text-align: center;
+      line-height: 1.1;
+      white-space: normal;
+    }
+
+    .toolbar button[data-icon]::before {
+      content: attr(data-icon);
+      display: block;
+      font-size: 15px;
+      line-height: 1;
+      font-weight: 400;
+    }
+
+    .toolbar button.ribbon-large {
+      min-width: 48px;
+      min-height: 44px;
+      padding: 3px 5px;
+    }
+
+    .toolbar button.ribbon-large[data-icon]::before {
+      font-size: 20px;
+      margin-bottom: 0;
+    }
+
+    .toolbar button.ribbon-icon-html[data-icon]::before,
+    .toolbar button.ribbon-icon-pdf[data-icon]::before {
+      content: "";
+      width: 24px;
+      height: 24px;
+      margin-bottom: 1px;
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: contain;
+    }
+
+    .toolbar button.ribbon-icon-html[data-icon]::before {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%23e44d26' d='M10 4h44l-4 50-18 6-18-6z'/%3E%3Cpath fill='%23f16529' d='M32 8h18l-3.4 42.5L32 55.5z'/%3E%3Cpath fill='%23ffffff' d='M20 16h24l-.5 6H26l.4 5h16.7l-1.3 16L32 47l-9.7-3.2-.7-8h6l.3 3.6 4.1 1.4 4.2-1.4.5-6.4H21.2z'/%3E%3C/svg%3E");
+    }
+
+    .toolbar button.ribbon-icon-pdf[data-icon]::before {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%23c62828' d='M14 4h26l10 10v46H14z'/%3E%3Cpath fill='%23ef9a9a' d='M40 4v12h10z'/%3E%3Cpath fill='%23ffffff' d='M21 32h22v5H21zm0 9h22v5H21zm0-18h15v5H21z'/%3E%3C/svg%3E");
     }
 
     .toolbar button.primary {
-      background: #e8f0ff;
-      font-weight: bold;
+      background: #eaf2ff;
+      border-color: #b8cff5;
+      font-weight: 600;
     }
 
     .toolbar button.danger {
-      background: #ffe9e9;
+      background: #fff3f3;
+      border-color: #f1c7c7;
     }
 
+    .toolbar select {
+      min-width: 52px;
+      height: 22px;
+      padding: 2px 22px 2px 5px;
+      border-color: #bdbdbd;
+      background: #fff;
+    }
+
+    #fontFamily { width: 112px; }
+    #fontSize { width: 52px; }
+
     .toolbar input[type="color"] {
-      width: 38px;
-      height: 30px;
-      padding: 2px;
+      width: 28px;
+      height: 22px;
+      padding: 1px;
+      border-color: #bdbdbd;
+      background: #fff;
     }
 
     .toolbar input[type="text"] {
-      width: 62px;
-      height: 30px;
-      padding: 4px 6px;
+      width: 46px;
+      height: 22px;
+      padding: 2px 4px;
+      border-color: #bdbdbd;
+      background: #fff;
+      cursor: text;
     }
 
     .toolbar-label {
       align-self: center;
-      font-size: 12px;
-      color: #ddd;
+      padding: 0 2px;
+      color: #555;
+      font-size: 10px;
       white-space: nowrap;
     }
 
     .toolbar select.small {
-      max-width: 84px;
-      padding-left: 6px;
-      padding-right: 6px;
+      max-width: 60px;
+      min-width: 50px;
+      padding-left: 5px;
+      padding-right: 18px;
     }
 
     .toolbar button:hover,
     .toolbar select:hover,
     .toolbar input[type="color"]:hover,
     .toolbar input[type="text"]:hover {
-      background: white;
+      border-color: #9ebbe8;
+      background: linear-gradient(#fff, #eaf2ff);
+    }
+
+    .toolbar button:active {
+      background: linear-gradient(#dbeaff, #f6faff);
+      border-color: #6f9ee6;
     }
 
     .toolbar .compact {
-      padding-left: 7px;
-      padding-right: 7px;
-      min-width: 30px;
+      min-width: 24px;
+      max-width: 36px;
+      min-height: 21px;
+      padding-left: 6px;
+      padding-right: 6px;
+      font-size: 13px;
+      font-weight: 600;
     }
+
+    .wordex-border-dropdown {
+      position: relative;
+      display: inline-flex;
+      align-items: stretch;
+      height: 44px;
+    }
+
+    .toolbar .wordex-border-trigger {
+      min-width: 48px;
+      min-height: 44px;
+      border-top-right-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+
+    .toolbar .wordex-border-arrow {
+      min-width: 18px;
+      max-width: 20px;
+      min-height: 44px;
+      padding: 0 2px;
+      border-left-color: #d0d0d0;
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+      font-size: 12px;
+    }
+
+    .toolbar .wordex-border-arrow::before {
+      content: "" !important;
+      display: none !important;
+    }
+
+    .wordex-border-menu {
+      position: fixed;
+      display: none;
+      z-index: 5000;
+      width: 252px;
+      padding: 4px 0;
+      border: 1px solid #9f9f9f;
+      border-radius: 3px;
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,.22);
+      color: #222;
+    }
+
+    .wordex-border-menu.is-open {
+      display: block;
+    }
+
+    .toolbar .wordex-border-menu button {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-start;
+      width: 100%;
+      max-width: none;
+      min-height: 26px;
+      padding: 4px 12px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      text-align: left;
+      font-size: 12px;
+      gap: 10px;
+      white-space: nowrap;
+    }
+
+    .toolbar .wordex-border-menu button:hover {
+      background: #eaf2ff;
+      border: 0;
+    }
+
+    .toolbar .wordex-border-menu button:disabled {
+      color: #999;
+      background: transparent;
+      cursor: default;
+    }
+
+    .toolbar .wordex-border-menu button::before {
+      content: "" !important;
+      display: none !important;
+    }
+
+    .wordex-border-separator {
+      height: 1px;
+      margin: 4px 0;
+      background: #ddd;
+    }
+
+    .wordex-border-glyph {
+      position: relative;
+      flex: 0 0 auto;
+      width: 18px;
+      height: 18px;
+      border: 1px dotted #aaa;
+      background:
+        linear-gradient(90deg, transparent 48%, #ddd 49%, #ddd 51%, transparent 52%),
+        linear-gradient(0deg, transparent 48%, #ddd 49%, #ddd 51%, transparent 52%);
+    }
+
+    .wordex-border-glyph::before,
+    .wordex-border-glyph::after {
+      content: "";
+      position: absolute;
+      background: #333;
+    }
+
+    .wordex-border-glyph.bottom::before { left: 0; right: 0; bottom: -1px; height: 2px; }
+    .wordex-border-glyph.top::before { left: 0; right: 0; top: -1px; height: 2px; }
+    .wordex-border-glyph.left::before { top: 0; bottom: 0; left: -1px; width: 2px; }
+    .wordex-border-glyph.right::before { top: 0; bottom: 0; right: -1px; width: 2px; }
+    .wordex-border-glyph.none::before { left: -2px; right: -2px; top: 8px; height: 1px; transform: rotate(45deg); background: #999; }
+    .wordex-border-glyph.all { border: 1px solid #333; background:
+        linear-gradient(90deg, transparent 47%, #333 48%, #333 52%, transparent 53%),
+        linear-gradient(0deg, transparent 47%, #333 48%, #333 52%, transparent 53%); }
+    .wordex-border-glyph.outside { border: 2px solid #333; }
+    .wordex-border-glyph.inside::before { left: 8px; top: 0; bottom: 0; width: 2px; }
+    .wordex-border-glyph.inside::after { left: 0; right: 0; top: 8px; height: 2px; }
+    .wordex-border-glyph.inside-h::before { left: 0; right: 0; top: 8px; height: 2px; }
+    .wordex-border-glyph.inside-v::before { left: 8px; top: 0; bottom: 0; width: 2px; }
+    .wordex-border-glyph.diagonal-down::before { left: -2px; right: -2px; top: 8px; height: 1px; transform: rotate(45deg); background: #bbb; }
+    .wordex-border-glyph.diagonal-up::before { left: -2px; right: -2px; top: 8px; height: 1px; transform: rotate(-45deg); background: #bbb; }
 
     .workspace { padding: 28px 0 50px; }
 
@@ -140,6 +366,48 @@
 
     .region:hover { outline: 2px dashed #bbb; }
     .region.selected { outline: 2px solid #2277cc; }
+
+    body:not(.wordex-generated-report) .document > .region {
+      position: relative;
+    }
+
+    body:not(.wordex-generated-report) .document > .region::before {
+      position: absolute;
+      top: 2mm;
+      left: 3mm;
+      padding: 1px 6px;
+      border: 1px solid #c8d8ee;
+      border-radius: 10px;
+      background: #f3f8ff;
+      color: #4d6f9c;
+      font: 10px/1.4 "Segoe UI", Arial, sans-serif;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      pointer-events: none;
+      user-select: none;
+      z-index: 2;
+    }
+
+    body:not(.wordex-generated-report) .document > .header-template::before { content: "Header"; }
+    body:not(.wordex-generated-report) .document > .body-flow::before { content: "Body"; }
+    body:not(.wordex-generated-report) .document > .footer-template::before { content: "Footer"; }
+
+    body:not(.wordex-generated-report) .document > .header-template {
+      background: #fbfdff;
+      border-bottom: 1px dashed #b8cbe3;
+    }
+
+    body:not(.wordex-generated-report) .document > .body-flow {
+      background: #fff;
+      border-top: 1px dashed #e1e1e1;
+      border-bottom: 1px dashed #e1e1e1;
+    }
+
+    body:not(.wordex-generated-report) .document > .footer-template {
+      background: #fbfdff;
+      border-top: 1px dashed #b8cbe3;
+    }
+
 
     .header-template,
     .footer-template {
@@ -192,8 +460,8 @@
 
     .paragraph {
       position: relative;
-      min-height: 22px;
-      line-height: 1.45;
+      min-height: 1.15em;
+      line-height: 1.15;
       outline: 1px dashed #ddd;
       outline-offset: 1px;
       white-space: pre-wrap;
@@ -213,6 +481,7 @@
       position: absolute;
       left: 0;
       top: 0;
+      line-height: inherit;
       color: #aaa;
       font-style: italic;
       pointer-events: none;
@@ -317,6 +586,11 @@
       vertical-align: top;
     }
 
+    .wordex-table.wordex-show-gridlines td {
+      outline: 1px dotted #8aa9d6;
+      outline-offset: -1px;
+    }
+
     .selected-object {
       outline: 3px solid #e69500 !important;
       outline-offset: 2px;
@@ -367,9 +641,9 @@
     .wordex-textbox {
       display: inline-block;
       max-width: 100%;
-      min-width: 32mm;
-      min-height: 16mm;
-      padding: 6px;
+      min-width: 8mm;
+      min-height: 1.55em;
+      padding: 2px 4px;
       border: none !important;
       outline: 1px dashed #999 !important;
       outline-offset: 2px;
@@ -378,9 +652,10 @@
       background: #fff;
       color: #222;
       font-size: 12pt;
-      line-height: 1.35;
+      line-height: 1.25;
       overflow: auto;
       white-space: pre-wrap;
+      text-align: left;
       user-select: text;
     }
 
@@ -400,10 +675,193 @@
       font-style: italic;
     }
 
+
+
+    /* v238: botões do ribbon somente com ícone + tooltip. */
+    .ribbon-content {
+      min-height: 58px;
+      padding-bottom: 3px;
+    }
+
+    .toolbar-group {
+      min-height: 56px;
+      max-height: 62px;
+      padding: 4px 6px 14px;
+      align-items: center;
+      align-content: flex-start;
+    }
+
+    .toolbar button {
+      min-width: 25px;
+      max-width: 34px;
+      min-height: 24px;
+      padding: 2px 4px;
+      font-size: 0;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .toolbar button[data-icon]::before {
+      font-size: 16px;
+      line-height: 1;
+      margin: 0;
+    }
+
+    .toolbar button.ribbon-large {
+      min-width: 34px;
+      max-width: 42px;
+      min-height: 32px;
+      padding: 3px 5px;
+    }
+
+    .toolbar button.ribbon-large[data-icon]::before {
+      font-size: 22px;
+    }
+
+    .toolbar .compact {
+      min-width: 24px;
+      max-width: 28px;
+      min-height: 24px;
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+
+    .toolbar button[data-icon="N"]::before { font-weight: 700; }
+    .toolbar button[data-icon="I"]::before { font-style: italic; font-family: Georgia, serif; }
+    .toolbar button[data-icon="S"]::before { text-decoration: underline; font-weight: 600; }
+
+    .toolbar button.ribbon-icon-html[data-icon]::before,
+    .toolbar button.ribbon-icon-pdf[data-icon]::before {
+      width: 24px;
+      height: 24px;
+      margin: 0;
+    }
+
+    .toolbar button.wordex-align-button::before {
+      content: "";
+      display: block;
+      width: 18px;
+      height: 18px;
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 18px 18px;
+    }
+
+    .toolbar button.wordex-align-button.align-left::before {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg stroke='%23333' stroke-width='1.8' stroke-linecap='square'%3E%3Cpath d='M4 5h15'/%3E%3Cpath d='M4 9h10'/%3E%3Cpath d='M4 13h15'/%3E%3Cpath d='M4 17h10'/%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    .toolbar button.wordex-align-button.align-center::before {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg stroke='%23333' stroke-width='1.8' stroke-linecap='square'%3E%3Cpath d='M4 5h16'/%3E%3Cpath d='M7 9h10'/%3E%3Cpath d='M4 13h16'/%3E%3Cpath d='M7 17h10'/%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    .toolbar button.wordex-align-button.align-right::before {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg stroke='%23333' stroke-width='1.8' stroke-linecap='square'%3E%3Cpath d='M5 5h15'/%3E%3Cpath d='M10 9h10'/%3E%3Cpath d='M5 13h15'/%3E%3Cpath d='M10 17h10'/%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    .toolbar button.wordex-align-button.align-justify::before {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg stroke='%23333' stroke-width='1.8' stroke-linecap='square'%3E%3Cpath d='M4 5h16'/%3E%3Cpath d='M4 9h16'/%3E%3Cpath d='M4 13h16'/%3E%3Cpath d='M4 17h16'/%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    .wordex-border-dropdown {
+      height: 32px;
+    }
+
+    .toolbar .wordex-border-trigger {
+      min-width: 34px;
+      max-width: 38px;
+      min-height: 32px;
+    }
+
+    .toolbar .wordex-border-arrow {
+      min-width: 16px;
+      max-width: 18px;
+      min-height: 32px;
+      padding: 0 2px;
+    }
+
+    .toolbar .wordex-border-arrow::before {
+      content: attr(data-icon) !important;
+      display: block !important;
+      font-size: 12px;
+    }
+
+    .toolbar .wordex-border-menu button {
+      font-size: 12px;
+      line-height: 1.2;
+      min-width: 100%;
+      max-width: none;
+      min-height: 26px;
+      padding: 4px 12px;
+      white-space: nowrap;
+    }
+
+
+
+    /* v239: redimensionamento visual por cantoneiras. */
+    .wordex-resize-overlay {
+      position: fixed;
+      display: none;
+      box-sizing: border-box;
+      border: 1px solid #2b78d0;
+      pointer-events: none;
+      z-index: 99999;
+    }
+
+    .wordex-resize-overlay.is-visible {
+      display: block;
+    }
+
+    .wordex-resize-overlay[data-resize-target="table-row"],
+    .wordex-resize-overlay[data-resize-target="table-column"],
+    .wordex-resize-overlay[data-resize-target="table-cell"] {
+      border-style: dashed;
+    }
+
+    .wordex-resize-handle {
+      position: absolute;
+      width: 9px;
+      height: 9px;
+      box-sizing: border-box;
+      border: 1px solid #2b78d0;
+      background: #fff;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.7);
+      pointer-events: auto;
+    }
+
+    .wordex-resize-handle[data-handle="nw"] {
+      left: -5px;
+      top: -5px;
+      cursor: nwse-resize;
+    }
+
+    .wordex-resize-handle[data-handle="ne"] {
+      right: -5px;
+      top: -5px;
+      cursor: nesw-resize;
+    }
+
+    .wordex-resize-handle[data-handle="sw"] {
+      left: -5px;
+      bottom: -5px;
+      cursor: nesw-resize;
+    }
+
+    .wordex-resize-handle[data-handle="se"] {
+      right: -5px;
+      bottom: -5px;
+      cursor: nwse-resize;
+    }
+
+    body.wordex-resizing,
+    body.wordex-resizing * {
+      user-select: none !important;
+    }
 @media print {
       body { background: white; }
 
       .toolbar,
+      .wordex-resize-overlay,
       .document-title,
       .wordex-table tr[data-wordex-row-type] td:first-child::before {
         display: none !important;
@@ -441,157 +899,158 @@
 
 <body>
   <div class="toolbar">
-    <div class="toolbar-group">
-      <span class="toolbar-title">Inserir</span>
-      <button onclick="wordex.insertParagraph()">Parágrafo</button>
-      <button class="danger" onclick="wordex.deleteSelectedParagraph()">Excluir parágrafo</button>
-      <button onclick="wordex.insertDynamicImage()">Imagem</button>
-      <button onclick="wordex.insertChart()">Gráfico</button>
-      <button onclick="wordex.insertTextbox()">Textbox</button>
-      <button onclick="wordex.insertTable()">Tabela</button>
-    </div>
-
-    <div class="toolbar-group">
-      <span class="toolbar-title">Clipboard</span>
-      <button onclick="wordex.copySelectedWordexBlockToClipboard()">Copiar bloco</button>
-      <button onclick="wordex.cutSelectedWordexBlockToClipboard()">Recortar bloco</button>
-      <button onclick="wordex.pasteWordexBlockFromClipboard()">Colar bloco</button>
-    </div>
-
-    <div class="toolbar-group">
-      <span class="toolbar-title">Página</span>
-      <select id="pageFormat" onchange="wordex.applyPageSettingsFromToolbar()"></select>
-      <select id="pageOrientation" onchange="wordex.applyPageSettingsFromToolbar()">
-        <option value="portrait">Retrato</option>
-        <option value="landscape">Paisagem</option>
-      </select>
-      <span class="toolbar-label">Margens</span>
-      <input id="marginTop" type="text" value="25mm" title="Margem superior" onchange="wordex.applyPageSettingsFromToolbar()" />
-      <input id="marginRight" type="text" value="15mm" title="Margem direita" onchange="wordex.applyPageSettingsFromToolbar()" />
-      <input id="marginBottom" type="text" value="20mm" title="Margem inferior" onchange="wordex.applyPageSettingsFromToolbar()" />
-      <input id="marginLeft" type="text" value="15mm" title="Margem esquerda" onchange="wordex.applyPageSettingsFromToolbar()" />
-      <button onclick="wordex.applyPageSettingsFromToolbar()">Aplicar</button>
-    </div>
-
-    <div class="toolbar-group">
-      <span class="toolbar-title">Texto</span>
-      <select id="fontFamily" onchange="wordex.applyFontFamily(this.value)">
-        <option value="Arial">Arial</option>
-        <option value="Calibri">Calibri</option>
-        <option value="Times New Roman">Times New Roman</option>
-        <option value="Courier New">Courier New</option>
-        <option value="Verdana">Verdana</option>
-        <option value="Georgia">Georgia</option>
-      </select>
-
-      <select id="fontSize" onchange="wordex.applyFontSize(this.value)">
-        <option value="8pt">8</option>
-        <option value="9pt">9</option>
-        <option value="10pt">10</option>
-        <option value="11pt">11</option>
-        <option value="12pt" selected>12</option>
-        <option value="14pt">14</option>
-        <option value="16pt">16</option>
-        <option value="18pt">18</option>
-        <option value="24pt">24</option>
-        <option value="36pt">36</option>
-      </select>
-
-      <button class="compact" onclick="wordex.toggleBold()"><b>N</b></button>
-      <button class="compact" onclick="wordex.toggleItalic()"><i>I</i></button>
-      <button class="compact" onclick="wordex.toggleUnderline()"><u>S</u></button>
-      <button onclick="wordex.clearTextEmphasis()">Normal</button>
-      <span class="toolbar-label">Cor</span>
-      <input id="fontColor" type="color" value="#000000" onchange="wordex.applyTextColor(this.value)" />
-    </div>
-
-    <div class="toolbar-group">
-      <span class="toolbar-title">Alinhar</span>
-      <button onclick="wordex.applyParagraphAlign('left')">Esq</button>
-      <button onclick="wordex.applyParagraphAlign('center')">Centro</button>
-      <button onclick="wordex.applyParagraphAlign('right')">Dir</button>
-      <button onclick="wordex.applyParagraphAlign('justify')">Just</button>
-    </div>
-
-    <div class="toolbar-group">
-      <span class="toolbar-title">Tabela</span>
-      <button onclick="wordex.alignSelectedTableCell()">Célula</button>
-      <button onclick="wordex.alignSelectedTableRow()">Linha</button>
-      <button onclick="wordex.alignSelectedTableColumn()">Coluna</button>
-    </div>
-
-    <div class="toolbar-group">
-      <span class="toolbar-title">Linha</span>
-      <select id="tableRowType" onchange="wordex.applySelectedTableRowType(this.value)">
-        <option value="">Tipo da linha</option>
-        <option value="ColumnHeader">ColumnHeader</option>
-        <option value="GroupHeader">GroupHeader</option>
-        <option value="Detail">Detail</option>
-        <option value="GroupFooter">GroupFooter</option>
-              </select>
-      <button onclick="wordex.clearSelectedTableRowType()">Limpar</button>
-      <button onclick="wordex.configureSelectedTableRow()">Config linha</button>
-    </div>
-
-    <div class="toolbar-group">
-      <span class="toolbar-title">Borda</span>
-      <input id="borderColor" type="color" value="#000000" />
-      <select id="borderWidth" class="small">
-        <option value="0">0</option>
-        <option value="1px" selected>1px</option>
-        <option value="2px">2px</option>
-        <option value="3px">3px</option>
-        <option value="4px">4px</option>
-        <option value="6px">6px</option>
-      </select>
-      <select id="borderStyle" class="small">
-        <option value="solid" selected>solid</option>
-        <option value="dashed">dashed</option>
-        <option value="dotted">dotted</option>
-        <option value="double">double</option>
-        <option value="none">none</option>
-      </select>
-      <select id="borderRadius" class="small">
-        <option value="0">0</option>
-        <option value="2px">2px</option>
-        <option value="4px" selected>4px</option>
-        <option value="8px">8px</option>
-        <option value="12px">12px</option>
-        <option value="16px">16px</option>
-      </select>
-
-      <button onclick="wordex.applyBorderToCurrent()">Aplicar</button>
-      <button onclick="wordex.applyBorderToSelectedTableCell()">Célula</button>
-      <button onclick="wordex.applyBorderToSelectedTableRow()">Linha</button>
-      <button onclick="wordex.applyBorderToSelectedTableColumn()">Coluna</button>
-      <button onclick="wordex.applyBorderToSelectedTable()">Tabela</button>
-    </div>
-
-    <div class="toolbar-group">
-      <span class="toolbar-title">Objeto</span>
-      <button onclick="wordex.configureSelectedObject()">Configurar</button>
-      <button onclick="wordex.resizeSelectedObjectBy(-10, 0)">Larg -</button>
-      <button onclick="wordex.resizeSelectedObjectBy(10, 0)">Larg +</button>
-      <button onclick="wordex.resizeSelectedObjectBy(0, -10)">Alt -</button>
-      <button onclick="wordex.resizeSelectedObjectBy(0, 10)">Alt +</button>
-    </div>
-
-    <div class="toolbar-group">
-      <span class="toolbar-title">Dados</span>
-      <input id="jsonFileInput" type="file" accept=".json,application/json" style="display:none" onchange="wordex.loadJsonFile(this.files[0]); this.value='';" />
-      <button onclick="wordex.chooseJsonFile()">Carregar JSON</button>
-      <button onclick="wordex.clearJsonData()">Limpar JSON</button>
-      <button class="primary" onclick="wordex.generateHtmlFromJson()">Montar HTML</button>
-    </div>
-
-    <div class="toolbar-group">
-      <span class="toolbar-title">Saída</span>
-      <button onclick="wordex.saveWordexHtml()">Salvar Wordex HTML</button>
-      <button class="primary" onclick="wordex.generatePdfWithJsPdf()">Gerar PDF</button>
-      <button class="primary" onclick="window.print()">Imprimir fluxo</button>
-    </div>
-
-  </div>
+<div class="ribbon-content">
+<div class="toolbar-group">
+<span class="toolbar-title">Inserir</span>
+<button aria-label="Parágrafo" class="ribbon-large" data-icon="¶" onclick="wordex.insertParagraph()" title="Parágrafo"></button>
+<button aria-label="Excluir" class="danger" data-icon="🗑" onclick="wordex.deleteSelectedParagraph()" title="Excluir"></button>
+<button aria-label="Imagem" data-icon="▧" onclick="wordex.insertDynamicImage()" title="Imagem"></button>
+<button aria-label="Gráfico" data-icon="📊" onclick="wordex.insertChart()" title="Gráfico"></button>
+<button aria-label="Textbox" data-icon="▤" onclick="wordex.insertTextbox()" title="Textbox"></button>
+<button aria-label="Tabela" data-icon="▦" onclick="wordex.insertTable()" title="Tabela"></button>
+<button aria-label="Configurar objeto" data-icon="⚙" onclick="wordex.configureSelectedObject()" title="Configurar objeto"></button>
+</div>
+<div class="toolbar-group">
+<span class="toolbar-title">Clipboard</span>
+<button aria-label="Copiar" data-icon="⧉" onclick="wordex.copySelectedWordexBlockToClipboard()" title="Copiar"></button>
+<button aria-label="Recortar" data-icon="✂" onclick="wordex.cutSelectedWordexBlockToClipboard()" title="Recortar"></button>
+<button aria-label="Colar" class="ribbon-large" data-icon="📋" onclick="wordex.pasteWordexBlockFromClipboard()" title="Colar"></button>
+</div>
+<div class="toolbar-group">
+<span class="toolbar-title">Página</span>
+<select id="pageFormat" onchange="wordex.applyPageSettingsFromToolbar()"></select>
+<select id="pageOrientation" onchange="wordex.applyPageSettingsFromToolbar()">
+<option value="portrait">Retrato</option>
+<option value="landscape">Paisagem</option>
+</select>
+</div>
+<div class="toolbar-group">
+<span class="toolbar-title">Texto</span>
+<select id="fontFamily" onchange="wordex.applyFontFamily(this.value)">
+<option value="Arial">Arial</option>
+<option value="Calibri">Calibri</option>
+<option value="Times New Roman">Times New Roman</option>
+<option value="Courier New">Courier New</option>
+<option value="Verdana">Verdana</option>
+<option value="Georgia">Georgia</option>
+</select>
+<select id="fontSize" onchange="wordex.applyFontSize(this.value)">
+<option value="8pt">8</option>
+<option value="9pt">9</option>
+<option value="10pt">10</option>
+<option value="11pt">11</option>
+<option selected="" value="12pt">12</option>
+<option value="14pt">14</option>
+<option value="16pt">16</option>
+<option value="18pt">18</option>
+<option value="24pt">24</option>
+<option value="36pt">36</option>
+</select>
+<button aria-label="Negrito" class="compact" data-icon="N" onclick="wordex.toggleBold()" title="Negrito"></button>
+<button aria-label="Itálico" class="compact" data-icon="I" onclick="wordex.toggleItalic()" title="Itálico"></button>
+<button aria-label="Sublinhado" class="compact" data-icon="S" onclick="wordex.toggleUnderline()" title="Sublinhado"></button>
+<button aria-label="Normal" data-icon="Aa" onclick="wordex.clearTextEmphasis()" title="Normal"></button>
+<span class="toolbar-label">Cor</span>
+<input id="fontColor" onchange="wordex.applyTextColor(this.value)" type="color" value="#000000"/>
+</div>
+<div class="toolbar-group">
+<span class="toolbar-title">Alinhar</span>
+<button aria-label="Alinhar à esquerda" class="compact wordex-align-button align-left" onclick="wordex.applyParagraphAlign('left')" title="Alinhar à esquerda"></button>
+<button aria-label="Centralizar" class="compact wordex-align-button align-center" onclick="wordex.applyParagraphAlign('center')" title="Centralizar"></button>
+<button aria-label="Alinhar à direita" class="compact wordex-align-button align-right" onclick="wordex.applyParagraphAlign('right')" title="Alinhar à direita"></button>
+<button aria-label="Justificar" class="compact wordex-align-button align-justify" onclick="wordex.applyParagraphAlign('justify')" title="Justificar"></button>
+<button aria-label="Sem alinhamento" class="compact wordex-align-button align-none" onclick="wordex.applyParagraphAlign('none')" title="Sem alinhamento"></button>
+</div>
+<div class="toolbar-group">
+<span class="toolbar-title">Linha</span>
+<select id="tableRowType" onchange="wordex.applySelectedTableRowType(this.value)">
+<option value="">Tipo da linha</option>
+<option value="ColumnHeader">ColumnHeader</option>
+<option value="GroupHeader">GroupHeader</option>
+<option value="Detail">Detail</option>
+<option value="GroupFooter">GroupFooter</option>
+</select>
+<button aria-label="Limpar" data-icon="⌫" onclick="wordex.clearSelectedTableRowType()" title="Limpar"></button>
+<button aria-label="Config" data-icon="⚙" onclick="wordex.configureSelectedTableRow()" title="Config"></button>
+</div>
+<div class="toolbar-group">
+<span class="toolbar-title">Borda</span>
+<input id="borderColor" type="color" value="#000000"/>
+<select class="small" id="borderWidth">
+<option value="0">0</option>
+<option selected="" value="1px">1px</option>
+<option value="2px">2px</option>
+<option value="3px">3px</option>
+<option value="4px">4px</option>
+<option value="6px">6px</option>
+</select>
+<select class="small" id="borderStyle">
+<option selected="" value="solid">solid</option>
+<option value="dashed">dashed</option>
+<option value="dotted">dotted</option>
+<option value="double">double</option>
+<option value="none">none</option>
+</select>
+<select class="small" id="borderRadius">
+<option value="0">0</option>
+<option value="2px">2px</option>
+<option selected="" value="4px">4px</option>
+<option value="8px">8px</option>
+<option value="12px">12px</option>
+<option value="16px">16px</option>
+</select>
+<div class="wordex-border-dropdown">
+<button aria-label="Aplicar todas as bordas" class="wordex-border-trigger ribbon-large" data-icon="▦" onclick="wordex.applyTableBorderPreset('all')" title="Aplicar todas as bordas"></button>
+<button aria-label="Mais opções de borda" class="wordex-border-arrow" data-icon="▾" onclick="wordex.toggleBorderDropdown(event)" title="Mais opções de borda"></button>
+<div class="wordex-border-menu" id="wordexBorderMenu" onclick="event.stopPropagation()">
+<button onclick="wordex.applyTableBorderPreset('bottom')"><span class="wordex-border-glyph bottom"></span>Borda Inferior</button>
+<button onclick="wordex.applyTableBorderPreset('top')"><span class="wordex-border-glyph top"></span>Borda Superior</button>
+<button onclick="wordex.applyTableBorderPreset('left')"><span class="wordex-border-glyph left"></span>Borda Esquerda</button>
+<button onclick="wordex.applyTableBorderPreset('right')"><span class="wordex-border-glyph right"></span>Borda Direita</button>
+<div class="wordex-border-separator"></div>
+<button onclick="wordex.applyTableBorderPreset('none')"><span class="wordex-border-glyph none"></span>Sem Borda</button>
+<button onclick="wordex.applyTableBorderPreset('all')"><span class="wordex-border-glyph all"></span>Todas as Bordas</button>
+<button onclick="wordex.applyTableBorderPreset('outside')"><span class="wordex-border-glyph outside"></span>Bordas Externas</button>
+<button onclick="wordex.applyTableBorderPreset('inside')"><span class="wordex-border-glyph inside"></span>Bordas Internas</button>
+<div class="wordex-border-separator"></div>
+<button onclick="wordex.applyTableBorderPreset('insideHorizontal')"><span class="wordex-border-glyph inside-h"></span>Borda Horizontal Interna</button>
+<button onclick="wordex.applyTableBorderPreset('insideVertical')"><span class="wordex-border-glyph inside-v"></span>Borda Vertical Interna</button>
+<button disabled=""><span class="wordex-border-glyph diagonal-down"></span>Borda Diagonal Inferior</button>
+<button disabled=""><span class="wordex-border-glyph diagonal-up"></span>Borda Diagonal Superior</button>
+<div class="wordex-border-separator"></div>
+<button onclick="wordex.applyTableBorderPreset('bottom')"><span class="wordex-border-glyph bottom"></span>Linha Horizontal</button>
+<button onclick="wordex.applyBorderToSelectedTable()"><span class="wordex-border-glyph all"></span>Desenhar Tabela</button>
+<button onclick="wordex.toggleSelectedTableGridLines()"><span class="wordex-border-glyph all"></span>Exibir Linhas de Grade</button>
+<button onclick="wordex.applyBorderToCurrent()"><span class="wordex-border-glyph outside"></span>Bordas e Sombreamento...</button>
+</div>
+</div>
+</div>
+<div class="toolbar-group">
+<span class="toolbar-title">Margem</span>
+<select class="small" id="wordexMarginEdge" title="Margem a alterar">
+<option value="top">Superior</option>
+<option value="right">Direita</option>
+<option value="bottom">Inferior</option>
+<option value="left">Esquerda</option>
+</select>
+<button aria-label="Diminuir margem" class="compact" data-icon="−" onclick="wordex.adjustSelectedMargin(-1)" title="Diminuir margem selecionada"></button>
+<button aria-label="Aumentar margem" class="compact" data-icon="+" onclick="wordex.adjustSelectedMargin(1)" title="Aumentar margem selecionada"></button>
+</div>
+<div class="toolbar-group">
+<span class="toolbar-title">Dados</span>
+<input accept=".json,application/json" id="jsonFileInput" onchange="wordex.loadJsonFile(this.files[0]); this.value='';" style="display:none" type="file"/>
+<button aria-label="JSON" data-icon="🗂" onclick="wordex.chooseJsonFile()" title="JSON"></button>
+<button aria-label="Limpar" data-icon="⌫" onclick="wordex.clearJsonData()" title="Limpar"></button>
+<button aria-label="Montar HTML" class="primary ribbon-large ribbon-icon-html" data-icon="html" onclick="wordex.generateHtmlFromJson()" title="Montar HTML"></button>
+</div>
+<div class="toolbar-group">
+<span class="toolbar-title">Saída</span>
+<button aria-label="Salvar" data-icon="💾" onclick="wordex.saveWordexHtml()" title="Salvar"></button>
+<button aria-label="Gerar PDF" class="primary ribbon-large ribbon-icon-pdf" data-icon="pdf" onclick="wordex.generatePdfWithJsPdf()" title="Gerar PDF"></button>
+<button aria-label="Imprimir" class="primary" data-icon="🖨" onclick="window.print()" title="Imprimir"></button>
+</div>
+</div>
+</div>
 
   <div class="workspace">
     <div id="document" class="document"></div>
@@ -679,7 +1138,7 @@
         this.documentElement = document.getElementById(documentId);
 
         this.wordexDocument = {
-          version: "2.32",
+          version: "2.55",
           mode: "continuous",
           description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas, objetos e montagem HTML por dados e clipboard interno).",
           headerTemplate: [],
@@ -716,6 +1175,8 @@
         this.lastUndoSnapshot = "";
         this.isRestoringUndo = false;
         this.isInsertingObject = false;
+        this.resizeOverlay = null;
+        this.resizeDrag = null;
 
         /*
           Captura Ctrl+Z antes do contenteditable/navegador.
@@ -747,6 +1208,12 @@
         });
 
         document.addEventListener("click", event => {
+          this.closeBorderDropdown?.();
+
+          if (event.target.closest(".wordex-resize-overlay")) {
+            return;
+          }
+
           if (!event.target.closest(".document") && !event.target.closest(".toolbar")) {
             this.selectFallbackParagraph();
             this.renderSelection();
@@ -807,6 +1274,8 @@
         });
 
         this.installWordexClipboardEvents();
+        this.installObjectResizeHandleEvents();
+        this.installInlineObjectDragEvents();
 
         this.documentElement.addEventListener("input", event => {
           /*
@@ -910,10 +1379,33 @@
         page.orientation = orientation;
         page.width = orientation === "landscape" ? format.height : format.width;
         page.height = orientation === "landscape" ? format.width : format.height;
-        page.marginTop = this.normalizeCssSize(document.getElementById("marginTop")?.value || "25mm", "25mm");
-        page.marginRight = this.normalizeCssSize(document.getElementById("marginRight")?.value || "15mm", "15mm");
-        page.marginBottom = this.normalizeCssSize(document.getElementById("marginBottom")?.value || "20mm", "20mm");
-        page.marginLeft = this.normalizeCssSize(document.getElementById("marginLeft")?.value || "15mm", "15mm");
+
+        /*
+          Margens saíram da ribbon na v244; botão Aplicar saiu na v245; parágrafo ajusta altura pela linha na v246; v247 evita spans de fonte antigos segurando a altura da linha; v248 remove a linha superior de abas/versão da ribbon; v249 permite redimensionar seleção de linha/coluna/célula por cantoneiras; v250 remove o grupo Tabela da ribbon porque o alinhamento já atua sobre célula/linha/coluna/tabela selecionada; v251 adiciona controles compactos de margem para parágrafos e objetos; v252 adiciona alinhamento none e arrasto de objetos dentro de parágrafo; v253 isola o alinhamento interno do textbox para que o alinhamento do parágrafo mova o objeto sem herdar text-align; v254 exige Ctrl+click para selecionar textbox como objeto e separa alinhamento do objeto do alinhamento do texto interno; v255 corrige encolhimento progressivo ao centralizar objeto e deixa tabela selecionada alinhar como objeto no parágrafo.
+          Elas continuam existindo no modelo porque ainda são usadas
+          na montagem/paginação, mas agora não são regravadas por aqui.
+          Futuramente serão controladas por dialog próprio.
+        */
+        const marginTopInput = document.getElementById("marginTop");
+        const marginRightInput = document.getElementById("marginRight");
+        const marginBottomInput = document.getElementById("marginBottom");
+        const marginLeftInput = document.getElementById("marginLeft");
+
+        if (marginTopInput) {
+          page.marginTop = this.normalizeCssSize(marginTopInput.value || page.marginTop || "25mm", "25mm");
+        }
+
+        if (marginRightInput) {
+          page.marginRight = this.normalizeCssSize(marginRightInput.value || page.marginRight || "15mm", "15mm");
+        }
+
+        if (marginBottomInput) {
+          page.marginBottom = this.normalizeCssSize(marginBottomInput.value || page.marginBottom || "20mm", "20mm");
+        }
+
+        if (marginLeftInput) {
+          page.marginLeft = this.normalizeCssSize(marginLeftInput.value || page.marginLeft || "15mm", "15mm");
+        }
 
         this.applyPageSettingsToEditor();
         this.saveUndoStateIfChanged();
@@ -1711,7 +2203,7 @@
         return {
           source: "Wordex",
           kind: "blocks",
-          version: "2.32",
+          version: "2.55",
           createdAt: new Date().toISOString(),
           region: context.region,
           blocks: [this.cloneBlockForClipboard(context.block)]
@@ -2105,30 +2597,47 @@
         return { align, width, height };
       }
 
+      normalizeMacroName(value) {
+        const text = String(value || "").trim();
+        const match = text.match(/^\{\{\s*(.*?)\s*\}\}$/);
+        return (match ? match[1] : text).trim();
+      }
+
+      formatMacroName(value, fallback = "Macro") {
+        const name = this.normalizeMacroName(value) || fallback;
+        return "{{" + name + "}}";
+      }
+
+      promptMacroName(message, defaultMacroName) {
+        const value = prompt(message, this.formatMacroName(defaultMacroName));
+
+        if (value === null) return null;
+
+        const macroName = this.normalizeMacroName(value);
+
+        if (!macroName) {
+          alert("Informe uma macro válida, por exemplo: {{Cliente.Logo}}.");
+          return null;
+        }
+
+        return macroName;
+      }
+
       insertDynamicImage() {
-        const fieldName = prompt("Nome da imagem:", "Imagem");
+        const fieldName = this.promptMacroName("Macro da imagem:", "Imagem");
         if (!fieldName) return;
 
-        const size = this.promptSizeAndAlign("80mm", "45mm");
-        if (!size) return;
-
         this.insertNodeAtCurrentInsertionPoint(
-          this.createDynamicImageElement(fieldName, size.align, size.width, size.height)
+          this.createDynamicImageElement(fieldName, "left", "80mm", "45mm")
         );
       }
 
       insertChart() {
-        const sourceName = prompt("Nome lógico/fonte de dados do gráfico:", "VendasPorMes");
+        const sourceName = this.promptMacroName("Macro/fonte do gráfico:", "VendasPorMes");
         if (!sourceName) return;
 
-        const chartType = this.askChartType("bar");
-        if (!chartType) return;
-
-        const size = this.promptSizeAndAlign("100mm", "60mm");
-        if (!size) return;
-
         this.insertNodeAtCurrentInsertionPoint(
-          this.createChartElement(sourceName, chartType, size.align, size.width, size.height)
+          this.createChartElement(sourceName, "bar", "left", "100mm", "60mm")
         );
       }
 
@@ -2136,7 +2645,7 @@
         const text = prompt("Texto inicial:", "Textbox");
         if (text === null) return;
 
-        const size = this.promptSizeAndAlign("80mm", "30mm");
+        const size = this.promptSizeAndAlign("35mm", "8mm");
         if (!size) return;
 
         this.insertNodeAtCurrentInsertionPoint(
@@ -2160,6 +2669,13 @@
       }
 
       insertTable() {
+        const datasource = prompt(
+          "Datasource da tabela (nome da coleção; vazio = ROOT):",
+          "ROOT"
+        );
+
+        if (datasource === null) return;
+
         const rows = Number(prompt("Quantidade de linhas:", "3"));
         const cols = Number(prompt("Quantidade de colunas:", "3"));
 
@@ -2168,13 +2684,12 @@
           return;
         }
 
-        const align = this.askAlignment("left");
-        if (!align) return;
+        const table = this.createTableElement(rows, cols, "left", "80mm");
+        const datasourceName = String(datasource || "").trim();
 
-        const width = prompt("Largura da tabela:", "80mm");
-        if (!width) return;
-
-        const table = this.createTableElement(rows, cols, align, width);
+        if (datasourceName && datasourceName.toUpperCase() !== "ROOT") {
+          table.dataset.wordexDatasource = datasourceName;
+        }
 
         this.insertNodeAtCurrentInsertionPoint(table);
       }
@@ -2223,6 +2738,7 @@
         textbox.dataset.align = align;
         textbox.style.width = width;
         textbox.style.height = height;
+        textbox.style.textAlign = "left";
         textbox.innerHTML = this.escapeHtml(text || "");
 
         this.applyAlignment(textbox, align);
@@ -2307,13 +2823,17 @@
       }
 
       askAlignment(defaultValue) {
-        const value = prompt("Alinhamento: left, right, center ou free", defaultValue);
+        const value = prompt("Alinhamento: left, right, center ou none", defaultValue === "free" ? "none" : defaultValue);
         if (!value) return null;
 
-        const align = value.trim().toLowerCase();
+        let align = value.trim().toLowerCase();
+
+        if (align === "none") {
+          align = "free";
+        }
 
         if (!["left", "right", "center", "free"].includes(align)) {
-          alert("Alinhamento inválido. Use left, right, center ou free.");
+          alert("Alinhamento inválido. Use left, right, center ou none.");
           return null;
         }
 
@@ -2713,14 +3233,31 @@
         if (!object || !paragraph) return 40;
 
         const paragraphWidth = paragraph.clientWidth;
-
         const computed = window.getComputedStyle(object);
-        const marginLeft = parseFloat(computed.marginLeft || "0") || 0;
-        const marginRight = parseFloat(computed.marginRight || "0") || 0;
+
+        /*
+          v255: quando o objeto está centralizado, o navegador transforma
+          margin-left/right:auto em margens computadas grandes. Se essas
+          margens forem descontadas daqui, cada novo clique em centralizar
+          reduz a largura do objeto alguns pixels. Portanto, margens auto
+          ou alinhamento center não entram no limite de largura.
+        */
+        const hasAutoHorizontalMargin =
+          object.dataset.align === "center" ||
+          object.style.marginLeft === "auto" ||
+          object.style.marginRight === "auto";
+
+        const marginLeft = hasAutoHorizontalMargin
+          ? 0
+          : (parseFloat(computed.marginLeft || "0") || 0);
+
+        const marginRight = hasAutoHorizontalMargin
+          ? 0
+          : (parseFloat(computed.marginRight || "0") || 0);
 
         /*
           A largura do objeto deve caber dentro da área útil do parágrafo,
-          descontando margens horizontais do próprio objeto.
+          descontando margens horizontais reais do próprio objeto.
         */
         return Math.max(40, Math.floor(paragraphWidth - marginLeft - marginRight - 4));
       }
@@ -2819,6 +3356,466 @@
         return false;
       }
 
+      installObjectResizeHandleEvents() {
+        document.addEventListener("mousemove", event => {
+          this.handleObjectResizePointerMove(event);
+        });
+
+        document.addEventListener("mouseup", event => {
+          this.handleObjectResizePointerUp(event);
+        });
+
+        window.addEventListener("resize", () => {
+          this.positionObjectResizeOverlay();
+        });
+
+        document.addEventListener("scroll", () => {
+          this.positionObjectResizeOverlay();
+        }, true);
+      }
+
+      isObjectResizeOverlayAllowed(object = this.selectedObject) {
+        if (!this.isInDocument(object)) return false;
+
+        if (
+          this.isWordexTableObject(object) &&
+          this.selectedTableMode &&
+          this.selectedTableMode !== "table"
+        ) {
+          return !!this.getSelectedTableComponentResizeInfo();
+        }
+
+        return !!object.matches?.(WordexEditor.objectSelector);
+      }
+
+      getUnionRectFromElements(elements) {
+        const visibleRects = Array.from(elements || [])
+          .filter(element => element && this.isInDocument(element))
+          .map(element => element.getBoundingClientRect())
+          .filter(rect => rect.width > 0 || rect.height > 0);
+
+        if (visibleRects.length === 0) {
+          return null;
+        }
+
+        const left = Math.min(...visibleRects.map(rect => rect.left));
+        const top = Math.min(...visibleRects.map(rect => rect.top));
+        const right = Math.max(...visibleRects.map(rect => rect.right));
+        const bottom = Math.max(...visibleRects.map(rect => rect.bottom));
+
+        return {
+          left,
+          top,
+          right,
+          bottom,
+          width: right - left,
+          height: bottom - top
+        };
+      }
+
+      getSelectedTableComponentResizeInfo() {
+        if (
+          !this.selectedObject ||
+          !this.isWordexTableObject(this.selectedObject) ||
+          !this.selectedTableMode ||
+          this.selectedTableMode === "table"
+        ) {
+          return null;
+        }
+
+        const context = this.getSelectedTableContextWithoutAlert();
+
+        if (!context) {
+          return null;
+        }
+
+        const mode = this.selectedTableMode;
+        let rect = null;
+
+        if (mode === "cell") {
+          rect = context.cell.getBoundingClientRect();
+        } else if (mode === "row") {
+          rect = context.row.getBoundingClientRect();
+        } else if (mode === "column") {
+          const cells = Array.from(context.table.rows)
+            .map(row => row.cells[context.columnIndex])
+            .filter(Boolean);
+
+          rect = this.getUnionRectFromElements(cells);
+        }
+
+        if (!rect || rect.width <= 0 || rect.height <= 0) {
+          return null;
+        }
+
+        return {
+          kind: "table-" + mode,
+          mode,
+          rect,
+          table: context.table,
+          cell: context.cell,
+          row: context.row,
+          columnIndex: context.columnIndex
+        };
+      }
+
+      getObjectResizeInfo() {
+        if (!this.isObjectResizeOverlayAllowed()) {
+          return null;
+        }
+
+        const tableComponentInfo = this.getSelectedTableComponentResizeInfo();
+
+        if (tableComponentInfo) {
+          return tableComponentInfo;
+        }
+
+        if (!this.selectedObject?.matches?.(WordexEditor.objectSelector)) {
+          return null;
+        }
+
+        const rect = this.selectedObject.getBoundingClientRect();
+
+        if (rect.width <= 0 || rect.height <= 0) {
+          return null;
+        }
+
+        return {
+          kind: "object",
+          mode: "object",
+          rect,
+          object: this.selectedObject
+        };
+      }
+
+      ensureObjectResizeOverlay() {
+        if (this.resizeOverlay) {
+          return this.resizeOverlay;
+        }
+
+        const overlay = document.createElement("div");
+        overlay.className = "wordex-resize-overlay";
+        overlay.setAttribute("aria-hidden", "true");
+
+        ["nw", "ne", "sw", "se"].forEach(handleName => {
+          const handle = document.createElement("span");
+          handle.className = "wordex-resize-handle";
+          handle.dataset.handle = handleName;
+          handle.title = "Arraste para redimensionar";
+          overlay.appendChild(handle);
+        });
+
+        overlay.addEventListener("mousedown", event => {
+          const handle = event.target.closest(".wordex-resize-handle");
+          if (!handle) return;
+
+          this.startObjectResizeDrag(event, handle.dataset.handle);
+        });
+
+        document.body.appendChild(overlay);
+        this.resizeOverlay = overlay;
+        return overlay;
+      }
+
+      hideObjectResizeOverlay() {
+        if (this.resizeOverlay) {
+          this.resizeOverlay.classList.remove("is-visible");
+        }
+      }
+
+      removeObjectResizeOverlayFromClone(root) {
+        root?.querySelectorAll?.(".wordex-resize-overlay").forEach(node => node.remove());
+      }
+
+      updateObjectResizeOverlay() {
+        if (!this.isObjectResizeOverlayAllowed()) {
+          this.hideObjectResizeOverlay();
+          return;
+        }
+
+        this.ensureObjectResizeOverlay();
+        this.positionObjectResizeOverlay();
+      }
+
+      positionObjectResizeOverlay() {
+        if (!this.resizeOverlay) {
+          this.hideObjectResizeOverlay();
+          return;
+        }
+
+        const resizeInfo = this.getObjectResizeInfo();
+
+        if (!resizeInfo) {
+          this.hideObjectResizeOverlay();
+          return;
+        }
+
+        const rect = resizeInfo.rect;
+
+        this.resizeOverlay.dataset.resizeTarget = resizeInfo.kind;
+        this.resizeOverlay.style.left = rect.left + "px";
+        this.resizeOverlay.style.top = rect.top + "px";
+        this.resizeOverlay.style.width = rect.width + "px";
+        this.resizeOverlay.style.height = rect.height + "px";
+        this.resizeOverlay.classList.add("is-visible");
+      }
+
+      getObjectVisualXInsideBlock(object, objectBlock) {
+        if (!object || !objectBlock) return 0;
+
+        const blockRect = objectBlock.getBoundingClientRect();
+        const objectRect = object.getBoundingClientRect();
+        return this.clamp(Math.round(objectRect.left - blockRect.left), 0, Math.max(0, objectBlock.clientWidth));
+      }
+
+      getObjectMinimumSize(object) {
+        if (this.isWordexTableObject(object)) {
+          return { width: 40, height: 24 };
+        }
+
+        if (object?.matches?.(".wordex-textbox")) {
+          return { width: 24, height: 18 };
+        }
+
+        return { width: 40, height: 24 };
+      }
+
+      constrainObjectSize(object, width, height) {
+        const min = this.getObjectMinimumSize(object);
+        let newWidth = Math.max(min.width, Math.round(width));
+        let newHeight = Math.max(min.height, Math.round(height));
+
+        const objectBlock = object.closest(".object-block");
+
+        if (objectBlock) {
+          const wrapperWidth = objectBlock.clientWidth;
+          const currentX = this.getObjectVisualXInsideBlock(object, objectBlock);
+          const maxWidth = Math.max(min.width, wrapperWidth - currentX - 4);
+          newWidth = Math.min(newWidth, maxWidth);
+        }
+
+        const paragraph = object.closest(".paragraph");
+
+        if (paragraph) {
+          newWidth = Math.min(newWidth, this.getMaxObjectWidthInParagraph(object, paragraph));
+        }
+
+        return { width: newWidth, height: newHeight };
+      }
+
+      applyObjectSizeInPixels(object, width, height) {
+        const size = this.constrainObjectSize(object, width, height);
+
+        object.style.width = size.width + "px";
+
+        if (object.matches(".dynamic-image-box, .wordex-chart-box, .wordex-textbox")) {
+          object.style.height = size.height + "px";
+        } else if (this.isWordexTableObject(object)) {
+          this.resizeTableRowsByTotalHeight(object, size.height);
+        }
+
+        this.positionObjectResizeOverlay();
+        return size;
+      }
+
+      startObjectResizeDrag(event, handleName) {
+        const resizeInfo = this.getObjectResizeInfo();
+
+        if (!resizeInfo) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const rect = resizeInfo.rect;
+
+        if (resizeInfo.kind.startsWith("table-")) {
+          this.resizeDrag = {
+            kind: "table-component",
+            mode: resizeInfo.mode,
+            table: resizeInfo.table,
+            cell: resizeInfo.cell,
+            row: resizeInfo.row,
+            columnIndex: resizeInfo.columnIndex,
+            handleName,
+            startClientX: event.clientX,
+            startClientY: event.clientY,
+            startWidth: rect.width,
+            startHeight: rect.height
+          };
+
+          document.body.classList.add("wordex-resizing");
+          return;
+        }
+
+        const object = resizeInfo.object || this.selectedObject;
+        const objectBlock = object.closest(".object-block");
+        const blockX = objectBlock
+          ? this.getObjectVisualXInsideBlock(object, objectBlock)
+          : 0;
+
+        this.resizeDrag = {
+          kind: "object",
+          object,
+          handleName,
+          startClientX: event.clientX,
+          startClientY: event.clientY,
+          startWidth: rect.width,
+          startHeight: rect.height,
+          startBlockX: blockX,
+          objectBlock,
+          wrapperWidth: objectBlock?.clientWidth || 0
+        };
+
+        document.body.classList.add("wordex-resizing");
+      }
+
+      applyTableComponentResizeFromDrag(drag, dx, dy) {
+        if (!drag || !this.isInDocument(drag.table)) return;
+
+        const handle = drag.handleName || "se";
+        const mode = drag.mode;
+
+        if (mode === "row") {
+          let newHeight = drag.startHeight;
+
+          if (handle.includes("s")) {
+            newHeight = drag.startHeight + dy;
+          } else if (handle.includes("n")) {
+            newHeight = drag.startHeight - dy;
+          }
+
+          newHeight = Math.max(18, Math.round(newHeight));
+          drag.row.style.height = newHeight + "px";
+          Array.from(drag.row.cells).forEach(cell => {
+            cell.style.height = newHeight + "px";
+          });
+        } else if (mode === "column") {
+          let newWidth = drag.startWidth;
+
+          if (handle.includes("e")) {
+            newWidth = drag.startWidth + dx;
+          } else if (handle.includes("w")) {
+            newWidth = drag.startWidth - dx;
+          }
+
+          newWidth = Math.max(24, Math.round(newWidth));
+          Array.from(drag.table.rows).forEach(row => {
+            const cell = row.cells[drag.columnIndex];
+
+            if (cell) {
+              cell.style.width = newWidth + "px";
+            }
+          });
+        } else if (mode === "cell") {
+          let newWidth = drag.startWidth;
+          let newHeight = drag.startHeight;
+
+          if (handle.includes("e")) {
+            newWidth = drag.startWidth + dx;
+          } else if (handle.includes("w")) {
+            newWidth = drag.startWidth - dx;
+          }
+
+          if (handle.includes("s")) {
+            newHeight = drag.startHeight + dy;
+          } else if (handle.includes("n")) {
+            newHeight = drag.startHeight - dy;
+          }
+
+          drag.cell.style.width = Math.max(24, Math.round(newWidth)) + "px";
+          drag.cell.style.height = Math.max(18, Math.round(newHeight)) + "px";
+        }
+
+        this.syncObjectAfterChange(drag.table);
+        this.positionObjectResizeOverlay();
+      }
+
+      handleObjectResizePointerMove(event) {
+        if (!this.resizeDrag) return;
+
+        const drag = this.resizeDrag;
+
+        if (drag.kind === "table-component") {
+          if (!this.isInDocument(drag.table)) {
+            this.handleObjectResizePointerUp(event);
+            return;
+          }
+
+          event.preventDefault();
+
+          const dx = event.clientX - drag.startClientX;
+          const dy = event.clientY - drag.startClientY;
+          this.applyTableComponentResizeFromDrag(drag, dx, dy);
+          return;
+        }
+
+        if (!this.isInDocument(drag.object)) {
+          this.handleObjectResizePointerUp(event);
+          return;
+        }
+
+        event.preventDefault();
+
+        const dx = event.clientX - drag.startClientX;
+        const dy = event.clientY - drag.startClientY;
+        const handle = drag.handleName;
+
+        let newWidth = drag.startWidth;
+        let newHeight = drag.startHeight;
+
+        if (handle.includes("e")) {
+          newWidth = drag.startWidth + dx;
+        } else if (handle.includes("w")) {
+          newWidth = drag.startWidth - dx;
+
+          if (drag.objectBlock) {
+            const minWidth = this.getObjectMinimumSize(drag.object).width;
+            const maxX = Math.max(0, drag.startBlockX + drag.startWidth - minWidth);
+            const nextX = this.clamp(drag.startBlockX + dx, 0, maxX);
+
+            newWidth = drag.startWidth + (drag.startBlockX - nextX);
+
+            drag.object.style.float = "none";
+            drag.object.style.display = drag.object.matches("table") ? "table" : "flex";
+            drag.object.style.marginLeft = nextX + "px";
+            drag.object.style.marginRight = "8px";
+            drag.object.dataset.blockX = String(nextX);
+          }
+        }
+
+        if (handle.includes("s")) {
+          newHeight = drag.startHeight + dy;
+        } else if (handle.includes("n")) {
+          newHeight = drag.startHeight - dy;
+        }
+
+        this.applyObjectSizeInPixels(drag.object, newWidth, newHeight);
+      }
+
+      handleObjectResizePointerUp(event) {
+        if (!this.resizeDrag) return;
+
+        const drag = this.resizeDrag;
+        this.resizeDrag = null;
+        document.body.classList.remove("wordex-resizing");
+
+        if (drag.kind === "table-component") {
+          if (this.isInDocument(drag.table)) {
+            this.syncAndSelectTableComponent(drag, drag.mode);
+            this.positionObjectResizeOverlay();
+          }
+
+          return;
+        }
+
+        const object = drag.object;
+
+        if (this.isInDocument(object)) {
+          this.syncObjectAfterChangeAndKeepSelected(object);
+          this.positionObjectResizeOverlay();
+        }
+      }
+
       resizeSelectedObjectBy(deltaWidth, deltaHeight) {
         if (this.resizeSelectedTableComponentBy(deltaWidth, deltaHeight)) {
           return;
@@ -2832,34 +3829,11 @@
         const object = this.selectedObject;
         const rect = object.getBoundingClientRect();
 
-        const objectBlock = object.closest(".object-block");
-
-        let newWidth = Math.max(40, Math.round(rect.width + deltaWidth));
-        let newHeight = Math.max(24, Math.round(rect.height + deltaHeight));
-
-        /*
-          Se o objeto estiver fora de parágrafo, respeita o limite da área útil.
-        */
-        if (objectBlock) {
-          const wrapperWidth = objectBlock.clientWidth;
-          const currentX = Number(object.dataset.blockX || "0") || 0;
-          const maxWidth = Math.max(40, wrapperWidth - currentX - 4);
-          newWidth = Math.min(newWidth, maxWidth);
-        }
-
-        const paragraph = object.closest(".paragraph");
-
-        if (paragraph) {
-          newWidth = Math.min(newWidth, this.getMaxObjectWidthInParagraph(object, paragraph));
-        }
-
-        object.style.width = newWidth + "px";
-
-        if (object.matches(".dynamic-image-box, .wordex-chart-box, .wordex-textbox")) {
-          object.style.height = newHeight + "px";
-        } else if (this.isWordexTableObject(object)) {
-          this.resizeTableRowsByTotalHeight(object, newHeight);
-        }
+        this.applyObjectSizeInPixels(
+          object,
+          rect.width + deltaWidth,
+          rect.height + deltaHeight
+        );
 
         this.syncObjectAfterChangeAndKeepSelected(object);
       }
@@ -3311,16 +4285,22 @@
         if (!element) return;
 
         /*
-          Estilo none ou espessura 0 não aplica "border: none".
-          Remove de fato as propriedades de borda do elemento.
+          v242: borda precisa funcionar também em textbox, imagem, gráfico e
+          parágrafo. Alguns desses elementos possuem borda/outline definidos no
+          CSS do editor; por isso usamos setProperty(..., "important") para que
+          a escolha do usuário prevaleça visualmente e também no HTML salvo.
         */
         if (settings.width === "0" || settings.style === "none") {
           this.clearBorderStyle(element);
           return;
         }
 
-        element.style.border = `${settings.width} ${settings.style} ${settings.color}`;
-        element.style.borderRadius = settings.radius;
+        element.style.setProperty(
+          "border",
+          `${settings.width} ${settings.style} ${settings.color}`,
+          "important"
+        );
+        element.style.setProperty("border-radius", settings.radius, "important");
 
         /*
           Border-radius em tabela só funciona de forma decente com separate.
@@ -3335,8 +4315,12 @@
       clearBorderStyle(element) {
         if (!element) return;
 
-        element.style.border = "";
-        element.style.borderRadius = "";
+        /*
+          Não basta remover a borda inline: vários elementos do editor têm uma
+          borda padrão no CSS. Para "Sem Borda", gravamos border: none.
+        */
+        element.style.setProperty("border", "none", "important");
+        element.style.removeProperty("border-radius");
 
         if (element.matches("table")) {
           element.style.borderCollapse = "collapse";
@@ -3454,6 +4438,411 @@
         alert("Selecione uma tabela ou célula.");
       }
 
+
+      toggleBorderDropdown(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const menu = document.getElementById("wordexBorderMenu");
+        const dropdown = event.currentTarget.closest(".wordex-border-dropdown");
+
+        if (!menu || !dropdown) return;
+
+        const wasOpen = menu.classList.contains("is-open");
+        this.closeBorderDropdown();
+
+        if (wasOpen) return;
+
+        const rect = dropdown.getBoundingClientRect();
+        const menuWidth = 252;
+        const left = Math.max(4, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+        const top = rect.bottom + 2;
+
+        menu.style.left = left + "px";
+        menu.style.top = top + "px";
+        menu.classList.add("is-open");
+      }
+
+      closeBorderDropdown() {
+        const menu = document.getElementById("wordexBorderMenu");
+        if (!menu) return;
+
+        menu.classList.remove("is-open");
+      }
+
+      getBorderLineCss(settings = this.getBorderSettings()) {
+        if (!settings || settings.width === "0" || settings.style === "none") {
+          return "";
+        }
+
+        return `${settings.width} ${settings.style} ${settings.color}`;
+      }
+
+      setBorderEdge(element, edge, lineCss) {
+        if (!element || !edge) return;
+
+        const property = "border" + edge.charAt(0).toUpperCase() + edge.slice(1);
+
+        if (lineCss) {
+          element.style.setProperty(property, lineCss, "important");
+        } else {
+          element.style.setProperty(property, "none", "important");
+        }
+      }
+
+      clearCellBorders(cell) {
+        if (!cell) return;
+
+        cell.style.setProperty("border", "none", "important");
+        cell.style.setProperty("border-top", "none", "important");
+        cell.style.setProperty("border-right", "none", "important");
+        cell.style.setProperty("border-bottom", "none", "important");
+        cell.style.setProperty("border-left", "none", "important");
+        cell.style.removeProperty("border-radius");
+      }
+
+      getCurrentBoxBorderTarget() {
+        if (
+          this.selectedObject &&
+          this.documentElement.contains(this.selectedObject) &&
+          !this.isWordexTableObject(this.selectedObject)
+        ) {
+          return {
+            kind: "object",
+            element: this.selectedObject
+          };
+        }
+
+        const paragraph = this.getSelectedParagraphElement();
+
+        if (paragraph && this.documentElement.contains(paragraph)) {
+          return {
+            kind: "paragraph",
+            element: paragraph
+          };
+        }
+
+        return null;
+      }
+
+      applyBorderPresetToBoxElement(element, preset, settings = this.getBorderSettings()) {
+        if (!element) return false;
+
+        const lineCss = this.getBorderLineCss(settings);
+
+        if (preset === "none") {
+          this.clearBorderStyle(element);
+          return true;
+        }
+
+        if (preset === "all" || preset === "outside") {
+          this.applyBorderStyle(element, settings);
+          return true;
+        }
+
+        if (["top", "right", "bottom", "left"].includes(preset)) {
+          this.setBorderEdge(element, preset, lineCss);
+          element.style.setProperty("border-radius", settings.radius, "important");
+          return true;
+        }
+
+        return false;
+      }
+
+      syncBorderTargetAfterChange(target) {
+        if (!target?.element) return;
+
+        if (target.kind === "object") {
+          this.syncObjectAfterChangeAndKeepSelected(target.element);
+          return;
+        }
+
+        if (target.kind === "paragraph") {
+          this.syncParagraphElement(target.element);
+          this.renderSelection();
+          this.saveUndoStateIfChanged();
+        }
+      }
+
+      getCurrentMarginTarget() {
+        if (
+          this.selectedObject &&
+          this.documentElement.contains(this.selectedObject)
+        ) {
+          if (
+            this.isWordexTableObject(this.selectedObject) &&
+            this.selectedTableMode &&
+            this.selectedTableMode !== "table"
+          ) {
+            return null;
+          }
+
+          return {
+            kind: "object",
+            element: this.selectedObject
+          };
+        }
+
+        const paragraph = this.getSelectedParagraphElement();
+
+        if (paragraph && this.documentElement.contains(paragraph)) {
+          return {
+            kind: "paragraph",
+            element: paragraph
+          };
+        }
+
+        return null;
+      }
+
+      getSelectedMarginEdge() {
+        const value = document.getElementById("wordexMarginEdge")?.value || "top";
+        return ["top", "right", "bottom", "left"].includes(value) ? value : "top";
+      }
+
+      getMarginPropertyName(edge) {
+        return "margin" + edge.charAt(0).toUpperCase() + edge.slice(1);
+      }
+
+      getElementMarginInMillimeters(element, edge) {
+        if (!element) return 0;
+
+        const property = this.getMarginPropertyName(edge);
+        const inlineValue = element.style[property] || "";
+        const computedValue = window.getComputedStyle(element)[property] || "0px";
+        const value = inlineValue && inlineValue !== "auto" ? inlineValue : computedValue;
+
+        return this.parseCssSizeToMillimeters(value);
+      }
+
+      setElementMarginInMillimeters(element, edge, valueMm) {
+        if (!element) return;
+
+        const property = this.getMarginPropertyName(edge);
+        element.style[property] = this.formatMillimeters(valueMm);
+      }
+
+      adjustSelectedMargin(direction) {
+        const target = this.getCurrentMarginTarget();
+
+        if (!target) {
+          alert("Selecione um parágrafo, imagem, gráfico, textbox ou a tabela inteira para alterar a margem.");
+          return;
+        }
+
+        const edge = this.getSelectedMarginEdge();
+        const stepMm = 1;
+        const currentMm = this.getElementMarginInMillimeters(target.element, edge);
+        const nextMm = Math.max(0, currentMm + (direction >= 0 ? stepMm : -stepMm));
+
+        this.setElementMarginInMillimeters(target.element, edge, nextMm);
+
+        if (target.kind === "object") {
+          this.syncObjectAfterChangeAndKeepSelected(target.element);
+          return;
+        }
+
+        if (target.kind === "paragraph") {
+          const block = this.findBlockById(target.element.dataset.blockId);
+
+          if (block) {
+            block.style = block.style || {};
+            block.style[this.getMarginPropertyName(edge)] = target.element.style[this.getMarginPropertyName(edge)] || "";
+          }
+
+          this.syncParagraphElement(target.element);
+          this.renderSelection();
+          this.saveUndoStateIfChanged();
+        }
+      }
+
+      getCurrentTableBorderContext() {
+        let cell = this.selectedCell;
+
+        if (!cell || !this.documentElement.contains(cell)) {
+          const selection = window.getSelection();
+
+          if (selection && selection.rangeCount > 0) {
+            const node = selection.getRangeAt(0).commonAncestorContainer;
+            const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+            cell = element?.closest("td") || null;
+          }
+        }
+
+        if (cell && this.documentElement.contains(cell)) {
+          const table = cell.closest(".wordex-table");
+
+          if (table) {
+            return {
+              table,
+              cell,
+              row: cell.parentElement,
+              columnIndex: Array.from(cell.parentElement.cells).indexOf(cell),
+              mode: this.selectedTableMode || "cell"
+            };
+          }
+        }
+
+        if (this.isWordexTableObject(this.selectedObject)) {
+          return {
+            table: this.selectedObject,
+            cell: null,
+            row: null,
+            columnIndex: 0,
+            mode: "table"
+          };
+        }
+
+        return null;
+      }
+
+      getTableCellsForBorderPreset(context) {
+        if (!context?.table) return [];
+
+        const mode = context.mode || "cell";
+
+        if (mode === "table" || !context.cell) {
+          return Array.from(context.table.querySelectorAll("td"));
+        }
+
+        if (mode === "row") {
+          return Array.from(context.row.cells);
+        }
+
+        if (mode === "column") {
+          return Array.from(context.table.rows)
+            .map(row => row.cells[context.columnIndex])
+            .filter(Boolean);
+        }
+
+        return [context.cell];
+      }
+
+      getCellGridPosition(table, cell) {
+        const row = cell?.parentElement;
+        if (!table || !row) return { rowIndex: -1, columnIndex: -1 };
+
+        return {
+          rowIndex: Array.from(table.rows).indexOf(row),
+          columnIndex: Array.from(row.cells).indexOf(cell)
+        };
+      }
+
+      applyBorderPresetToCells(context, preset, settings = this.getBorderSettings()) {
+        const cells = this.getTableCellsForBorderPreset(context);
+
+        if (!context?.table || cells.length === 0) {
+          return false;
+        }
+
+        const lineCss = this.getBorderLineCss(settings);
+        const positions = cells.map(cell => ({ cell, ...this.getCellGridPosition(context.table, cell) }));
+        const rowIndexes = positions.map(item => item.rowIndex).filter(index => index >= 0);
+        const columnIndexes = positions.map(item => item.columnIndex).filter(index => index >= 0);
+        const minRow = Math.min(...rowIndexes);
+        const maxRow = Math.max(...rowIndexes);
+        const minColumn = Math.min(...columnIndexes);
+        const maxColumn = Math.max(...columnIndexes);
+
+        const applyEdge = (cell, edge) => this.setBorderEdge(cell, edge, lineCss);
+
+        if (preset === "none") {
+          cells.forEach(cell => this.clearCellBorders(cell));
+          context.table.style.border = "";
+          return true;
+        }
+
+        if (preset === "all") {
+          cells.forEach(cell => {
+            cell.style.border = lineCss;
+            cell.style.borderRadius = settings.radius;
+          });
+          return true;
+        }
+
+        if (["top", "right", "bottom", "left"].includes(preset)) {
+          cells.forEach(cell => applyEdge(cell, preset));
+          return true;
+        }
+
+        if (preset === "outside") {
+          positions.forEach(item => {
+            if (item.rowIndex === minRow) applyEdge(item.cell, "top");
+            if (item.rowIndex === maxRow) applyEdge(item.cell, "bottom");
+            if (item.columnIndex === minColumn) applyEdge(item.cell, "left");
+            if (item.columnIndex === maxColumn) applyEdge(item.cell, "right");
+          });
+          return true;
+        }
+
+        if (preset === "inside" || preset === "insideHorizontal" || preset === "insideVertical") {
+          positions.forEach(item => {
+            if ((preset === "inside" || preset === "insideHorizontal") && item.rowIndex < maxRow) {
+              applyEdge(item.cell, "bottom");
+            }
+
+            if ((preset === "inside" || preset === "insideVertical") && item.columnIndex < maxColumn) {
+              applyEdge(item.cell, "right");
+            }
+          });
+          return true;
+        }
+
+        return false;
+      }
+
+      applyTableBorderPreset(preset) {
+        this.closeBorderDropdown();
+
+        const context = this.getCurrentTableBorderContext();
+
+        if (context) {
+          const applied = this.applyBorderPresetToCells(context, preset);
+
+          if (!applied) {
+            alert("Opção de borda ainda não implementada.");
+            return;
+          }
+
+          this.syncAndSelectTableComponent(context, context.mode || "cell");
+          return;
+        }
+
+        /*
+          v242: o mesmo menu de bordas também atua no objeto/parágrafo corrente.
+          Bordas internas continuam exclusivas de tabela.
+        */
+        const target = this.getCurrentBoxBorderTarget();
+
+        if (!target) {
+          alert("Selecione uma célula, tabela, objeto ou parágrafo para aplicar essa borda.");
+          return;
+        }
+
+        const applied = this.applyBorderPresetToBoxElement(target.element, preset);
+
+        if (!applied) {
+          alert("Bordas internas só se aplicam a tabelas.");
+          return;
+        }
+
+        this.syncBorderTargetAfterChange(target);
+      }
+
+      toggleSelectedTableGridLines() {
+        this.closeBorderDropdown();
+
+        const context = this.getCurrentTableBorderContext();
+
+        if (!context?.table) {
+          alert("Selecione uma tabela para alternar as linhas de grade.");
+          return;
+        }
+
+        context.table.classList.toggle("wordex-show-gridlines");
+        this.syncAndSelectTableComponent(context, context.mode || "table");
+      }
+
       trySelectObjectInsideTableCell(event, container = this.documentElement) {
         const object = event.target.closest(WordexEditor.objectSelector);
 
@@ -3551,7 +4940,20 @@
           event.stopPropagation();
         }
 
-        if (this.isPrimaryModifierPressed(event) && this.isWordexTableObject(object)) {
+        const isPrimaryModifier = this.isPrimaryModifierPressed(event);
+        const isTextboxObject = object.matches(".wordex-textbox");
+
+        /*
+          v254: textbox passa a seguir a lógica da tabela:
+          - clique normal edita o texto interno e não seleciona o objeto;
+          - Ctrl+click seleciona o textbox como objeto para alinhar,
+            redimensionar, aplicar borda, margem etc.
+        */
+        if (isTextboxObject && !isPrimaryModifier) {
+          return false;
+        }
+
+        if (isPrimaryModifier && this.isWordexTableObject(object)) {
           event.preventDefault();
           event.wordexTableClickHandled = true;
 
@@ -3567,6 +4969,14 @@
             this.selectTableComponent(object, null, "table");
           }
         } else {
+          if (isPrimaryModifier) {
+            event.preventDefault();
+
+            if (stopPropagationOnObjectModifier) {
+              event.stopPropagation();
+            }
+          }
+
           this.selectObject(object);
         }
 
@@ -4052,6 +5462,78 @@
         };
       }
 
+      getSelectedTableContextWithoutAlert() {
+        let cell = this.selectedCell;
+
+        if (!cell || !this.documentElement.contains(cell)) {
+          const selection = window.getSelection();
+
+          if (selection && selection.rangeCount > 0) {
+            cell = this.getTableCellFromRange(selection.getRangeAt(0));
+          }
+        }
+
+        if (!cell || !this.documentElement.contains(cell)) {
+          return null;
+        }
+
+        const table = cell.closest(".wordex-table");
+
+        if (!table) {
+          return null;
+        }
+
+        return {
+          table,
+          cell,
+          row: cell.parentElement,
+          columnIndex: Array.from(cell.parentElement.cells).indexOf(cell)
+        };
+      }
+
+      applyParagraphAlignToSelectedTableComponent(align) {
+        const context = this.getSelectedTableContextWithoutAlert();
+
+        if (!context) {
+          return false;
+        }
+
+        const mode = this.selectedTableMode || "cell";
+
+        /*
+          v255: tabela inteira selecionada com Ctrl+click deve se comportar
+          como objeto dentro do parágrafo. Assim, esquerda/centro/direita
+          alinham a tabela no fluxo, em vez de alterar o texto das células.
+          Célula, linha e coluna continuam alinhando o conteúdo interno.
+        */
+        if (mode === "table") {
+          return false;
+        }
+
+        const normalizedAlign = ["left", "center", "right", "justify"].includes(align)
+          ? align
+          : "";
+
+        const applyToCell = cell => {
+          if (cell) {
+            cell.style.textAlign = normalizedAlign;
+          }
+        };
+
+        if (mode === "row") {
+          Array.from(context.row.cells).forEach(applyToCell);
+        } else if (mode === "column") {
+          Array.from(context.table.rows).forEach(row => applyToCell(row.cells[context.columnIndex]));
+        } else if (mode === "table") {
+          context.table.querySelectorAll("td").forEach(applyToCell);
+        } else {
+          applyToCell(context.cell);
+        }
+
+        this.syncAndSelectTableComponent(context, mode === "table" ? "table" : mode);
+        return true;
+      }
+
       alignSelectedTable(scope) {
         const context = this.getSelectedTableContext();
         if (!context) return;
@@ -4079,27 +5561,106 @@
       }
 
       applyParagraphAlign(align) {
+        /*
+          Célula/linha/coluna/tabela continuam tendo prioridade sobre objetos
+          selecionados anteriormente.
+        */
+        if (this.applyParagraphAlignToSelectedTableComponent(align)) {
+          return;
+        }
+
+        const selectedObject = this.getLiveSelectedObject();
+
+        if (selectedObject) {
+          const objectAlign = this.normalizeToolbarAlignForObject(align);
+          this.applyAlignment(selectedObject, objectAlign);
+          this.limitObjectWidthToParagraph(selectedObject);
+          this.syncObjectAfterChangeAndKeepSelected(selectedObject);
+          return;
+        }
+
+        const activeTextbox = this.getActiveTextboxForTextEditing();
+
+        if (activeTextbox) {
+          this.applyTextboxTextAlign(activeTextbox, align);
+          return;
+        }
+
         const paragraph = this.getSelectedParagraphElement();
 
         if (paragraph) {
-          paragraph.style.textAlign = align;
+          const normalizedAlign = ["left", "center", "right", "justify"].includes(align)
+            ? align
+            : "";
+
+          paragraph.style.textAlign = normalizedAlign;
 
           const block = this.findBlockById(paragraph.dataset.blockId);
           if (block) {
-            block.style.textAlign = align;
+            block.style.textAlign = normalizedAlign;
             block.html = this.getCleanInnerHtml(paragraph);
           }
           return;
         }
+      }
 
-        if (this.selectedObject) {
-          const objectBlock = this.selectedObject.closest(".object-block");
+      applyTextboxTextAlign(textbox, align) {
+        if (!textbox) return;
 
-          if (objectBlock) {
-            this.applyAlignment(this.selectedObject, align === "justify" ? "left" : align);
-            this.syncObjectAfterChangeAndKeepSelected(this.selectedObject);
-          }
+        const normalizedAlign = ["left", "center", "right", "justify"].includes(align)
+          ? align
+          : "left";
+
+        /*
+          v253/v254: o textbox precisa ter alinhamento interno próprio.
+          Quando o parágrafo é alinhado, o objeto acompanha visualmente o fluxo,
+          mas o texto interno não deve herdar o text-align do parágrafo.
+          A partir da v254, Ctrl+click seleciona o textbox como objeto;
+          clique normal mantém o foco de edição no texto interno.
+        */
+        textbox.style.textAlign = normalizedAlign;
+        this.syncObjectAfterChangeAndKeepSelected(textbox);
+      }
+
+      getLiveSelectedObject() {
+        if (
+          this.selectedObject &&
+          this.documentElement.contains(this.selectedObject) &&
+          this.selectedObject.matches?.(WordexEditor.objectSelector)
+        ) {
+          return this.selectedObject;
         }
+
+        return null;
+      }
+
+      getActiveTextboxForTextEditing() {
+        const activeElement = document.activeElement;
+        const activeTextbox = activeElement?.closest?.(".wordex-textbox") || null;
+
+        if (activeTextbox && this.documentElement.contains(activeTextbox)) {
+          return activeTextbox;
+        }
+
+        const selection = window.getSelection();
+
+        if (!selection || selection.rangeCount === 0) {
+          return null;
+        }
+
+        const node = selection.getRangeAt(0).commonAncestorContainer;
+        const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+        const textbox = element?.closest?.(".wordex-textbox") || null;
+
+        return textbox && this.documentElement.contains(textbox) ? textbox : null;
+      }
+
+      normalizeToolbarAlignForObject(align) {
+        if (align === "left" || align === "center" || align === "right") {
+          return align;
+        }
+
+        return "free";
       }
 
       applyFormatting(style) {
@@ -4133,6 +5694,34 @@
           return false;
         }
 
+        /*
+          v247: quando o usuário seleciona um trecho que já está dentro de um
+          span de formatação e muda o tamanho da fonte de volta, não podemos
+          simplesmente criar outro span dentro do anterior. O span antigo fica
+          segurando a altura da linha mesmo que o texto visível volte ao tamanho
+          normal. Nesse caso, reaproveitamos o span existente e atualizamos sua
+          formatação em vez de aninhar outro.
+        */
+        const existingSpan = this.findFormattingSpanCoveredByRange(range, paragraph);
+
+        if (existingSpan) {
+          this.applyStyleObject(existingSpan, style);
+          existingSpan.querySelectorAll("span").forEach(child => {
+            this.applyStyleObject(child, style);
+          });
+
+          this.removeEmptyInlineStyleElements(paragraph);
+
+          selection.removeAllRanges();
+
+          const newRange = document.createRange();
+          newRange.selectNodeContents(existingSpan);
+          selection.addRange(newRange);
+
+          this.finalizeParagraphFormatting(paragraph, true);
+          return true;
+        }
+
         const span = document.createElement("span");
         this.applyStyleObject(span, style);
 
@@ -4153,6 +5742,50 @@
         this.finalizeParagraphFormatting(paragraph, true);
 
         return true;
+      }
+
+      findFormattingSpanCoveredByRange(range, paragraph) {
+        if (!range || !paragraph) return null;
+
+        const startElement = range.startContainer.nodeType === Node.ELEMENT_NODE
+          ? range.startContainer
+          : range.startContainer.parentElement;
+
+        const endElement = range.endContainer.nodeType === Node.ELEMENT_NODE
+          ? range.endContainer
+          : range.endContainer.parentElement;
+
+        if (!startElement || !endElement) return null;
+
+        const selectedText = String(range.toString() || "").trim();
+
+        if (!selectedText) return null;
+
+        const candidates = [];
+        let current = startElement;
+
+        while (current && current !== paragraph) {
+          if (
+            current instanceof HTMLSpanElement &&
+            current.contains(endElement) &&
+            paragraph.contains(current)
+          ) {
+            const spanText = String(current.textContent || "").trim();
+
+            if (spanText === selectedText) {
+              candidates.push(current);
+            }
+          }
+
+          current = current.parentElement;
+        }
+
+        /*
+          Retorna o span mais externo que ainda corresponde exatamente ao texto
+          selecionado. Se existir um span antigo grande envolvendo um span novo
+          pequeno, atualizar o externo é o que permite a altura da linha voltar.
+        */
+        return candidates.length ? candidates[candidates.length - 1] : null;
       }
 
       finalizeParagraphFormatting(paragraph, updateSelectionIds = false) {
@@ -4989,6 +6622,150 @@
         };
       }
 
+      installInlineObjectDragEvents() {
+        this.documentElement.addEventListener("mousedown", event => {
+          this.startInlineObjectMouseDragCandidate(event);
+        });
+
+        document.addEventListener("mousemove", event => {
+          this.handleInlineObjectMouseDragMove(event);
+        });
+
+        document.addEventListener("mouseup", event => {
+          this.finishInlineObjectMouseDrag(event);
+        });
+      }
+
+      startInlineObjectMouseDragCandidate(event) {
+        if (event.button !== 0 || event.defaultPrevented) {
+          return;
+        }
+
+        if (event.target.closest(".wordex-resize-overlay, .toolbar")) {
+          return;
+        }
+
+        const object = event.target.closest(WordexEditor.objectSelector);
+        if (!object || !this.documentElement.contains(object)) {
+          return;
+        }
+
+        const paragraph = object.closest(".paragraph");
+        if (!paragraph) {
+          return;
+        }
+
+        /*
+          Tabelas continuam usando Ctrl+click para alternar seleção de tabela,
+          linha, coluna e célula. O arrasto da tabela inteira só começa depois
+          que ela já está selecionada como objeto/tabela.
+        */
+        if (this.isWordexTableObject(object) && this.selectedObject !== object) {
+          return;
+        }
+
+        this.inlineObjectDrag = {
+          object,
+          paragraph,
+          started: false,
+          startClientX: event.clientX,
+          startClientY: event.clientY
+        };
+      }
+
+      handleInlineObjectMouseDragMove(event) {
+        const drag = this.inlineObjectDrag;
+        if (!drag) return;
+
+        if (!this.isInDocument(drag.object) || !this.isInDocument(drag.paragraph)) {
+          this.finishInlineObjectMouseDrag(event);
+          return;
+        }
+
+        const dx = event.clientX - drag.startClientX;
+        const dy = event.clientY - drag.startClientY;
+
+        if (!drag.started) {
+          if (Math.hypot(dx, dy) < 5) {
+            return;
+          }
+
+          drag.started = true;
+          document.body.classList.add("wordex-object-dragging");
+          drag.object.classList.add("wordex-inline-object-dragging");
+          this.selectObject(drag.object);
+
+          if (drag.object.dataset.align !== "free") {
+            this.applyAlignment(drag.object, "free");
+          }
+        }
+
+        event.preventDefault();
+
+        const range = this.getCaretRangeFromPoint(event.clientX, event.clientY);
+        if (!range) return;
+
+        const targetParagraph = this.findParagraphElementFromNode(range.commonAncestorContainer);
+        if (targetParagraph !== drag.paragraph) {
+          return;
+        }
+
+        const containerElement = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+          ? range.commonAncestorContainer
+          : range.commonAncestorContainer.parentElement;
+
+        if (containerElement?.closest?.(WordexEditor.objectSelector)) {
+          return;
+        }
+
+        try {
+          drag.object.remove();
+          range.insertNode(drag.object);
+          this.syncParagraphElement(drag.paragraph);
+          this.keepObjectSelected(drag.object);
+        } catch (error) {
+          console.warn("Não foi possível mover o objeto dentro do parágrafo.", error);
+        }
+      }
+
+      finishInlineObjectMouseDrag(event) {
+        const drag = this.inlineObjectDrag;
+        if (!drag) return;
+
+        this.inlineObjectDrag = null;
+        document.body.classList.remove("wordex-object-dragging");
+
+        if (!this.isInDocument(drag.object)) {
+          return;
+        }
+
+        drag.object.classList.remove("wordex-inline-object-dragging");
+
+        if (drag.started) {
+          this.syncParagraphElement(drag.paragraph);
+          this.syncObjectAfterChangeAndKeepSelected(drag.object);
+          event?.preventDefault?.();
+        }
+      }
+
+      getCaretRangeFromPoint(clientX, clientY) {
+        if (document.caretRangeFromPoint) {
+          return document.caretRangeFromPoint(clientX, clientY);
+        }
+
+        if (document.caretPositionFromPoint) {
+          const position = document.caretPositionFromPoint(clientX, clientY);
+          if (!position) return null;
+
+          const range = document.createRange();
+          range.setStart(position.offsetNode, position.offset);
+          range.collapse(true);
+          return range;
+        }
+
+        return null;
+      }
+
       handleFreeObjectKeyboard(event) {
         const arrows = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
         if (!arrows.includes(event.key)) return;
@@ -5490,6 +7267,11 @@
           const html = this.getCleanInnerHtml(paragraphElement);
           this.updateParagraphEmptyState(paragraphElement);
           block.html = this.isParagraphVisuallyEmptyHtml(html) ? "" : html;
+          block.style = block.style || {};
+          block.style.marginTop = paragraphElement.style.marginTop || "";
+          block.style.marginRight = paragraphElement.style.marginRight || "";
+          block.style.marginBottom = paragraphElement.style.marginBottom || "";
+          block.style.marginLeft = paragraphElement.style.marginLeft || "";
         }
       }
 
@@ -5844,6 +7626,10 @@
         paragraph.style.fontSize = block.style.fontSize;
         paragraph.style.color = block.style.color || "#000000";
         paragraph.style.textAlign = block.style.textAlign;
+        paragraph.style.marginTop = block.style.marginTop || "";
+        paragraph.style.marginRight = block.style.marginRight || "";
+        paragraph.style.marginBottom = block.style.marginBottom || "";
+        paragraph.style.marginLeft = block.style.marginLeft || "";
 
         paragraph.addEventListener("focus", () => {
           this.selectParagraph(region, block.id);
@@ -5890,6 +7676,8 @@
 
       clearObjectSelectionMarks(container) {
         if (!container) return;
+
+        container.querySelectorAll(".wordex-resize-overlay").forEach(element => element.remove());
 
         container.querySelectorAll(WordexEditor.objectSelectionSelector).forEach(element => {
           element.classList.remove(...WordexEditor.objectSelectionClasses);
@@ -5962,6 +7750,7 @@
         this.clearObjectSelectionMarks(this.documentElement);
         this.applyObjectSelectionMarks();
         this.syncTableRowTypeToolbar();
+        this.updateObjectResizeOverlay();
       }
 
       resizeTableRowsByTotalHeight(table, totalHeight) {
@@ -6038,6 +7827,7 @@
         const clone = document.documentElement.cloneNode(true);
 
         clone.querySelectorAll("#wordexSavedDocument").forEach(node => node.remove());
+        this.removeObjectResizeOverlayFromClone(clone);
 
         const stateScript = document.createElement("script");
         stateScript.id = "wordexSavedDocument";
@@ -6782,6 +8572,11 @@ body.wordex-generated-report #wordex-paged-output .pagedjs_pages {
 body.wordex-generated-report #wordex-paged-output .pagedjs_page {
   background: white;
   box-shadow: 0 0 10px rgba(0,0,0,.35);
+}
+
+body.wordex-generated-report .document > .region::before {
+  display: none !important;
+  content: "" !important;
 }
 
 @media print {
