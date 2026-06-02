@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wordex - MVP Contínuo v259 correção sintaxe marca d'água</title>
+  <title>Wordex - MVP Contínuo v261 prévia visível de marca d'água</title>
 
   <style id="wordex-editor-style">
     * { box-sizing: border-box; }
@@ -344,14 +344,18 @@
     .workspace { padding: 28px 0 50px; }
 
     .document {
+      position: relative;
       width: 210mm;
       min-height: 297mm;
       margin: 0 auto 28px;
       background: white;
       box-shadow: 0 0 10px rgba(0,0,0,.35);
+      overflow: hidden;
     }
 
     .document-title {
+      position: relative;
+      z-index: 1;
       padding: 8px 15mm;
       background: #f5f5f5;
       border-bottom: 1px solid #ddd;
@@ -360,8 +364,31 @@
     }
 
     .region {
+      position: relative;
+      z-index: 1;
       padding: 10mm 15mm;
       outline: 2px solid transparent;
+    }
+
+    .wordex-continuous-watermark {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 2;
+      pointer-events: none;
+      user-select: none;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      max-width: 80%;
+      max-height: 80%;
+    }
+
+    .wordex-continuous-watermark img {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
     }
 
     .region:hover { outline: 2px dashed #bbb; }
@@ -863,6 +890,7 @@
       .toolbar,
       .wordex-resize-overlay,
       .document-title,
+      .wordex-continuous-watermark,
       .wordex-table tr[data-wordex-row-type] td:first-child::before {
         display: none !important;
       }
@@ -1139,7 +1167,7 @@
         this.documentElement = document.getElementById(documentId);
 
         this.wordexDocument = {
-          version: "2.59",
+          version: "2.61",
           mode: "continuous",
           description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas, objetos e montagem HTML por dados e clipboard interno).",
           headerTemplate: [],
@@ -1387,6 +1415,7 @@
             watermark.enabled = false;
             watermark.imageSrc = "";
             watermark.imageName = "";
+            this.render();
             this.saveUndoStateIfChanged();
           }
 
@@ -1418,6 +1447,7 @@
             watermark.imageName = file.name || "marca-dagua";
             watermark.enabled = watermark.imageSrc.length > 0;
             console.log("Wordex: marca d'água carregada", watermark.imageName);
+            this.render();
             this.saveUndoStateIfChanged();
           };
 
@@ -1446,6 +1476,44 @@
           opacity: Math.max(0, Math.min(1, Number(watermark.opacity) || 0.12)),
           width: this.normalizeCssSize(String(watermark.width || "160mm"), "160mm")
         };
+      }
+
+      createContinuousWatermarkElement(watermark, extraClass = "") {
+        if (!watermark || !watermark.imageSrc) {
+          return null;
+        }
+
+        const watermarkElement = document.createElement("div");
+        watermarkElement.className = ["wordex-continuous-watermark", extraClass]
+          .filter(Boolean)
+          .join(" ");
+        watermarkElement.style.opacity = String(
+          Math.max(0, Math.min(1, Number(watermark.opacity) || 0.12))
+        );
+        watermarkElement.style.width = String(watermark.width || "160mm");
+        watermarkElement.setAttribute("aria-hidden", "true");
+
+        const image = document.createElement("img");
+        image.src = String(watermark.imageSrc || "");
+        image.alt = String(watermark.imageName || "Marca d'água");
+        image.draggable = false;
+
+        watermarkElement.appendChild(image);
+        return watermarkElement;
+      }
+
+      injectContinuousWatermarkPreview(container, watermark, extraClass = "") {
+        if (!container) {
+          return;
+        }
+
+        container.querySelectorAll(".wordex-continuous-watermark").forEach(node => node.remove());
+
+        const watermarkElement = this.createContinuousWatermarkElement(watermark, extraClass);
+
+        if (watermarkElement) {
+          container.insertBefore(watermarkElement, container.firstChild);
+        }
       }
 
       getPageSettings() {
@@ -1501,7 +1569,7 @@
         page.height = orientation === "landscape" ? format.width : format.height;
 
         /*
-          Margens saíram da ribbon na v244; botão Aplicar saiu na v245; parágrafo ajusta altura pela linha na v246; v247 evita spans de fonte antigos segurando a altura da linha; v248 remove a linha superior de abas/versão da ribbon; v249 permite redimensionar seleção de linha/coluna/célula por cantoneiras; v250 remove o grupo Tabela da ribbon porque o alinhamento já atua sobre célula/linha/coluna/tabela selecionada; v251 adiciona controles compactos de margem para parágrafos e objetos; v252 adiciona alinhamento none e arrasto de objetos dentro de parágrafo; v253 isola o alinhamento interno do textbox para que o alinhamento do parágrafo mova o objeto sem herdar text-align; v254 exige Ctrl+click para selecionar textbox como objeto e separa alinhamento do objeto do alinhamento do texto interno; v255 corrige encolhimento progressivo ao centralizar objeto e deixa tabela selecionada alinhar como objeto no parágrafo; v256 adiciona marca d'água do relatório montada apenas após a paginação; v257 troca a marca d'água textual por imagem selecionada do disco e embutida no Wordex; v258 corrige a marca d'água para aparecer mesmo sem header/footer e a coloca em camada visível na página paginada; v259 corrige erro de sintaxe gerado pelo apóstrofo de d'água no script da paginação.
+          Margens saíram da ribbon na v244; botão Aplicar saiu na v245; parágrafo ajusta altura pela linha na v246; v247 evita spans de fonte antigos segurando a altura da linha; v248 remove a linha superior de abas/versão da ribbon; v249 permite redimensionar seleção de linha/coluna/célula por cantoneiras; v250 remove o grupo Tabela da ribbon porque o alinhamento já atua sobre célula/linha/coluna/tabela selecionada; v251 adiciona controles compactos de margem para parágrafos e objetos; v252 adiciona alinhamento none e arrasto de objetos dentro de parágrafo; v253 isola o alinhamento interno do textbox para que o alinhamento do parágrafo mova o objeto sem herdar text-align; v254 exige Ctrl+click para selecionar textbox como objeto e separa alinhamento do objeto do alinhamento do texto interno; v255 corrige encolhimento progressivo ao centralizar objeto e deixa tabela selecionada alinhar como objeto no parágrafo; v256 adiciona marca d'água do relatório montada apenas após a paginação; v257 troca a marca d'água textual por imagem selecionada do disco e embutida no Wordex; v258 corrige a marca d'água para aparecer mesmo sem header/footer e a coloca em camada visível na página paginada; v259 corrige erro de sintaxe gerado pelo apóstrofo de d'água no script da paginação; v260 adiciona prévia contínua da marca d'água no editor/HTML e a remove antes da paginação para evitar duplicidade; v261 corrige a camada da prévia para ela aparecer sobre as regiões do editor, que possuem fundo branco.
           Elas continuam existindo no modelo porque ainda são usadas
           na montagem/paginação, mas agora não são regravadas por aqui.
           Futuramente serão controladas por dialog próprio.
@@ -2323,7 +2391,7 @@
         return {
           source: "Wordex",
           kind: "blocks",
-          version: "2.59",
+          version: "2.61",
           createdAt: new Date().toISOString(),
           region: context.region,
           blocks: [this.cloneBlockForClipboard(context.block)]
@@ -7628,6 +7696,12 @@
         title.textContent = `Wordex — ${page.format} ${page.orientation === "landscape" ? "paisagem" : "retrato"} — ${page.width} x ${page.height}`;
         this.documentElement.appendChild(title);
 
+        this.injectContinuousWatermarkPreview(
+          this.documentElement,
+          this.getGeneratedWatermarkSettings(),
+          "wordex-editor-watermark"
+        );
+
         this.documentElement.appendChild(
           this.renderRegion("headerTemplate", "header-template", "Modelo de cabeçalho")
         );
@@ -8274,6 +8348,12 @@
         const generatedCss = this.getGeneratedReportCss(generatedPage);
         const watermark = this.getGeneratedWatermarkSettings();
 
+        this.injectContinuousWatermarkPreview(
+          documentClone,
+          watermark,
+          "wordex-generated-continuous-watermark"
+        );
+
         return [
           "<!DOCTYPE html>",
           '<html lang="pt-BR">',
@@ -8389,6 +8469,10 @@
           "          Promise.allSettled([fontsReady, waitForImagesInNode(source, timeoutMs || 8000)]),",
           "          new Promise(function (resolve) { setTimeout(resolve, timeoutMs || 8000); })",
           "        ]).then(function () {});",
+          "      }",
+          "      function removeContinuousWatermarksFromSource(source) {",
+          "        if (!source) return;",
+          "        source.querySelectorAll('.wordex-continuous-watermark').forEach(function (node) { node.remove(); });",
           "      }",
           "      async function measureTemplateHeightMm(regionHtml, regionClass, contentWidthMm) {",
           "        if (!regionHtml) return 0;",
@@ -8553,6 +8637,7 @@
           "          showPagedError('Paged.js não foi carregado. O relatório continua em fluxo contínuo.');",
           "          return;",
           "        }",
+          "        removeContinuousWatermarksFromSource(source);",
           "        if (!pageConfig.useFixedMargins) {",
           "          await waitForReportResources(10000);",
           "          await applyDynamicPageMargins();",
@@ -8732,9 +8817,17 @@ body.wordex-generated-report {
   Evita somar os dois e deslocar só o corpo.
 */
 body.wordex-generated-report .document {
+  position: relative;
   width: auto !important;
   min-height: 0 !important;
   max-width: 100%;
+}
+
+body.wordex-generated-report .wordex-continuous-watermark {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 0;
 }
 
 body.wordex-generated-report .region {
