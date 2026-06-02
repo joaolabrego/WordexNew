@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wordex - MVP Contínuo v255 alinhamento de tabela e objeto</title>
+  <title>Wordex - MVP Contínuo v259 correção sintaxe marca d'água</title>
 
   <style id="wordex-editor-style">
     * { box-sizing: border-box; }
@@ -1046,6 +1046,7 @@
 <div class="toolbar-group">
 <span class="toolbar-title">Saída</span>
 <button aria-label="Salvar" data-icon="💾" onclick="wordex.saveWordexHtml()" title="Salvar"></button>
+<button aria-label="Marca d'água" data-icon="◌" onclick="wordex.configureReportWatermark(event)" title="Marca d'água: escolher imagem (Ctrl+click remove)"></button>
 <button aria-label="Gerar PDF" class="primary ribbon-large ribbon-icon-pdf" data-icon="pdf" onclick="wordex.generatePdfWithJsPdf()" title="Gerar PDF"></button>
 <button aria-label="Imprimir" class="primary" data-icon="🖨" onclick="window.print()" title="Imprimir"></button>
 </div>
@@ -1138,7 +1139,7 @@
         this.documentElement = document.getElementById(documentId);
 
         this.wordexDocument = {
-          version: "2.55",
+          version: "2.59",
           mode: "continuous",
           description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas, objetos e montagem HTML por dados e clipboard interno).",
           headerTemplate: [],
@@ -1153,6 +1154,13 @@
             marginRight: "15mm",
             marginBottom: "20mm",
             marginLeft: "15mm"
+          },
+          watermark: {
+            enabled: false,
+            imageSrc: "",
+            imageName: "",
+            opacity: 0.12,
+            width: "160mm"
           }
         };
 
@@ -1328,6 +1336,118 @@
         this.syncPageControlsFromDocument();
       }
 
+      getWatermarkSettings() {
+        if (!this.wordexDocument.watermark || typeof this.wordexDocument.watermark !== "object") {
+          this.wordexDocument.watermark = {
+            enabled: false,
+            imageSrc: "",
+            imageName: "",
+            opacity: 0.12,
+            width: "160mm"
+          };
+        }
+
+        const watermark = this.wordexDocument.watermark;
+
+        if (typeof watermark.imageSrc !== "string") {
+          watermark.imageSrc = "";
+        }
+
+        if (typeof watermark.imageName !== "string") {
+          watermark.imageName = "";
+        }
+
+        if (!Number.isFinite(Number(watermark.opacity))) {
+          watermark.opacity = 0.12;
+        }
+
+        if (!watermark.width) {
+          watermark.width = "160mm";
+        }
+
+        /*
+          Compatibilidade com a v256: a marca d'água textual foi abandonada.
+          A partir da v257, marca d'água é sempre uma imagem embutida como Data URL.
+        */
+        watermark.enabled = String(watermark.imageSrc || "").trim().length > 0;
+
+        return watermark;
+      }
+
+      configureReportWatermark(event = null) {
+        const watermark = this.getWatermarkSettings();
+
+        if (event && this.isPrimaryModifierPressed(event)) {
+          if (!watermark.enabled) {
+            alert("Não há marca d'água para remover.");
+            return;
+          }
+
+          if (confirm("Remover a marca d'água atual?")) {
+            watermark.enabled = false;
+            watermark.imageSrc = "";
+            watermark.imageName = "";
+            this.saveUndoStateIfChanged();
+          }
+
+          return;
+        }
+
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.style.display = "none";
+
+        input.addEventListener("change", () => {
+          const file = input.files && input.files[0];
+          input.remove();
+
+          if (!file) {
+            return;
+          }
+
+          if (file.type && !file.type.startsWith("image/")) {
+            alert("Selecione um arquivo de imagem para a marca d'água.");
+            return;
+          }
+
+          const reader = new FileReader();
+
+          reader.onload = () => {
+            watermark.imageSrc = String(reader.result || "");
+            watermark.imageName = file.name || "marca-dagua";
+            watermark.enabled = watermark.imageSrc.length > 0;
+            console.log("Wordex: marca d'água carregada", watermark.imageName);
+            this.saveUndoStateIfChanged();
+          };
+
+          reader.onerror = () => {
+            alert("Não foi possível carregar a imagem da marca d'água.");
+          };
+
+          reader.readAsDataURL(file);
+        }, { once: true });
+
+        document.body.appendChild(input);
+        input.click();
+      }
+
+      getGeneratedWatermarkSettings() {
+        const watermark = this.getWatermarkSettings();
+        const imageSrc = String(watermark.imageSrc || "").trim();
+
+        if (!watermark.enabled || imageSrc.length === 0) {
+          return null;
+        }
+
+        return {
+          imageSrc,
+          imageName: String(watermark.imageName || ""),
+          opacity: Math.max(0, Math.min(1, Number(watermark.opacity) || 0.12)),
+          width: this.normalizeCssSize(String(watermark.width || "160mm"), "160mm")
+        };
+      }
+
       getPageSettings() {
         if (!this.wordexDocument.page) {
           this.wordexDocument.page = {
@@ -1381,7 +1501,7 @@
         page.height = orientation === "landscape" ? format.width : format.height;
 
         /*
-          Margens saíram da ribbon na v244; botão Aplicar saiu na v245; parágrafo ajusta altura pela linha na v246; v247 evita spans de fonte antigos segurando a altura da linha; v248 remove a linha superior de abas/versão da ribbon; v249 permite redimensionar seleção de linha/coluna/célula por cantoneiras; v250 remove o grupo Tabela da ribbon porque o alinhamento já atua sobre célula/linha/coluna/tabela selecionada; v251 adiciona controles compactos de margem para parágrafos e objetos; v252 adiciona alinhamento none e arrasto de objetos dentro de parágrafo; v253 isola o alinhamento interno do textbox para que o alinhamento do parágrafo mova o objeto sem herdar text-align; v254 exige Ctrl+click para selecionar textbox como objeto e separa alinhamento do objeto do alinhamento do texto interno; v255 corrige encolhimento progressivo ao centralizar objeto e deixa tabela selecionada alinhar como objeto no parágrafo.
+          Margens saíram da ribbon na v244; botão Aplicar saiu na v245; parágrafo ajusta altura pela linha na v246; v247 evita spans de fonte antigos segurando a altura da linha; v248 remove a linha superior de abas/versão da ribbon; v249 permite redimensionar seleção de linha/coluna/célula por cantoneiras; v250 remove o grupo Tabela da ribbon porque o alinhamento já atua sobre célula/linha/coluna/tabela selecionada; v251 adiciona controles compactos de margem para parágrafos e objetos; v252 adiciona alinhamento none e arrasto de objetos dentro de parágrafo; v253 isola o alinhamento interno do textbox para que o alinhamento do parágrafo mova o objeto sem herdar text-align; v254 exige Ctrl+click para selecionar textbox como objeto e separa alinhamento do objeto do alinhamento do texto interno; v255 corrige encolhimento progressivo ao centralizar objeto e deixa tabela selecionada alinhar como objeto no parágrafo; v256 adiciona marca d'água do relatório montada apenas após a paginação; v257 troca a marca d'água textual por imagem selecionada do disco e embutida no Wordex; v258 corrige a marca d'água para aparecer mesmo sem header/footer e a coloca em camada visível na página paginada; v259 corrige erro de sintaxe gerado pelo apóstrofo de d'água no script da paginação.
           Elas continuam existindo no modelo porque ainda são usadas
           na montagem/paginação, mas agora não são regravadas por aqui.
           Futuramente serão controladas por dialog próprio.
@@ -2203,7 +2323,7 @@
         return {
           source: "Wordex",
           kind: "blocks",
-          version: "2.55",
+          version: "2.59",
           createdAt: new Date().toISOString(),
           region: context.region,
           blocks: [this.cloneBlockForClipboard(context.block)]
@@ -7966,6 +8086,26 @@
           "        check();",
           "      });",
           "    }",
+          "    function waitForImagesInNode(node, timeoutMs) {",
+          "      var images = node ? Array.prototype.slice.call(node.querySelectorAll('img')) : [];",
+          "      if (images.length === 0) return Promise.resolve();",
+          "      var tasks = images.map(function (img) {",
+          "        if (img.complete) return Promise.resolve();",
+          "        return new Promise(function (resolve) {",
+          "          function done() {",
+          "            img.removeEventListener('load', done);",
+          "            img.removeEventListener('error', done);",
+          "            resolve();",
+          "          }",
+          "          img.addEventListener('load', done, { once: true });",
+          "          img.addEventListener('error', done, { once: true });",
+          "        });",
+          "      });",
+          "      return Promise.race([",
+          "        Promise.allSettled(tasks),",
+          "        new Promise(function (resolve) { setTimeout(resolve, timeoutMs || 8000); })",
+          "      ]).then(function () {});",
+          "    }",
           "    function normalizeBlankText(text) {",
           "      return String(text || '')",
           "        .replace(/\u200B/g, '')",
@@ -8007,6 +8147,7 @@
           "          setStatus('Removida(s) ' + (originalPageCount - pages.length) + ' página(s) vazia(s) no final.');",
           "        }",
           "        await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());",
+          "        await waitForImagesInNode(document.getElementById('wordex-paged-output'), 10000);",
           "        var JsPDF = getJsPdfConstructor();",
           "        if (!JsPDF || !window.html2canvas) {",
           "          throw new Error('jsPDF ou html2canvas indisponível.');",
@@ -8131,6 +8272,7 @@
         };
         const title = this.escapeHtml("Relatório Wordex montado");
         const generatedCss = this.getGeneratedReportCss(generatedPage);
+        const watermark = this.getGeneratedWatermarkSettings();
 
         return [
           "<!DOCTYPE html>",
@@ -8151,7 +8293,7 @@
           documentClone.outerHTML,
           "  </div>",
           '  <div id="wordex-paged-output"></div>',
-          this.getGeneratedPagedJsStartScript(headerTemplateHtml, footerTemplateHtml, generatedPage, pageMetrics),
+          this.getGeneratedPagedJsStartScript(headerTemplateHtml, footerTemplateHtml, generatedPage, pageMetrics, watermark),
           "</body>",
           "</html>"
         ].join("\n");
@@ -8185,9 +8327,10 @@
         ].join("\n");
       }
 
-      getGeneratedPagedJsStartScript(headerTemplateHtml, footerTemplateHtml, page, pageMetrics) {
+      getGeneratedPagedJsStartScript(headerTemplateHtml, footerTemplateHtml, page, pageMetrics, watermark) {
         const headerJson = JSON.stringify(headerTemplateHtml || "");
         const footerJson = JSON.stringify(footerTemplateHtml || "");
+        const watermarkJson = JSON.stringify(watermark || null);
         const pageConfigJson = JSON.stringify({
           width: page.width,
           height: page.height,
@@ -8205,6 +8348,7 @@
           "    (function () {",
           "      var headerTemplateHtml = " + headerJson + ";",
           "      var footerTemplateHtml = " + footerJson + ";",
+          "      var watermarkConfig = " + watermarkJson + ";",
           "      var pageConfig = " + pageConfigJson + ";",
           "      function showPagedError(message) {",
           "        var warning = document.createElement('div');",
@@ -8346,6 +8490,22 @@
           "        holder.innerHTML = html.trim();",
           "        return holder.content.firstElementChild;",
           "      }",
+          "      function injectPageWatermark(pageElement) {",
+          "        if (!pageElement || !watermarkConfig || !watermarkConfig.imageSrc) return;",
+          "        var pagebox = pageElement.querySelector('.pagedjs_pagebox');",
+          "        if (!pagebox) return;",
+          "        pagebox.querySelectorAll('.wordex-page-watermark').forEach(function (node) { node.remove(); });",
+          "        var watermark = document.createElement('div');",
+          "        watermark.className = 'wordex-page-watermark';",
+          "        watermark.style.opacity = String(Math.max(0, Math.min(1, Number(watermarkConfig.opacity) || 0.12)));",
+          "        watermark.style.width = String(watermarkConfig.width || '160mm');",
+          "        var image = document.createElement('img');",
+          "        image.src = String(watermarkConfig.imageSrc || '');",
+          "        image.alt = String(watermarkConfig.imageName || \"Marca d'água\");",
+          "        image.draggable = false;",
+          "        watermark.appendChild(image);",
+          "        pagebox.insertBefore(watermark, pagebox.firstChild);",
+          "      }",
           "      function injectPageChrome(pageElement, kind, templateElement) {",
           "        if (!pageElement || !templateElement) return;",
           "        var pagebox = pageElement.querySelector('.pagedjs_pagebox');",
@@ -8374,6 +8534,7 @@
           "        var headerTemplate = htmlToElement(headerTemplateHtml);",
           "        var footerTemplate = htmlToElement(footerTemplateHtml);",
           "        output.querySelectorAll('.pagedjs_page').forEach(function (pageElement) {",
+          "          injectPageWatermark(pageElement);",
           "          injectPageChrome(pageElement, 'header', headerTemplate);",
           "          injectPageChrome(pageElement, 'footer', footerTemplate);",
           "          syncPageChromeAlignment(pageElement);",
@@ -8419,9 +8580,6 @@
         const hasRunningHeader = this.wordexDocument.headerTemplate.length > 0;
         const hasRunningFooter = this.wordexDocument.footerTemplate.length > 0;
 
-        if (!hasRunningHeader && !hasRunningFooter) {
-          return "";
-        }
 
         const headerCss = hasRunningHeader
           ? `
@@ -8457,6 +8615,33 @@ body.wordex-generated-report .wordex-page-footer {
 body.wordex-generated-report .pagedjs_pagebox {
   position: relative;
   overflow: visible;
+  isolation: isolate;
+}
+
+body.wordex-generated-report .wordex-page-watermark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 20;
+  pointer-events: none;
+  user-select: none;
+  max-width: 80%;
+  max-height: 80%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+body.wordex-generated-report .wordex-page-watermark img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+body.wordex-generated-report .pagedjs_page_content {
+  position: relative;
+  z-index: 10;
 }
 
 body.wordex-generated-report .wordex-page-header,
@@ -8464,7 +8649,7 @@ body.wordex-generated-report .wordex-page-footer {
   position: absolute;
   left: 0;
   right: 0;
-  z-index: 10;
+  z-index: 30;
   pointer-events: none;
   box-sizing: border-box;
 }
