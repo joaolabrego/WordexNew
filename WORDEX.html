@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wordex - MVP Contínuo v261 prévia visível de marca d'água</title>
+  <title>Wordex - MVP Contínuo v262 cursor de arrasto</title>
 
   <style id="wordex-editor-style">
     * { box-sizing: border-box; }
@@ -884,6 +884,18 @@
     body.wordex-resizing * {
       user-select: none !important;
     }
+
+    /* v262: feedback visual durante arrasto de objetos dentro do parágrafo. */
+    body.wordex-object-dragging,
+    body.wordex-object-dragging * {
+      cursor: grabbing !important;
+      user-select: none !important;
+    }
+
+    .wordex-inline-object-dragging {
+      cursor: grabbing !important;
+      opacity: .86;
+    }
 @media print {
       body { background: white; }
 
@@ -1167,7 +1179,7 @@
         this.documentElement = document.getElementById(documentId);
 
         this.wordexDocument = {
-          version: "2.61",
+          version: "2.62",
           mode: "continuous",
           description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas, objetos e montagem HTML por dados e clipboard interno).",
           headerTemplate: [],
@@ -1569,7 +1581,7 @@
         page.height = orientation === "landscape" ? format.width : format.height;
 
         /*
-          Margens saíram da ribbon na v244; botão Aplicar saiu na v245; parágrafo ajusta altura pela linha na v246; v247 evita spans de fonte antigos segurando a altura da linha; v248 remove a linha superior de abas/versão da ribbon; v249 permite redimensionar seleção de linha/coluna/célula por cantoneiras; v250 remove o grupo Tabela da ribbon porque o alinhamento já atua sobre célula/linha/coluna/tabela selecionada; v251 adiciona controles compactos de margem para parágrafos e objetos; v252 adiciona alinhamento none e arrasto de objetos dentro de parágrafo; v253 isola o alinhamento interno do textbox para que o alinhamento do parágrafo mova o objeto sem herdar text-align; v254 exige Ctrl+click para selecionar textbox como objeto e separa alinhamento do objeto do alinhamento do texto interno; v255 corrige encolhimento progressivo ao centralizar objeto e deixa tabela selecionada alinhar como objeto no parágrafo; v256 adiciona marca d'água do relatório montada apenas após a paginação; v257 troca a marca d'água textual por imagem selecionada do disco e embutida no Wordex; v258 corrige a marca d'água para aparecer mesmo sem header/footer e a coloca em camada visível na página paginada; v259 corrige erro de sintaxe gerado pelo apóstrofo de d'água no script da paginação; v260 adiciona prévia contínua da marca d'água no editor/HTML e a remove antes da paginação para evitar duplicidade; v261 corrige a camada da prévia para ela aparecer sobre as regiões do editor, que possuem fundo branco.
+          Margens saíram da ribbon na v244; botão Aplicar saiu na v245; parágrafo ajusta altura pela linha na v246; v247 evita spans de fonte antigos segurando a altura da linha; v248 remove a linha superior de abas/versão da ribbon; v249 permite redimensionar seleção de linha/coluna/célula por cantoneiras; v250 remove o grupo Tabela da ribbon porque o alinhamento já atua sobre célula/linha/coluna/tabela selecionada; v251 adiciona controles compactos de margem para parágrafos e objetos; v252 adiciona alinhamento none e arrasto de objetos dentro de parágrafo; v253 isola o alinhamento interno do textbox para que o alinhamento do parágrafo mova o objeto sem herdar text-align; v254 exige Ctrl+click para selecionar textbox como objeto e separa alinhamento do objeto do alinhamento do texto interno; v255 corrige encolhimento progressivo ao centralizar objeto e deixa tabela selecionada alinhar como objeto no parágrafo; v256 adiciona marca d'água do relatório montada apenas após a paginação; v257 troca a marca d'água textual por imagem selecionada do disco e embutida no Wordex; v258 corrige a marca d'água para aparecer mesmo sem header/footer e a coloca em camada visível na página paginada; v259 corrige erro de sintaxe gerado pelo apóstrofo de d'água no script da paginação; v260 adiciona prévia contínua da marca d'água no editor/HTML e a remove antes da paginação para evitar duplicidade; v261 corrige a camada da prévia para ela aparecer sobre as regiões do editor, que possuem fundo branco; v262 muda o cursor durante o arrasto de objetos dentro do parágrafo.
           Elas continuam existindo no modelo porque ainda são usadas
           na montagem/paginação, mas agora não são regravadas por aqui.
           Futuramente serão controladas por dialog próprio.
@@ -2391,7 +2403,7 @@
         return {
           source: "Wordex",
           kind: "blocks",
-          version: "2.61",
+          version: "2.62",
           createdAt: new Date().toISOString(),
           region: context.region,
           blocks: [this.cloneBlockForClipboard(context.block)]
