@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wordex - MVP Contínuo v297 paginação Pagex</title>
+  <title>Wordex - MVP Contínuo v299 header/footer compacto</title>
 
   <style id="wordex-editor-style">
     * { box-sizing: border-box; }
@@ -369,7 +369,7 @@
     .region {
       position: relative;
       z-index: 1;
-      padding: 10mm 15mm;
+      padding: 4mm 15mm;
       outline: 2px solid transparent;
     }
 
@@ -441,24 +441,11 @@
 
     .header-template,
     .footer-template {
-      min-height: 12mm;
-      max-height: var(--wordex-header-footer-max-height, 89.1mm);
-      overflow: auto;
+      height: auto;
+      min-height: 0;
+      max-height: none;
+      overflow: visible;
       background: #fcfcfc;
-    }
-
-    /*
-      Altura visual do header/footer no editor controlada pelos campos numéricos
-      Header/Footer da toolbar.
-    */
-    body:not(.wordex-generated-report) .document > .header-template {
-      height: var(--wordex-header-height, 25mm);
-      min-height: var(--wordex-header-height, 25mm);
-    }
-
-    body:not(.wordex-generated-report) .document > .footer-template {
-      height: var(--wordex-footer-height, 20mm);
-      min-height: var(--wordex-footer-height, 20mm);
     }
 
     .header-template {
@@ -471,9 +458,8 @@
 
     .header-template.is-empty,
     .footer-template.is-empty {
-      min-height: 8mm;
-      padding-top: 3mm;
-      padding-bottom: 3mm;
+      padding-top: 2mm;
+      padding-bottom: 2mm;
     }
 
     .body-flow { min-height: 220mm; }
@@ -1200,7 +1186,7 @@
         this.documentElement = document.getElementById(documentId);
 
         this.wordexDocument = {
-          version: "2.97-pagex-manual",
+          version: "2.99-header-footer-compact",
           mode: "continuous",
           description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas, objetos e montagem HTML por dados e clipboard interno).",
           headerTemplate: [],
@@ -1615,7 +1601,7 @@
         page.height = orientation === "landscape" ? format.width : format.height;
 
         /*
-          Margens saíram da ribbon na v244; botão Aplicar saiu na v245; parágrafo ajusta altura pela linha na v246; v247 evita spans de fonte antigos segurando a altura da linha; v248 remove a linha superior de abas/versão da ribbon; v249 permite redimensionar seleção de linha/coluna/célula por cantoneiras; v250 remove o grupo Tabela da ribbon porque o alinhamento já atua sobre célula/linha/coluna/tabela selecionada; v251 adiciona controles compactos de margem para parágrafos e objetos; v252 adiciona alinhamento none e arrasto de objetos dentro de parágrafo; v253 isola o alinhamento interno do textbox para que o alinhamento do parágrafo mova o objeto sem herdar text-align; v254 exige Ctrl+click para selecionar textbox como objeto e separa alinhamento do objeto do alinhamento do texto interno; v255 corrige encolhimento progressivo ao centralizar objeto e deixa tabela selecionada alinhar como objeto no parágrafo; v256 adiciona marca d'água do relatório montada apenas após a paginação; v257 troca a marca d'água textual por imagem selecionada do disco e embutida no Wordex; v258 corrige a marca d'água para aparecer mesmo sem header/footer e a coloca em camada visível na página paginada; v259 corrige erro de sintaxe gerado pelo apóstrofo de d'água no script da paginação; v260 adiciona prévia contínua da marca d'água no editor/HTML e a remove antes da paginação para evitar duplicidade; v261 corrige a camada da prévia para ela aparecer sobre as regiões do editor, que possuem fundo branco; v262 muda o cursor durante o arrasto de objetos dentro do parágrafo; v278 mantém header/footer fixos e cria folga real entre o body paginado e o footer, sem aumentar a altura visual do footer; v280 remove defensivamente header/footer do source paginado; v281 reduz o footer visual à metade e baixa um arquivo teste.html ao montar HTML para inspeção do código; v282 reduz novamente o footer visual pela metade e alinha o conteúdo do footer ao sopé da área reservada; v284 deixa o footer com a mesma altura fixa do header e mantém ambos fora do fluxo do body; v285 corrige o escape do script de paginação que impedia a injeção de header/footer e deixava o body em fluxo contínuo; v297 substitui paginação externa por Pagex manual com grid CSS e medição de blocos renderizados.
+          Margens saíram da ribbon na v244; botão Aplicar saiu na v245; parágrafo ajusta altura pela linha na v246; v247 evita spans de fonte antigos segurando a altura da linha; v248 remove a linha superior de abas/versão da ribbon; v249 permite redimensionar seleção de linha/coluna/célula por cantoneiras; v250 remove o grupo Tabela da ribbon porque o alinhamento já atua sobre célula/linha/coluna/tabela selecionada; v251 adiciona controles compactos de margem para parágrafos e objetos; v252 adiciona alinhamento none e arrasto de objetos dentro de parágrafo; v253 isola o alinhamento interno do textbox para que o alinhamento do parágrafo mova o objeto sem herdar text-align; v254 exige Ctrl+click para selecionar textbox como objeto e separa alinhamento do objeto do alinhamento do texto interno; v255 corrige encolhimento progressivo ao centralizar objeto e deixa tabela selecionada alinhar como objeto no parágrafo; v256 adiciona marca d'água do relatório montada apenas após a paginação; v257 troca a marca d'água textual por imagem selecionada do disco e embutida no Wordex; v258 corrige a marca d'água para aparecer mesmo sem header/footer e a coloca em camada visível na página paginada; v259 corrige erro de sintaxe gerado pelo apóstrofo de d'água no script da paginação; v260 adiciona prévia contínua da marca d'água no editor/HTML e a remove antes da paginação para evitar duplicidade; v261 corrige a camada da prévia para ela aparecer sobre as regiões do editor, que possuem fundo branco; v262 muda o cursor durante o arrasto de objetos dentro do parágrafo; v278 mantém header/footer fixos e cria folga real entre o body paginado e o footer, sem aumentar a altura visual do footer; v280 remove defensivamente header/footer do source paginado; v281 reduz o footer visual à metade e baixa um arquivo teste.html ao montar HTML para inspeção do código; v282 reduz novamente o footer visual pela metade e alinha o conteúdo do footer ao sopé da área reservada; v284 deixa o footer com a mesma altura fixa do header e mantém ambos fora do fluxo do body; v285 corrige o escape do script de paginação que impedia a injeção de header/footer e deixava o body em fluxo contínuo; v297 substitui paginação externa por Pagex manual com grid CSS e medição de blocos renderizados; v298 remove altura fixa/máxima/mínima artificial do header/footer no editor, deixando ambos crescerem pelo conteúdo real; v299 compacta o padding vertical das regiões para reduzir o espaço entre header, body e footer.
           Elas continuam existindo no modelo porque ainda são usadas
           na montagem/paginação, mas agora não são regravadas por aqui.
           Futuramente serão controladas por dialog próprio.
@@ -1666,11 +1652,16 @@
 
         this.documentElement.style.width = page.width;
         this.documentElement.style.minHeight = page.height;
-        this.documentElement.style.setProperty("--wordex-header-height", page.marginTop || "25mm");
-        this.documentElement.style.setProperty("--wordex-footer-height", page.marginBottom || "20mm");
 
-        const headerMax = this.getThirtyPercentOfCssSize(page.height);
-        this.documentElement.style.setProperty("--wordex-header-footer-max-height", headerMax);
+        /*
+          v298: header/footer do editor não recebem mais altura fixa,
+          v299: regiões do editor usam padding vertical compacto,
+          mínima ou máxima artificial. Eles crescem conforme o conteúdo
+          real, preservando a equivalência visual entre editor e montagem.
+        */
+        this.documentElement.style.removeProperty("--wordex-header-height");
+        this.documentElement.style.removeProperty("--wordex-footer-height");
+        this.documentElement.style.removeProperty("--wordex-header-footer-max-height");
       }
 
       getThirtyPercentOfCssSize(cssSize) {
@@ -2336,7 +2327,7 @@
         return {
           source: "Wordex",
           kind: "blocks",
-          version: "2.97-pagex-manual",
+          version: "2.99-header-footer-compact",
           createdAt: new Date().toISOString(),
           region: context.region,
           blocks: [this.cloneBlockForClipboard(context.block)]
