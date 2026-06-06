@@ -4,7 +4,7 @@ window.WORDEX_PAGED_TEMPLATE = `<!DOCTYPE html>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@@WORDEX_TITLE@@</title>
-    <style>
+    <style id="wordex-report-styles">
 /* Wordex: CSS essencial do relatório paginado */
 * { box-sizing: border-box; }
 
@@ -15,8 +15,17 @@ body {
   background: white;
 }
 
+html {
+  height: 100%;
+}
+
 body.wordex-generated-report {
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+  background: #d8d8d8;
 }
 
 .workspace {
@@ -293,18 +302,50 @@ body.wordex-generated-report .wordex-paginable-table td {
 @@WORDEX_PAGE_AT_RULE@@
 
 .wordex-paged-toolbar {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  z-index: 100000;
+  flex: 0 0 auto;
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid #c7c7c7;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, .96);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+  padding: 10px 14px;
+  border-bottom: 1px solid #b8c9de;
+  background: linear-gradient(#f4f8fd, #e6eef8);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
   font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.wordex-paged-toolbar-title {
+  flex: 1 1 auto;
+  min-width: 120px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wordex-paged-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wordex-paged-status {
+  flex: 0 0 100%;
+  font-size: 12px;
+  color: #555;
+  line-height: 1.4;
+}
+
+.wordex-paged-status.is-error {
+  color: #900;
+}
+
+.wordex-paged-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .wordex-paged-toolbar button {
@@ -324,8 +365,9 @@ body.wordex-generated-report .wordex-paginable-table td {
   font-weight: 600;
 }
 
-.wordex-paged-toolbar button.primary:hover {
-  background: #dbeaff;
+.wordex-paged-toolbar button:hover:not(:disabled) {
+  background: #eaf2ff;
+  border-color: #9ebbe8;
 }
 
 .wordex-paged-toolbar button:disabled {
@@ -337,18 +379,28 @@ body.wordex-generated-report .wordex-paginable-table td {
   .wordex-paged-toolbar {
     display: none !important;
   }
+
+  .wordex-paged-stage {
+    overflow: visible !important;
+  }
 }
   </style>
   </head>
   <body class="wordex-generated-report">
-    <div id="wordex-pdf-libs-source" hidden aria-hidden="true" style="display:none">@@WORDEX_PDF_LIBS@@</div>
     <div class="wordex-paged-toolbar" id="wordex-paged-toolbar">
-      <button type="button" id="wordex-paged-pdf" class="primary" disabled title="Gerar PDF">Gerar PDF</button>
+      <div class="wordex-paged-toolbar-title" id="wordex-paged-title">@@WORDEX_TITLE@@</div>
+      <div class="wordex-paged-toolbar-actions">
+        <button type="button" id="wordex-paged-pdf" class="primary" disabled title="Gerar PDF">Gerar PDF</button>
+        <button type="button" id="wordex-paged-close" title="Fechar">Fechar</button>
+      </div>
+      <div class="wordex-paged-status" id="wordex-paged-status">Paginando relatório...</div>
     </div>
-    <div id="wordex-report-source" class="workspace">
-      @@WORDEX_SOURCE_HTML@@
+    <div class="wordex-paged-stage" id="wordex-paged-stage">
+      <div id="wordex-report-source" class="workspace">
+        @@WORDEX_SOURCE_HTML@@
+      </div>
+      <div id="wordex-pagex-output"></div>
     </div>
-    <div id="wordex-pagex-output"></div>
     <script type="application/json"
       id="wordex-pagex-config">@@WORDEX_PAGEX_CONFIG@@</script>
     <script>
@@ -358,6 +410,21 @@ body.wordex-generated-report .wordex-paginable-table td {
       var footerTemplateHtml = config.footerTemplateHtml || "";
       var watermarkConfig = config.watermarkConfig || null;
       var pageConfig = config.pageConfig || {};
+      var pagedTitleNode = document.getElementById("wordex-paged-title");
+      var pagedStatusNode = document.getElementById("wordex-paged-status");
+      var pagedTitle = String(config.pdfTitle || document.title || "Relatório Wordex").trim();
+
+      if (pagedTitleNode) {
+        pagedTitleNode.textContent = pagedTitle;
+      }
+
+      document.title = pagedTitle;
+
+      function setPagedStatus(message, isError) {
+        if (!pagedStatusNode) return;
+        pagedStatusNode.textContent = message;
+        pagedStatusNode.classList.toggle("is-error", !!isError);
+      }
 
       function mm(value) {
         return Math.max(0, Number(value) || 0).toFixed(2).replace(/\\.?0+$/, "") + "mm";
@@ -406,22 +473,23 @@ body.wordex-generated-report .wordex-paginable-table td {
       function addPagexCss() {
         var style = document.createElement("style");
         style.id = "wordex-pagex-style";
+        var pageHeight = pageConfig.height || "297mm";
         style.textContent = [
           "body.wordex-generated-report { margin:0; background:#d8d8d8; }",
           "#wordex-report-source { display:none !important; }",
           "#wordex-pagex-output { display:block; }",
           ".pagex-pages { display:flex; flex-direction:column; align-items:center; gap:18px; padding:18px 0; background:#d8d8d8; }",
-          ".pagex-page { position:relative; width:" + pageConfig.width + "; height:" + pageConfig.height + "; background:white; box-shadow:0 0 10px rgba(0,0,0,.35); overflow:hidden; box-sizing:border-box; display:grid; grid-template-rows:" + pageConfig.headerChromeHeight + " " + pageConfig.bodyHeaderGap + " minmax(0, 1fr) " + pageConfig.bodyFooterGap + " " + pageConfig.footerChromeHeight + "; }",
+          ".pagex-page { position:relative; width:" + pageConfig.width + "; height:" + pageHeight + "; background:white; box-shadow:0 0 10px rgba(0,0,0,.35); overflow:hidden; box-sizing:border-box; display:flex; flex-direction:column; }",
           ".pagex-header,.pagex-footer,.pagex-body { box-sizing:border-box; margin-left:" + mm(pageConfig.marginLeftMm) + "; margin-right:" + mm(pageConfig.marginRightMm) + "; min-height:0; min-width:0; }",
-          ".pagex-header { grid-row:1; padding-top:3mm; overflow:hidden; }",
-          ".pagex-body { grid-row:3; overflow:hidden; }",
-          ".pagex-footer { grid-row:5; padding-bottom:3mm; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; }",
+          ".pagex-header { flex:0 0 auto; overflow:visible; padding-top:1mm; margin-top:0; margin-bottom:0; }",
+          ".pagex-body { flex:0 0 auto; min-height:0; overflow:hidden; margin-top:-8px; }",
+          ".pagex-footer { flex:0 0 auto; overflow:visible; padding-bottom:1mm; display:flex; flex-direction:column; justify-content:flex-end; }",
           ".pagex-body .body-flow { min-height:0 !important; padding:0 !important; margin:0 !important; }",
           ".pagex-header .header-template,.pagex-footer .footer-template { padding:0 !important; margin:0 !important; border:none !important; background:transparent !important; overflow:visible !important; max-height:none !important; min-height:0 !important; }",
-          ".pagex-header .paragraph-block,.pagex-footer .paragraph-block { margin:4px 0; padding:0; }",
           ".pagex-body .paragraph-block,.pagex-body .object-block { break-inside:avoid; page-break-inside:avoid; }",
-          ".pagex-watermark { position:absolute; left:50%; top:50%; z-index:1; pointer-events:none; user-select:none; max-width:80%; max-height:80%; transform:translate(-50%,-50%); text-align:center; }",
-          ".pagex-watermark img { display:block; width:100%; max-width:100%; max-height:100%; object-fit:contain; }",
+          ".pagex-header .paragraph-block,.pagex-header .object-block,.pagex-footer .paragraph-block,.pagex-footer .object-block { margin:8px 0; padding:2px; }",
+          ".pagex-watermark { position:absolute; inset:0; z-index:1; pointer-events:none; user-select:none; display:flex; align-items:center; justify-content:center; overflow:visible; }",
+          ".pagex-watermark img { display:block; width:auto; height:auto; max-width:80%; max-height:80%; object-fit:contain; }",
           ".pagex-header,.pagex-footer,.pagex-body { z-index:10; }",
           ".pagex-body { z-index:20; }",
           "@media print { .pagex-pages { display:block; padding:0; background:white; gap:0; } .pagex-page { box-shadow:none; margin:0; page-break-after:always; } .pagex-page:last-child { page-break-after:auto; } }"
@@ -431,7 +499,7 @@ body.wordex-generated-report .wordex-paginable-table td {
 
       function cleanSource(source) {
         if (!source) return;
-        source.querySelectorAll(".wordex-continuous-watermark,.header-template,.footer-template,.wordex-page-header,.wordex-page-footer").forEach(function (node) {
+        source.querySelectorAll(".wordex-continuous-watermark,.header-template,.footer-template").forEach(function (node) {
           node.remove();
         });
       }
@@ -441,11 +509,13 @@ body.wordex-generated-report .wordex-paginable-table td {
         var watermark = document.createElement("div");
         watermark.className = "pagex-watermark";
         watermark.style.opacity = String(Math.max(0, Math.min(1, Number(watermarkConfig.opacity) || 0.12)));
-        watermark.style.width = String(watermarkConfig.width || "160mm");
         var img = document.createElement("img");
         img.src = String(watermarkConfig.imageSrc || "");
         img.alt = String(watermarkConfig.imageName || "Marca d'água");
         img.draggable = false;
+        img.style.width = String(watermarkConfig.width || "160mm");
+        img.style.maxWidth = "80%";
+        img.style.maxHeight = "80%";
         watermark.appendChild(img);
         return watermark;
       }
@@ -475,8 +545,42 @@ body.wordex-generated-report .wordex-paginable-table td {
         return { page: page, body: body, bodyFlow: bodyFlow };
       }
 
+      function syncPageBodyArea(pageEl) {
+        var body = pageEl.querySelector(".pagex-body");
+        var header = pageEl.querySelector(".pagex-header");
+        var footer = pageEl.querySelector(".pagex-footer");
+        if (!body) return;
+
+        void pageEl.offsetHeight;
+
+        var pageHeight = pageEl.clientHeight;
+        var headerHeight = header ? header.offsetHeight : 0;
+        var footerHeight = footer ? footer.offsetHeight : 0;
+        var headerMarginTop = header ? (parseFloat(window.getComputedStyle(header).marginTop) || 0) : 0;
+        var headerMarginBottom = header ? (parseFloat(window.getComputedStyle(header).marginBottom) || 0) : 0;
+        var bodyMarginTop = parseFloat(window.getComputedStyle(body).marginTop) || 0;
+        var bodyMarginBottom = parseFloat(window.getComputedStyle(body).marginBottom) || 0;
+        var available = Math.max(0, pageHeight - headerHeight - footerHeight - headerMarginTop - headerMarginBottom - bodyMarginTop - bodyMarginBottom);
+
+        body.style.flex = "0 0 auto";
+        body.style.height = available + "px";
+        body.style.minHeight = "0";
+        body.style.maxHeight = available + "px";
+      }
+
       function overflows(body) {
-        return body.scrollHeight > body.clientHeight + 1 || body.scrollWidth > body.clientWidth + 1;
+        void body.offsetHeight;
+
+        if (body.scrollWidth > body.clientWidth + 1) {
+          return true;
+        }
+
+        var maxHeight = parseFloat(body.style.maxHeight);
+        if (!isFinite(maxHeight) || maxHeight <= 0) {
+          maxHeight = body.clientHeight;
+        }
+
+        return body.scrollHeight > maxHeight + 0.5;
       }
 
       function paginateBlocks(source, output) {
@@ -490,12 +594,14 @@ body.wordex-generated-report .wordex-paginable-table td {
           return node.nodeType === 1;
         });
         var current = createPage(pages);
+        syncPageBodyArea(current.page);
         blocks.forEach(function (block) {
           var clone = block.cloneNode(true);
           current.bodyFlow.appendChild(clone);
           if (overflows(current.body) && current.bodyFlow.children.length > 1) {
             clone.remove();
             current = createPage(pages);
+            syncPageBodyArea(current.page);
             current.bodyFlow.appendChild(clone);
           }
           if (overflows(current.body) && current.bodyFlow.children.length === 1) {
@@ -517,7 +623,8 @@ body.wordex-generated-report .wordex-paginable-table td {
         paginateBlocks(source, output);
         document.body.classList.add("wordex-pagex-ready");
         document.documentElement.classList.add("wordex-pagex-ready");
-        console.log("Wordex Pagex: paginação concluída com", output.querySelectorAll(".pagex-page").length, "páginas.");
+        var pageCount = output.querySelectorAll(".pagex-page").length;
+        setPagedStatus(pageCount === 1 ? "1 página pronta." : pageCount + " páginas prontas.");
         var pdfButton = document.getElementById("wordex-paged-pdf");
         if (pdfButton) pdfButton.disabled = false;
       }
@@ -543,15 +650,8 @@ body.wordex-generated-report .wordex-paginable-table td {
       }
 
       function collectReportStyles() {
-        var styles = "";
-        document.querySelectorAll("head style").forEach(function (styleNode) {
-          if (styleNode.id === "wordex-pagex-style") {
-            return;
-          }
-
-          styles += styleNode.textContent + "\\n";
-        });
-        return styles;
+        var styleNode = document.getElementById("wordex-report-styles");
+        return styleNode ? styleNode.textContent + "\\n" : "";
       }
 
       function openPdfViewerTab() {
@@ -568,7 +668,6 @@ body.wordex-generated-report .wordex-paginable-table td {
 
         var pagexOutput = document.getElementById("wordex-pagex-output");
         var pagexStyle = document.getElementById("wordex-pagex-style");
-        var libsSource = document.getElementById("wordex-pdf-libs-source");
         var configNode = document.getElementById("wordex-pagex-config");
         var config = {};
 
@@ -590,8 +689,7 @@ body.wordex-generated-report .wordex-paginable-table td {
           WORDEX_PDF_CONFIG: pdfConfig,
           WORDEX_PAGEX_HTML: pagexOutput ? pagexOutput.innerHTML : "",
           WORDEX_PAGEX_STYLE: pagexStyle ? pagexStyle.textContent : "",
-          WORDEX_REPORT_STYLES: collectReportStyles(),
-          WORDEX_PDF_LIBS: libsSource ? libsSource.innerHTML : ""
+          WORDEX_REPORT_STYLES: collectReportStyles()
         });
 
         var blob = new Blob([html], { type: "text/html;charset=utf-8" });
@@ -603,17 +701,25 @@ body.wordex-generated-report .wordex-paginable-table td {
         }
       }
 
-      function bindPdfOpenAction() {
+      function bindPagedToolbarActions() {
         var pdfButton = document.getElementById("wordex-paged-pdf");
+        var closeButton = document.getElementById("wordex-paged-close");
+
         if (pdfButton) {
           pdfButton.addEventListener("click", openPdfViewerTab);
+        }
+
+        if (closeButton) {
+          closeButton.addEventListener("click", function () {
+            window.close();
+          });
         }
       }
 
       if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", bindPdfOpenAction);
+        document.addEventListener("DOMContentLoaded", bindPagedToolbarActions);
       } else {
-        bindPdfOpenAction();
+        bindPagedToolbarActions();
       }
     }());
   </script>

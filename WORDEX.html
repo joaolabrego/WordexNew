@@ -348,6 +348,26 @@
       overflow: hidden;
     }
 
+    body:not(.wordex-generated-report) .document {
+      display: flex;
+      flex-direction: column;
+    }
+
+    body:not(.wordex-generated-report) .document > .document-title,
+    body:not(.wordex-generated-report) .document > .header-template,
+    body:not(.wordex-generated-report) .document > .footer-template {
+      flex: 0 0 auto;
+    }
+
+    body:not(.wordex-generated-report) .document > .body-flow {
+      flex: 1 1 auto;
+      min-height: 15mm;
+    }
+
+    body:not(.wordex-generated-report) .document > .footer-template {
+      margin-top: auto;
+    }
+
     .document-title {
       position: relative;
       z-index: 1;
@@ -448,13 +468,19 @@
       border-top: 1px dashed #ccc;
     }
 
+    body:not(.wordex-generated-report) .footer-template {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+
     .header-template.is-empty,
     .footer-template.is-empty {
       padding-top: 2mm;
       padding-bottom: 2mm;
     }
 
-    .body-flow { min-height: 220mm; }
+    .body-flow { min-height: 0; }
 
     .empty {
       color: #aaa;
@@ -4665,10 +4691,14 @@
         const paragraph = this.getSelectedParagraphElement();
 
         if (paragraph && this.documentElement.contains(paragraph)) {
-          return {
-            kind: "paragraph",
-            element: paragraph
-          };
+          const wrapper = paragraph.closest(".paragraph-block");
+
+          if (wrapper) {
+            return {
+              kind: "paragraph",
+              element: wrapper
+            };
+          }
         }
 
         return null;
@@ -4729,7 +4759,12 @@
             block.style[this.getMarginPropertyName(edge)] = target.element.style[this.getMarginPropertyName(edge)] || "";
           }
 
-          this.syncParagraphElement(target.element);
+          const paragraph = target.element.querySelector(".paragraph");
+
+          if (paragraph) {
+            this.syncParagraphElement(paragraph);
+          }
+
           this.renderSelection();
           this.saveUndoStateIfChanged();
         }
@@ -7337,6 +7372,22 @@
         this.keepObjectSelected(object);
       }
 
+      migrateParagraphMarginsToWrapper(paragraphElement, wrapper) {
+        if (!paragraphElement || !wrapper) return;
+
+        ["marginTop", "marginRight", "marginBottom", "marginLeft"].forEach(property => {
+          const value = paragraphElement.style[property];
+
+          if (!value) return;
+
+          if (!wrapper.style[property]) {
+            wrapper.style[property] = value;
+          }
+
+          paragraphElement.style[property] = "";
+        });
+      }
+
       syncParagraphElement(paragraphElement) {
         if (!paragraphElement) return;
 
@@ -7347,10 +7398,16 @@
           this.updateParagraphEmptyState(paragraphElement);
           block.html = this.isParagraphVisuallyEmptyHtml(html) ? "" : html;
           block.style = block.style || {};
-          block.style.marginTop = paragraphElement.style.marginTop || "";
-          block.style.marginRight = paragraphElement.style.marginRight || "";
-          block.style.marginBottom = paragraphElement.style.marginBottom || "";
-          block.style.marginLeft = paragraphElement.style.marginLeft || "";
+
+          const wrapper = paragraphElement.closest(".paragraph-block");
+
+          if (wrapper) {
+            this.migrateParagraphMarginsToWrapper(paragraphElement, wrapper);
+            block.style.marginTop = wrapper.style.marginTop || "";
+            block.style.marginRight = wrapper.style.marginRight || "";
+            block.style.marginBottom = wrapper.style.marginBottom || "";
+            block.style.marginLeft = wrapper.style.marginLeft || "";
+          }
         }
       }
 
@@ -7675,6 +7732,12 @@
         wrapper.className = "paragraph-block";
         wrapper.dataset.blockId = block.id;
 
+        const blockStyle = block.style || {};
+        wrapper.style.marginTop = blockStyle.marginTop || "";
+        wrapper.style.marginRight = blockStyle.marginRight || "";
+        wrapper.style.marginBottom = blockStyle.marginBottom || "";
+        wrapper.style.marginLeft = blockStyle.marginLeft || "";
+
         wrapper.addEventListener("click", event => {
           if (this.handleTableOrObjectClick(event, wrapper, {
             stopPropagationAtStart: true
@@ -7711,10 +7774,6 @@
         paragraph.style.fontSize = block.style.fontSize;
         paragraph.style.color = block.style.color || "#000000";
         paragraph.style.textAlign = block.style.textAlign;
-        paragraph.style.marginTop = block.style.marginTop || "";
-        paragraph.style.marginRight = block.style.marginRight || "";
-        paragraph.style.marginBottom = block.style.marginBottom || "";
-        paragraph.style.marginLeft = block.style.marginLeft || "";
 
         paragraph.addEventListener("focus", () => {
           this.selectParagraph(region, block.id);
