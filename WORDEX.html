@@ -8243,6 +8243,7 @@
           */
           this.expandTablesWithData(clone, rootCollection, null);
           this.resolveMacrosInElement(clone, [rootScope]);
+          this.materializeDynamicImages(clone, [rootScope]);
         }
 
         this.cleanGeneratedDocumentNode(clone);
@@ -8633,6 +8634,7 @@
 
         this.expandTablesWithData(clone, rootData, [scope]);
         this.resolveMacrosInElement(clone, [scope]);
+        this.materializeDynamicImages(clone, [scope]);
 
         return clone;
       }
@@ -8691,6 +8693,7 @@
         const clone = row.cloneNode(true);
         this.expandTablesWithData(clone, rootData, scopes);
         this.resolveMacrosInElement(clone, scopes);
+        this.materializeDynamicImages(clone, scopes);
         return clone;
       }
 
@@ -8719,6 +8722,7 @@
         const clone = row.cloneNode(true);
         this.expandTablesWithData(clone, rootData, scopes);
         this.resolveMacrosInElement(clone, scopes);
+        this.materializeDynamicImages(clone, scopes);
         return clone;
       }
 
@@ -8858,6 +8862,46 @@
             child.setAttribute(attribute.name, this.resolveMacrosInText(attribute.value, scopes));
           });
         });
+      }
+
+      materializeDynamicImages(container, scopes) {
+        if (!container) return;
+
+        container.querySelectorAll(".dynamic-image-box").forEach(box => {
+          this.materializeDynamicImageBox(box, scopes);
+        });
+      }
+
+      materializeDynamicImageBox(box, scopes) {
+        if (!box || box.dataset.wordexMaterialized === "1") return;
+
+        const fieldName = String(box.dataset.fieldName || "").trim();
+        let imageSrc = "";
+
+        if (fieldName) {
+          imageSrc = this.stringifyResolvedValue(this.resolveDataPath(fieldName, scopes)).trim();
+        }
+
+        if (!imageSrc) {
+          imageSrc = String(box.textContent || "")
+            .replace(/^\s*Imagem\s*/i, "")
+            .trim();
+        }
+
+        if (!imageSrc) {
+          box.innerHTML = "";
+          box.dataset.wordexMaterialized = "1";
+          return;
+        }
+
+        const img = document.createElement("img");
+        img.src = imageSrc;
+        img.alt = fieldName || "Imagem";
+        img.draggable = false;
+
+        box.innerHTML = "";
+        box.appendChild(img);
+        box.dataset.wordexMaterialized = "1";
       }
 
       resolveMacrosInText(text, scopes) {
