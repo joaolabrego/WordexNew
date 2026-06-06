@@ -626,6 +626,7 @@
     }
 
     .wordex-table td {
+      position: relative;
       border: 1px solid #444;
       padding: 5px;
       min-width: 12mm;
@@ -683,7 +684,34 @@
     }
 
     [data-align="free"] {
-      cursor: default;
+      cursor: grab;
+    }
+
+    [data-align="free"]:active,
+    body.wordex-object-dragging [data-align="free"] {
+      cursor: grabbing;
+    }
+
+    .paragraph .dynamic-image-box,
+    .paragraph .wordex-chart-box,
+    .paragraph table.wordex-table,
+    .paragraph .wordex-textbox:not(:focus),
+    td .dynamic-image-box,
+    td .wordex-chart-box,
+    td table.wordex-table,
+    td .wordex-textbox:not(:focus) {
+      cursor: grab;
+    }
+
+    body.wordex-object-dragging .paragraph .dynamic-image-box,
+    body.wordex-object-dragging .paragraph .wordex-chart-box,
+    body.wordex-object-dragging .paragraph table.wordex-table,
+    body.wordex-object-dragging .paragraph .wordex-textbox,
+    body.wordex-object-dragging td .dynamic-image-box,
+    body.wordex-object-dragging td .wordex-chart-box,
+    body.wordex-object-dragging td table.wordex-table,
+    body.wordex-object-dragging td .wordex-textbox {
+      cursor: grabbing !important;
     }
 
     .wordex-textbox {
@@ -1126,6 +1154,8 @@
   <script>
     class WordexEditor {
       static objectSelector = ".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox";
+
+      static mainObjectSelector = ".dynamic-image-box, .wordex-table, .wordex-chart-box";
 
       static objectSelectionSelector =
         ".selected-object, .selected-cell, .selected-row-cell, .selected-column-cell";
@@ -2664,6 +2694,36 @@
         return paragraph.contains(this.savedRange.commonAncestorContainer);
       }
 
+      isMainObjectNode(node) {
+        return !!node?.matches?.(WordexEditor.mainObjectSelector);
+      }
+
+      isTextboxNode(node) {
+        return !!node?.matches?.(".wordex-textbox");
+      }
+
+      paragraphHasMainObject(paragraphElement) {
+        return !!paragraphElement?.querySelector(WordexEditor.mainObjectSelector);
+      }
+
+      getSelectedObjectParagraphElement() {
+        if (this.selectedObject) {
+          const paragraph = this.selectedObject.closest(".paragraph");
+
+          if (paragraph && this.paragraphHasMainObject(paragraph)) {
+            return paragraph;
+          }
+        }
+
+        const selectedParagraph = this.getSelectedParagraphElement();
+
+        if (selectedParagraph && this.paragraphHasMainObject(selectedParagraph)) {
+          return selectedParagraph;
+        }
+
+        return null;
+      }
+
       ensureParagraphForInsertion() {
         if (this.hasActiveParagraphCursor()) {
           return this.getSelectedParagraphElement();
@@ -2687,6 +2747,82 @@
         }
 
         return paragraphElement;
+      }
+
+      insertMainObjectInNewParagraph(node) {
+        if (!node) {
+          return;
+        }
+
+        const blocks = this.getSelectedBlocks();
+        const newParagraph = this.createParagraph("");
+        let insertIndex = blocks.length;
+
+        if (this.selectedBlockId) {
+          const currentIndex = blocks.findIndex(block => block.id === this.selectedBlockId);
+
+          if (currentIndex >= 0) {
+            insertIndex = currentIndex + 1;
+          }
+        }
+
+        blocks.splice(insertIndex, 0, newParagraph);
+        this.selectedParagraphId = newParagraph.id;
+        this.selectedBlockId = newParagraph.id;
+        this.selectedObject = null;
+        this.render();
+
+        const paragraphElement = this.documentElement.querySelector(
+          `.paragraph[data-block-id="${newParagraph.id}"]`
+        );
+
+        if (!paragraphElement) {
+          return;
+        }
+
+        this.saveUndoCheckpointForParagraph(paragraphElement);
+        paragraphElement.appendChild(node);
+        this.applyObjectFreePosition(node, paragraphElement, 0, 0);
+        this.limitObjectWidthToParagraph(node);
+        this.updateFreeContainerBounds(paragraphElement);
+        this.syncParagraphElement(paragraphElement);
+        this.selectObject(node);
+        this.saveUndoStateIfChanged();
+      }
+
+      insertTextboxIntoObjectParagraph(node) {
+        const paragraphElement = this.getSelectedObjectParagraphElement();
+
+        if (!paragraphElement) {
+          alert("Selecione um parágrafo de objeto (imagem, gráfico ou tabela) para inserir o textbox.");
+          return;
+        }
+
+        const regionElement = paragraphElement.closest(".region");
+
+        if (regionElement) {
+          this.selected.region = regionElement.dataset.region;
+        }
+
+        this.selectedParagraphId = paragraphElement.dataset.blockId;
+        this.selectedBlockId = paragraphElement.dataset.blockId;
+        this.insertNodeInsideObjectParagraph(node, paragraphElement);
+      }
+
+      insertNodeInsideObjectParagraph(node, paragraphElement) {
+        if (!paragraphElement || !node) {
+          return;
+        }
+
+        this.saveUndoCheckpointForParagraph(paragraphElement);
+        this.applyAlignment(node, "free");
+        paragraphElement.appendChild(node);
+        this.applyObjectFreePosition(node, paragraphElement, 0, 0);
+        this.updateFreeContainerBounds(paragraphElement);
+        this.limitObjectWidthToParagraph(node);
+        this.syncParagraphElement(paragraphElement);
+        this.selectObject(node);
+        this.saveUndoStateIfChanged();
       }
 
       promptSizeAndAlign(defaultWidth, defaultHeight) {
@@ -2747,14 +2883,19 @@
       }
 
       insertTextbox() {
+        if (!this.getSelectedObjectParagraphElement()) {
+          alert("Selecione um parágrafo de objeto (imagem, gráfico ou tabela) para inserir o textbox.");
+          return;
+        }
+
         const text = prompt("Texto inicial:", "Textbox");
         if (text === null) return;
 
         const size = this.promptSizeAndAlign("35mm", "8mm");
         if (!size) return;
 
-        this.insertNodeAtCurrentInsertionPoint(
-          this.createTextboxElement(text, size.align, size.width, size.height)
+        this.insertTextboxIntoObjectParagraph(
+          this.createTextboxElement(text, "free", size.width, size.height)
         );
       }
 
@@ -2991,14 +3132,24 @@
         this.isInsertingObject = true;
 
         try {
+          if (this.isTextboxNode(node)) {
+            this.insertTextboxIntoObjectParagraph(node);
+            return;
+          }
+
           const cell = this.getSelectedCellForInsertion();
 
-          if (cell) {
+          if (cell && this.isMainObjectNode(node)) {
             this.insertNodeInsideSelectedTableCell(node, cell);
             return;
           }
 
           this.selectedCell = null;
+
+          if (this.isMainObjectNode(node)) {
+            this.insertMainObjectInNewParagraph(node);
+            return;
+          }
 
           const paragraphElement = this.ensureParagraphForInsertion();
 
@@ -3665,12 +3816,222 @@
         this.resizeOverlay.classList.add("is-visible");
       }
 
-      getObjectVisualXInsideBlock(object, objectBlock) {
-        if (!object || !objectBlock) return 0;
+      getObjectVisualXInsideBlock(object, container) {
+        if (!object || !container) return 0;
 
-        const blockRect = objectBlock.getBoundingClientRect();
+        if (object.style.position === "absolute") {
+          const left = Number.parseInt(object.style.left, 10);
+
+          if (Number.isFinite(left)) {
+            return left;
+          }
+        }
+
+        const blockRect = container.getBoundingClientRect();
         const objectRect = object.getBoundingClientRect();
-        return this.clamp(Math.round(objectRect.left - blockRect.left), 0, Math.max(0, objectBlock.clientWidth));
+        return this.clamp(
+          Math.round(objectRect.left - blockRect.left),
+          0,
+          Math.max(0, container.clientWidth)
+        );
+      }
+
+      getObjectVisualYInsideBlock(object, container) {
+        if (!object || !container) return 0;
+
+        if (object.style.position === "absolute") {
+          const top = Number.parseInt(object.style.top, 10);
+
+          if (Number.isFinite(top)) {
+            return top;
+          }
+        }
+
+        const blockRect = container.getBoundingClientRect();
+        const objectRect = object.getBoundingClientRect();
+        return this.clamp(
+          Math.round(objectRect.top - blockRect.top),
+          0,
+          Math.max(0, container.clientHeight)
+        );
+      }
+
+      usesFreeAbsolutePosition(container) {
+        return !!container?.matches?.(".paragraph, .object-block, td");
+      }
+
+      getFreeObjectDisplay(object) {
+        if (object.matches("table")) {
+          return "table";
+        }
+
+        if (object.matches(".wordex-chart-box")) {
+          return "flex";
+        }
+
+        if (object.matches(".wordex-textbox")) {
+          return "block";
+        }
+
+        return "inline-flex";
+      }
+
+      normalizeFreeObjectsInContainer(container) {
+        if (!container || !this.usesFreeAbsolutePosition(container)) {
+          return;
+        }
+
+        const objects = container.matches(".paragraph") && this.paragraphHasMainObject(container)
+          ? container.querySelectorAll(WordexEditor.objectSelector)
+          : container.querySelectorAll(`${WordexEditor.objectSelector}[data-align="free"]`);
+
+        objects.forEach(object => {
+          this.applyObjectFreePosition(
+            object,
+            container,
+            this.getObjectVisualXInsideBlock(object, container),
+            this.getObjectVisualYInsideBlock(object, container)
+          );
+        });
+
+        this.updateFreeContainerBounds(container);
+      }
+
+      getObjectDragContainer(object) {
+        if (!object) {
+          return null;
+        }
+
+        const objectBlock = object.closest(".object-block");
+
+        if (objectBlock) {
+          return { mode: "objectBlock", container: objectBlock };
+        }
+
+        const tableCell = object.closest("td");
+
+        if (tableCell && this.documentElement.contains(tableCell)) {
+          return { mode: "tableCell", container: tableCell };
+        }
+
+        const paragraph = object.closest(".paragraph");
+
+        if (paragraph) {
+          return { mode: "paragraph", container: paragraph };
+        }
+
+        return null;
+      }
+
+      prepareObjectForFreeDrag(object, container) {
+        if (!object || !container) {
+          return;
+        }
+
+        if (object.dataset.align !== "free") {
+          this.applyAlignment(object, "free");
+        }
+
+        this.applyObjectFreePosition(
+          object,
+          container,
+          this.getObjectVisualXInsideBlock(object, container),
+          this.getObjectVisualYInsideBlock(object, container)
+        );
+      }
+
+      applyObjectFreePosition(object, container, x, y) {
+        if (!object || !container) {
+          return;
+        }
+
+        const wrapperWidth = container.clientWidth;
+        const objectWidth = object.getBoundingClientRect().width;
+        const objectHeight = object.getBoundingClientRect().height;
+        const min = this.getObjectMinimumSize(object);
+
+        const nextX = this.clamp(
+          Math.round(x),
+          0,
+          Math.max(0, Math.floor(wrapperWidth - Math.max(objectWidth, min.width) - 4))
+        );
+        const nextY = Math.max(0, Math.round(y));
+        const neededHeight = nextY + Math.max(objectHeight, min.height) + 8;
+
+        if (neededHeight > container.clientHeight) {
+          container.style.minHeight = neededHeight + "px";
+        }
+
+        object.dataset.blockX = String(nextX);
+        object.dataset.blockY = String(nextY);
+        object.dataset.align = "free";
+
+        if (this.usesFreeAbsolutePosition(container)) {
+          object.style.position = "absolute";
+          object.style.float = "none";
+          object.style.left = nextX + "px";
+          object.style.top = nextY + "px";
+          object.style.margin = "0";
+          object.style.right = "";
+          object.style.bottom = "";
+          object.style.verticalAlign = "";
+          object.style.display = this.getFreeObjectDisplay(object);
+          object.style.zIndex = object.matches(".wordex-textbox") ? "2" : "1";
+          return;
+        }
+
+        object.style.float = "none";
+        object.style.position = "";
+        object.style.display = object.matches("table")
+          ? "table"
+          : (object.matches(".wordex-chart-box") ? "flex" : "inline-block");
+        object.style.marginLeft = nextX + "px";
+        object.style.marginTop = nextY + "px";
+        object.style.marginRight = "8px";
+        object.style.marginBottom = "4px";
+      }
+
+      updateFreeContainerBounds(container) {
+        if (!container) {
+          return;
+        }
+
+        let maxBottom = 0;
+
+        container.querySelectorAll(WordexEditor.objectSelector).forEach(object => {
+          const top = Number.parseInt(object.style.top, 10) ||
+            Number.parseInt(object.dataset.blockY, 10) ||
+            Number.parseInt(object.style.marginTop, 10) ||
+            0;
+          maxBottom = Math.max(maxBottom, top + object.offsetHeight + 8);
+        });
+
+        if (maxBottom <= 0) {
+          return;
+        }
+
+        const baseline = container.classList.contains("object-block") ? 24 : 18;
+        container.style.minHeight = Math.max(baseline, maxBottom) + "px";
+      }
+
+      syncObjectPositionInContainer(object, container, mode) {
+        if (!object || !container) {
+          return;
+        }
+
+        if (mode === "objectBlock") {
+          this.syncStandaloneObjectFromDom(object);
+          return;
+        }
+
+        if (mode === "paragraph") {
+          this.syncParagraphElement(container);
+          return;
+        }
+
+        if (mode === "tableCell") {
+          this.syncObjectAfterChange(object);
+        }
       }
 
       getObjectMinimumSize(object) {
@@ -6751,11 +7112,11 @@
       }
 
       startInlineObjectMouseDragCandidate(event) {
-        if (event.button !== 0 || event.defaultPrevented) {
+        if (event.button !== 0 || event.defaultPrevented || this.resizeDrag) {
           return;
         }
 
-        if (event.target.closest(".wordex-resize-overlay, .toolbar")) {
+        if (event.target.closest(".wordex-resize-overlay, .toolbar, .wordex-resize-handle")) {
           return;
         }
 
@@ -6764,8 +7125,8 @@
           return;
         }
 
-        const paragraph = object.closest(".paragraph");
-        if (!paragraph) {
+        const dragContext = this.getObjectDragContainer(object);
+        if (!dragContext) {
           return;
         }
 
@@ -6778,12 +7139,23 @@
           return;
         }
 
+        /*
+          Textbox só se move livremente depois de selecionado como objeto (Ctrl+click).
+          Clique normal continua reservado para editar o texto interno.
+        */
+        if (object.matches(".wordex-textbox") && this.selectedObject !== object) {
+          return;
+        }
+
         this.inlineObjectDrag = {
           object,
-          paragraph,
+          mode: dragContext.mode,
+          container: dragContext.container,
           started: false,
           startClientX: event.clientX,
-          startClientY: event.clientY
+          startClientY: event.clientY,
+          startOffsetX: 0,
+          startOffsetY: 0
         };
       }
 
@@ -6791,7 +7163,7 @@
         const drag = this.inlineObjectDrag;
         if (!drag) return;
 
-        if (!this.isInDocument(drag.object) || !this.isInDocument(drag.paragraph)) {
+        if (!this.isInDocument(drag.object) || !this.isInDocument(drag.container)) {
           this.finishInlineObjectMouseDrag(event);
           return;
         }
@@ -6808,38 +7180,21 @@
           document.body.classList.add("wordex-object-dragging");
           drag.object.classList.add("wordex-inline-object-dragging");
           this.selectObject(drag.object);
-
-          if (drag.object.dataset.align !== "free") {
-            this.applyAlignment(drag.object, "free");
-          }
+          this.prepareObjectForFreeDrag(drag.object, drag.container);
+          drag.startOffsetX = this.getObjectVisualXInsideBlock(drag.object, drag.container);
+          drag.startOffsetY = this.getObjectVisualYInsideBlock(drag.object, drag.container);
         }
 
         event.preventDefault();
 
-        const range = this.getCaretRangeFromPoint(event.clientX, event.clientY);
-        if (!range) return;
-
-        const targetParagraph = this.findParagraphElementFromNode(range.commonAncestorContainer);
-        if (targetParagraph !== drag.paragraph) {
-          return;
-        }
-
-        const containerElement = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
-          ? range.commonAncestorContainer
-          : range.commonAncestorContainer.parentElement;
-
-        if (containerElement?.closest?.(WordexEditor.objectSelector)) {
-          return;
-        }
-
-        try {
-          drag.object.remove();
-          range.insertNode(drag.object);
-          this.syncParagraphElement(drag.paragraph);
-          this.keepObjectSelected(drag.object);
-        } catch (error) {
-          console.warn("Não foi possível mover o objeto dentro do parágrafo.", error);
-        }
+        this.applyObjectFreePosition(
+          drag.object,
+          drag.container,
+          drag.startOffsetX + dx,
+          drag.startOffsetY + dy
+        );
+        this.updateFreeContainerBounds(drag.container);
+        this.keepObjectSelected(drag.object);
       }
 
       finishInlineObjectMouseDrag(event) {
@@ -6856,7 +7211,8 @@
         drag.object.classList.remove("wordex-inline-object-dragging");
 
         if (drag.started) {
-          this.syncParagraphElement(drag.paragraph);
+          this.updateFreeContainerBounds(drag.container);
+          this.syncObjectPositionInContainer(drag.object, drag.container, drag.mode);
           this.syncObjectAfterChangeAndKeepSelected(drag.object);
           event?.preventDefault?.();
         }
@@ -6908,12 +7264,27 @@
             assumimos que ele quer movimentação livre dentro do texto.
             Então convertemos o alinhamento para "free" automaticamente.
           */
-          if (paragraph && this.selectedObject.dataset.align !== "free") {
-            this.applyAlignment(this.selectedObject, "free");
-            this.syncObjectAfterChange(this.selectedObject);
+          if (paragraph) {
+            const currentX = this.getObjectVisualXInsideBlock(this.selectedObject, paragraph);
+            const currentY = this.getObjectVisualYInsideBlock(this.selectedObject, paragraph);
+
+            if (event.key === "ArrowLeft") {
+              this.applyObjectFreePosition(this.selectedObject, paragraph, currentX - step, currentY);
+            } else if (event.key === "ArrowRight") {
+              this.applyObjectFreePosition(this.selectedObject, paragraph, currentX + step, currentY);
+            } else if (event.key === "ArrowUp") {
+              this.applyObjectFreePosition(this.selectedObject, paragraph, currentX, currentY - step);
+            } else if (event.key === "ArrowDown") {
+              this.applyObjectFreePosition(this.selectedObject, paragraph, currentX, currentY + step);
+            }
+
+            this.updateFreeContainerBounds(paragraph);
+            this.syncParagraphElement(paragraph);
+            this.keepObjectSelected(this.selectedObject);
+            return;
           }
 
-          if (!paragraph && objectBlock) {
+          if (objectBlock) {
             if (event.key === "ArrowLeft") {
               this.moveStandaloneObjectHorizontally(-step);
             } else if (event.key === "ArrowRight") {
@@ -6926,18 +7297,6 @@
 
             return;
           }
-
-          if (event.key === "ArrowLeft") {
-            this.moveInlineFreeObjectHorizontally("left", step);
-          } else if (event.key === "ArrowRight") {
-            this.moveInlineFreeObjectHorizontally("right", step);
-          } else if (event.key === "ArrowUp") {
-            this.moveObjectBlockVertically("up");
-          } else if (event.key === "ArrowDown") {
-            this.moveObjectBlockVertically("down");
-          }
-
-          return;
         }
 
         /*
@@ -7004,35 +7363,11 @@
         const wrapper = object.closest(".object-block");
         if (!wrapper) return;
 
-        const wrapperRect = wrapper.getBoundingClientRect();
-        const objectRect = object.getBoundingClientRect();
+        const currentX = this.getObjectVisualXInsideBlock(object, wrapper);
+        const currentY = this.getObjectVisualYInsideBlock(object, wrapper);
 
-        const wrapperWidth = wrapper.clientWidth;
-        const objectWidth = objectRect.width;
-
-        /*
-          Usa a posição visual atual.
-          Assim funciona também quando o objeto estava com float:right ou centralizado.
-        */
-        const currentVisualX = Math.round(objectRect.left - wrapperRect.left);
-
-        const minX = 0;
-        const maxX = Math.max(0, Math.floor(wrapperWidth - objectWidth - 4));
-
-        const current = this.clamp(currentVisualX, minX, maxX);
-        const next = this.clamp(current + delta, minX, maxX);
-
-        /*
-          Fora de parágrafo, não há texto para circundar.
-          Então o objeto passa a ser posicionado por margem, não por float.
-        */
-        object.style.float = "none";
-        object.style.display = object.matches("table") ? "table" : "flex";
-        object.style.marginLeft = next + "px";
-        object.style.marginRight = "8px";
-
-        object.dataset.blockX = String(next);
-
+        this.applyObjectFreePosition(object, wrapper, currentX + delta, currentY);
+        this.updateFreeContainerBounds(wrapper);
         this.syncStandaloneObjectFromDom(object);
         this.keepObjectSelected(object);
       }
@@ -7418,6 +7753,7 @@
 
       copyStandaloneBlockX(block, object) {
         block.blockX = object.dataset.blockX || "0";
+        block.blockY = object.dataset.blockY || "0";
       }
 
       syncStandaloneObjectHtml(block, object) {
@@ -7766,8 +8102,10 @@
         requestAnimationFrame(() => {
           paragraph.querySelectorAll(WordexEditor.objectSelector).forEach(object => {
             this.limitObjectWidthToParagraph(object);
-            this.syncParagraphElement(paragraph);
           });
+
+          this.normalizeFreeObjectsInContainer(paragraph);
+          this.syncParagraphElement(paragraph);
         });
 
         paragraph.style.fontFamily = block.style.fontFamily;
