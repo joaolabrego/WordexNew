@@ -3950,7 +3950,7 @@
         );
       }
 
-      resolveChartValueLabelCollisions(anchors, labels, seriesCount, zeroY = NaN) {
+      resolveChartValueLabelCollisions(bars, labels, seriesCount) {
         const count = Math.max(Number(seriesCount) || 1, 1);
         const categoryCount = Math.ceil(labels.length / count);
 
@@ -3960,16 +3960,16 @@
           for (let seriesIndex = 0; seriesIndex < count; seriesIndex++) {
             const index = categoryIndex * count + seriesIndex;
             const label = labels[index];
-            const anchor = anchors[index];
+            const bar = bars[index];
 
-            if (!label || !anchor || label.classList.contains("is-hidden")) {
+            if (!label || !bar || label.classList.contains("is-hidden")) {
               continue;
             }
 
             group.push({
               label,
-              barHeight: this.getChartValueAnchorHeight(anchor, zeroY),
-              absValue: Math.abs(Number(anchor.querySelector("title")?.textContent) || 0)
+              barHeight: Number(bar.getAttribute("height")) || 0,
+              absValue: Math.abs(Number(bar.querySelector("title")?.textContent) || 0)
             });
           }
 
@@ -4010,124 +4010,26 @@
       }
 
       mapChartViewBoxToPreview(svg, preview, x, y) {
-        const viewBox = this.getChartSvgViewBox(svg);
-
-        if (svg?.createSVGPoint && typeof svg.getScreenCTM === "function" && preview?.isConnected) {
-          const matrix = svg.getScreenCTM();
-          const previewRect = preview.getBoundingClientRect();
-
-          if (matrix && previewRect.width > 0 && previewRect.height > 0) {
-            const point = svg.createSVGPoint();
-            point.x = x;
-            point.y = y;
-            const mapped = point.matrixTransform(matrix);
-
-            return {
-              unit: "px",
-              left: mapped.x - previewRect.left,
-              top: mapped.y - previewRect.top
-            };
-          }
-        }
-
-        if (!Number.isFinite(x) || !Number.isFinite(y) || !viewBox.width || !viewBox.height) {
+        if (!svg?.createSVGPoint || typeof svg.getScreenCTM !== "function" || !preview) {
           return null;
         }
 
-        return {
-          unit: "percent",
-          left: (x / viewBox.width) * 100,
-          top: (y / viewBox.height) * 100
-        };
-      }
+        const matrix = svg.getScreenCTM();
 
-      getChartSvgViewBox(svg) {
-        const base = svg?.viewBox?.baseVal;
-
-        if (base && base.width > 0 && base.height > 0) {
-          return { width: base.width, height: base.height };
-        }
-
-        const parts = String(svg?.getAttribute?.("viewBox") || "0 0 220 100")
-          .trim()
-          .split(/\s+/);
-
-        return {
-          width: Number(parts[2]) || 220,
-          height: Number(parts[3]) || 100
-        };
-      }
-
-      formatChartOverlayPosition(mapped) {
-        if (!mapped) {
+        if (!matrix) {
           return null;
         }
 
-        const suffix = mapped.unit === "percent" ? "%" : "px";
+        const point = svg.createSVGPoint();
+        point.x = x;
+        point.y = y;
+        const mapped = point.matrixTransform(matrix);
+        const previewRect = preview.getBoundingClientRect();
 
         return {
-          left: `${mapped.left}${suffix}`,
-          top: `${mapped.top}${suffix}`
+          left: mapped.x - previewRect.left,
+          top: mapped.y - previewRect.top
         };
-      }
-
-      layoutChartOverlaysNow(chartBox) {
-        this.applyChartLegendPanelPosition(chartBox);
-        this.layoutChartBarValueLabels(chartBox);
-        this.layoutChartCategoryLabels(chartBox);
-      }
-
-      layoutGeneratedReportCharts(documentRoot) {
-        if (!documentRoot) {
-          return;
-        }
-
-        const charts = documentRoot.querySelectorAll(".wordex-chart-box");
-
-        if (!charts.length) {
-          return;
-        }
-
-        const page = this.getPageSettings();
-        const pageWidthMm = this.parseCssSizeToMillimeters(page.width);
-        const marginLeftMm = this.parseCssSizeToMillimeters(page.marginLeft);
-        const marginRightMm = this.parseCssSizeToMillimeters(page.marginRight);
-        const contentWidthMm = Math.max(20, pageWidthMm - marginLeftMm - marginRightMm);
-        const measureBox = document.createElement("div");
-        measureBox.className = "wordex-generated-report wordex-chrome-measure";
-        measureBox.style.cssText = [
-          "position: fixed",
-          "left: -100000px",
-          "top: 0",
-          "visibility: hidden",
-          "pointer-events: none",
-          "width: " + this.formatMillimeters(contentWidthMm),
-          "box-sizing: border-box",
-          "z-index: -1"
-        ].join(";");
-        measureBox.appendChild(documentRoot);
-        document.body.appendChild(measureBox);
-
-        try {
-          charts.forEach(chartBox => {
-            this.layoutChartOverlaysNow(chartBox);
-          });
-        } finally {
-          if (measureBox.parentNode) {
-            measureBox.parentNode.removeChild(measureBox);
-          }
-        }
-      }
-
-      getChartValueAnchorHeight(anchor, zeroY) {
-        if (anchor?.classList?.contains("wordex-chart-line-point")) {
-          const cy = Number(anchor.getAttribute("cy")) || 0;
-          const axisY = Number.isFinite(zeroY) ? zeroY : cy;
-
-          return Math.abs(cy - axisY);
-        }
-
-        return Number(anchor.getAttribute("height")) || 0;
       }
 
       layoutChartBarValueLabels(chartBox) {
@@ -4139,50 +4041,30 @@
           return;
         }
 
-        const anchors = svg.querySelectorAll(".wordex-chart-bar, .wordex-chart-line-point");
+        const bars = svg.querySelectorAll(".wordex-chart-bar");
         const labels = panel.querySelectorAll(".wordex-chart-value-label");
         const seriesCount = Number(panel.dataset.seriesCount) || 1;
         const zeroY = Number(panel.dataset.viewboxZeroY);
-        const defaultSpanViewbox = Number(panel.dataset.anchorSpanViewbox);
 
-        if (!anchors.length || anchors.length !== labels.length) {
+        if (!bars.length || bars.length !== labels.length) {
           return;
         }
 
-        anchors.forEach((anchor, index) => {
+        bars.forEach((bar, index) => {
           const label = labels[index];
 
           if (!label) {
             return;
           }
 
-          const isLinePoint = anchor.classList.contains("wordex-chart-line-point");
-          const isNegative = anchor.dataset.negative === "1";
+          const barX = Number(bar.getAttribute("x")) || 0;
+          const barWidth = Number(bar.getAttribute("width")) || 0;
+          const barY = Number(bar.getAttribute("y")) || 0;
+          const isNegative = bar.dataset.negative === "1";
           const gapPx = this.getChartValueLabelGapPx();
-          let centerX = 0;
-          let anchorY = 0;
-          let spanViewbox = defaultSpanViewbox;
-
-          if (isLinePoint) {
-            centerX = Number(anchor.getAttribute("cx")) || 0;
-            const pointY = Number(anchor.getAttribute("cy")) || 0;
-            anchorY = isNegative && Number.isFinite(zeroY) ? zeroY : pointY;
-          } else {
-            const barX = Number(anchor.getAttribute("x")) || 0;
-            const barWidth = Number(anchor.getAttribute("width")) || 0;
-            const barY = Number(anchor.getAttribute("y")) || 0;
-
-            centerX = barX + barWidth / 2;
-            anchorY = isNegative && Number.isFinite(zeroY) ? zeroY : barY;
-            spanViewbox = barWidth;
-          }
-
-          const spanPx = this.measureViewBoxDistancePx(
-            svg,
-            preview,
-            Number.isFinite(spanViewbox) ? spanViewbox : 20,
-            0
-          );
+          const centerX = barX + barWidth / 2;
+          const anchorY = isNegative ? (Number.isFinite(zeroY) ? zeroY : barY) : barY;
+          const barWidthPx = this.measureViewBoxDistancePx(svg, preview, barWidth, 0);
           const mapped = this.mapChartViewBoxToPreview(svg, preview, centerX, anchorY);
 
           label.classList.remove("is-hidden");
@@ -4193,34 +4075,31 @@
             return;
           }
 
-          const position = this.formatChartOverlayPosition(mapped);
+          label.style.left = `${mapped.left}px`;
 
-          label.style.left = position.left;
+          /*
+            Rótulos de barras são texto horizontal rotacionado 270 graus.
+            Como, após a rotação, a altura visual do rótulo corresponde à largura
+            original do texto, o ponto de ancoragem precisa considerar offsetWidth.
+            Assim o rótulo positivo fica acima da barra e o negativo fica abaixo
+            do eixo zero, sem invadir a barra.
+          */
+          const rotatedVisualHeight = label.offsetWidth || 0;
+          /*
+            Rótulos negativos também devem ficar acima do eixo zero.
+            Para negativos, anchorY já é o zeroY; para positivos, é o topo da barra.
+            Portanto, em ambos os casos o rótulo fica acima do ponto de ancoragem.
+          */
+          const labelCenterY = mapped.top - gapPx - rotatedVisualHeight / 2;
 
-          if (mapped.unit === "percent") {
-            const gapViewBox = 1.5;
-            const anchorMapped = this.mapChartViewBoxToPreview(
-              svg,
-              preview,
-              centerX,
-              Math.max(0, anchorY - gapViewBox)
-            );
-            const anchorPosition = this.formatChartOverlayPosition(anchorMapped);
+          label.style.top = `${labelCenterY}px`;
 
-            label.style.top = anchorPosition?.top || position.top;
-          } else {
-            const rotatedVisualHeight = label.offsetWidth || 0;
-            const labelCenterY = mapped.top - gapPx - rotatedVisualHeight / 2;
-
-            label.style.top = `${labelCenterY}px`;
-          }
-
-          if (!this.shouldShowChartBarValueLabel(label, spanPx)) {
+          if (!this.shouldShowChartBarValueLabel(label, barWidthPx)) {
             label.classList.add("is-hidden");
           }
         });
 
-        this.resolveChartValueLabelCollisions(anchors, labels, seriesCount, zeroY);
+        this.resolveChartValueLabelCollisions(bars, labels, seriesCount);
       }
 
       layoutChartCategoryLabels(chartBox) {
@@ -4246,10 +4125,8 @@
             return;
           }
 
-          const position = this.formatChartOverlayPosition(mapped);
-
-          label.style.left = position.left;
-          label.style.top = position.top;
+          label.style.left = `${mapped.left}px`;
+          label.style.top = `${mapped.top}px`;
         });
       }
 
@@ -4263,7 +4140,9 @@
             return;
           }
 
-          this.layoutChartOverlaysNow(chartBox);
+          this.applyChartLegendPanelPosition(chartBox);
+          this.layoutChartBarValueLabels(chartBox);
+          this.layoutChartCategoryLabels(chartBox);
         };
 
         if (typeof requestAnimationFrame === "function") {
@@ -4362,116 +4241,11 @@
           plotRight,
           plotTop,
           plotBottomLimit,
-          axisY: zeroY,
-          groupWidth
+          axisY: zeroY
         };
       }
 
-      computeLineChartLayout(chartData, chartStyle = null, seriesColors = null) {
-        const payload = this.normalizeChartPayload(chartData);
-        const categoryLabels = this.getChartCategoryLabels(chartData);
-        const categoryCount = Math.max(categoryLabels.length, payload?.Items?.length || 0, 1);
-        const seriesCount = this.getChartSeriesCount(chartData);
-        const lineSeriesColors = Array.isArray(seriesColors) && seriesColors.length
-          ? seriesColors
-          : this.getDefaultChartSeriesColors();
-        const plotLeft = 14;
-        const plotRight = 208;
-        const plotWidth = plotRight - plotLeft;
-        const groupGap = 12;
-        const plotTop = 8;
-        const categoryAnchorY = this.getChartCategoryLabelY();
-        const plotBottomLimit = this.getChartPlotBottomLimit();
-        const allValues = this.getAllChartNumericValues(chartData);
-        const maxPositive = Math.max(0, ...allValues, 0);
-        const maxNegative = Math.abs(Math.min(0, ...allValues, 0));
-        const availableHeight = plotBottomLimit - plotTop;
-        let zeroY = plotBottomLimit;
-        let posBarHeight = availableHeight;
-        let negBarHeight = 0;
-
-        if (maxNegative > 0 && maxPositive > 0) {
-          posBarHeight = availableHeight * (maxPositive / (maxPositive + maxNegative));
-          negBarHeight = availableHeight - posBarHeight;
-          zeroY = plotTop + posBarHeight;
-        } else if (maxNegative > 0) {
-          zeroY = plotTop;
-          posBarHeight = 0;
-          negBarHeight = availableHeight;
-        }
-
-        const scalePositive = maxPositive > 0 ? maxPositive : 1;
-        const scaleNegative = maxNegative > 0 ? maxNegative : 1;
-        const availableWidth = plotWidth - groupGap * (categoryCount + 1);
-        const groupWidth = availableWidth / categoryCount;
-        const lines = [];
-        const markers = [];
-        const valueLabels = [];
-        const seriesPointPairs = Array.from({ length: seriesCount }, () => []);
-
-        for (let categoryIndex = 0; categoryIndex < categoryCount; categoryIndex++) {
-          const item = payload?.Items?.[categoryIndex] || { values: [] };
-          const groupX = plotLeft + groupGap + categoryIndex * (groupWidth + groupGap);
-          const x = groupX + groupWidth / 2;
-
-          for (let seriesIndex = 0; seriesIndex < seriesCount; seriesIndex++) {
-            const cell = item.values?.[seriesIndex] || { value: 0 };
-            const value = this.toChartNumericValue(cell.value);
-            let y = zeroY;
-
-            if (value > 0) {
-              y = zeroY - posBarHeight * value / scalePositive;
-            } else if (value < 0) {
-              y = zeroY + negBarHeight * Math.abs(value) / scaleNegative;
-            }
-
-            const color = lineSeriesColors[seriesIndex % lineSeriesColors.length];
-            const negativeAttr = value < 0 ? ' data-negative="1"' : "";
-
-            seriesPointPairs[seriesIndex].push(`${x},${y}`);
-            markers.push(
-              `<circle class="wordex-chart-line-point" data-series-index="${seriesIndex}"${negativeAttr} cx="${x}" cy="${y}" r="2.5" fill="${color}"><title>${this.escapeHtml(this.formatChartNumericTooltip(value))}</title></circle>`
-            );
-            valueLabels.push(this.getChartBarValueLabel(cell));
-          }
-        }
-
-        for (let seriesIndex = 0; seriesIndex < seriesCount; seriesIndex++) {
-          if (!seriesPointPairs[seriesIndex].length) {
-            continue;
-          }
-
-          lines.push(
-            `<polyline class="wordex-chart-line" data-series-index="${seriesIndex}" points="${seriesPointPairs[seriesIndex].join(" ")}" fill="none" stroke="${lineSeriesColors[seriesIndex % lineSeriesColors.length]}" stroke-width="2"></polyline>`
-          );
-        }
-
-        const categoryLabelSpecs = categoryLabels.map((label, index) => {
-          if (!label) {
-            return null;
-          }
-
-          const groupX = plotLeft + groupGap + index * (groupWidth + groupGap);
-          const x = groupX + groupWidth / 2;
-
-          return { label, x, y: categoryAnchorY };
-        }).filter(Boolean);
-
-        return {
-          lines,
-          markers,
-          valueLabels,
-          categoryLabelSpecs,
-          plotLeft,
-          plotRight,
-          plotTop,
-          plotBottomLimit,
-          axisY: zeroY,
-          groupWidth
-        };
-      }
-
-      buildChartBarValueLabelsPanelHtml(valueLabels, chartStyle, zeroY = null, seriesCount = 1, anchorSpanViewbox = null) {
+      buildChartBarValueLabelsPanelHtml(valueLabels, chartStyle, zeroY = null, seriesCount = 1) {
         if (!Array.isArray(valueLabels) || !valueLabels.length) {
           return "";
         }
@@ -4481,14 +4255,11 @@
           ? ` data-viewbox-zero-y="${Number(zeroY)}"`
           : "";
         const seriesAttr = ` data-series-count="${Math.max(Number(seriesCount) || 1, 1)}"`;
-        const spanAttr = Number.isFinite(Number(anchorSpanViewbox))
-          ? ` data-anchor-span-viewbox="${Number(anchorSpanViewbox)}"`
-          : "";
         const items = valueLabels.map(text => {
           return `<span class="wordex-chart-value-label" style="${labelStyle}">${this.escapeHtml(text)}</span>`;
         }).join("");
 
-        return `<div class="wordex-chart-value-labels" role="presentation"${zeroAttr}${seriesAttr}${spanAttr}>${items}</div>`;
+        return `<div class="wordex-chart-value-labels" role="presentation"${zeroAttr}${seriesAttr}>${items}</div>`;
       }
 
       buildChartCategoryLabelsPanelHtml(categoryLabelSpecs, chartStyle) {
@@ -4608,7 +4379,7 @@
           fontColor.value = this.normalizeColorForInput(style.color);
         }
 
-        if (chartType !== "bar" && chartType !== "line") {
+        if (chartType !== "bar") {
           return;
         }
 
@@ -4795,7 +4566,7 @@
       }
 
       applyChartSeriesColor(chartBox, seriesIndex, color) {
-        if (!chartBox?.matches?.(".wordex-chart-box") || !["bar", "line"].includes(chartBox.dataset.chartType)) {
+        if (!chartBox?.matches?.(".wordex-chart-box") || chartBox.dataset.chartType !== "bar") {
           return;
         }
 
@@ -4815,7 +4586,7 @@
       applyChartSeriesColorFromToolbar(color) {
         const chartBox = this.getLiveSelectedObject();
 
-        if (!chartBox?.matches?.(".wordex-chart-box") || !["bar", "line"].includes(chartBox.dataset.chartType)) {
+        if (!chartBox?.matches?.(".wordex-chart-box") || chartBox.dataset.chartType !== "bar") {
           return;
         }
 
@@ -4827,7 +4598,7 @@
       }
 
       bindChartBarSeriesInteraction(chartBox) {
-        if (!chartBox?.matches?.(".wordex-chart-box") || !["bar", "line"].includes(chartBox.dataset.chartType)) {
+        if (!chartBox?.matches?.(".wordex-chart-box") || chartBox.dataset.chartType !== "bar") {
           return;
         }
 
@@ -4848,16 +4619,16 @@
             return;
           }
 
-          const target = event.target?.closest?.("rect.wordex-chart-bar, circle.wordex-chart-line-point");
+          const rect = event.target?.closest?.("rect.wordex-chart-bar");
 
-          if (!target || !chartBox.contains(target)) {
+          if (!rect || !chartBox.contains(rect)) {
             return;
           }
 
           event.preventDefault();
           event.stopPropagation();
 
-          const seriesIndex = Number(target.dataset.seriesIndex);
+          const seriesIndex = Number(rect.dataset.seriesIndex);
 
           if (!Number.isFinite(seriesIndex)) {
             return;
@@ -5052,22 +4823,19 @@
         let valueLabelsHtml = "";
         let categoryLabelsHtml = "";
 
-        if (chartData && (chartType === "bar" || chartType === "line")) {
-          const layout = chartType === "line"
-            ? this.computeLineChartLayout(chartData, chartStyle, seriesColors)
-            : this.computeBarChartLayout(chartData, chartStyle, seriesColors);
+        if (chartData && chartType === "bar") {
+          const layout = this.computeBarChartLayout(chartData, chartStyle, seriesColors);
           const seriesCount = this.getChartSeriesCount(chartData);
           valueLabelsHtml = this.buildChartBarValueLabelsPanelHtml(
             layout.valueLabels,
             chartStyle,
             layout.axisY,
-            seriesCount,
-            layout.groupWidth
+            seriesCount
           );
           categoryLabelsHtml = this.buildChartCategoryLabelsPanelHtml(layout.categoryLabelSpecs, chartStyle);
         }
 
-        if (chartData && (chartType === "bar" || chartType === "line") && this.getChartSeriesCount(chartData) >= 2) {
+        if (chartData && chartType === "bar" && this.getChartSeriesCount(chartData) >= 2) {
           const seriesLabels = this.getChartSeriesLabels(chartData);
           const colors = Array.isArray(seriesColors) && seriesColors.length
             ? seriesColors
@@ -5708,20 +5476,25 @@
       }
 
       generateChartSvgFromData(chartType, chartData, chartStyle = null, seriesColors = null) {
+        const textStyle = this.resolveChartSvgTextStyle(chartStyle);
+        const values = this.getChartSeriesValues(chartData, 0);
+        const maxValue = Math.max(...values, 1);
+
         if (chartType === "line") {
-          const layout = this.computeLineChartLayout(chartData, chartStyle, seriesColors);
+          const points = values.map((value, index) => {
+            const x = values.length <= 1 ? 110 : 14 + (194 * index / (values.length - 1));
+            const y = 90 - (72 * value / maxValue);
+            return `${x},${y}`;
+          }).join(" ");
 
           return `
-            <svg viewBox="0 0 220 100" preserveAspectRatio="xMidYMid meet">
-              ${layout.lines.join("")}
-              ${layout.markers.join("")}
-              <line x1="${layout.plotLeft}" y1="${layout.axisY}" x2="${layout.plotRight}" y2="${layout.axisY}" stroke="#777" stroke-width="1"></line>
-              <line x1="${layout.plotLeft}" y1="${layout.plotTop}" x2="${layout.plotLeft}" y2="${layout.plotBottomLimit}" stroke="#aaa" stroke-width="1"></line>
+            <svg viewBox="0 0 220 100" preserveAspectRatio="none">
+              <polyline points="${points}" fill="none" stroke="#555" stroke-width="4"></polyline>
+              <line x1="14" y1="90" x2="208" y2="90" stroke="#bbb" stroke-width="1"></line>
+              <line x1="14" y1="8" x2="14" y2="90" stroke="#bbb" stroke-width="1"></line>
             </svg>
           `;
         }
-
-        const values = this.getChartSeriesValues(chartData, 0);
 
         if (chartType === "pie" || chartType === "doughnut") {
           const total = values.reduce((sum, value) => sum + value, 0) || 1;
@@ -12308,8 +12081,6 @@
           this.finalizeStaticImages(clone);
           this.materializeCharts(clone, []);
         }
-
-        this.layoutGeneratedReportCharts(clone);
 
         this.cleanGeneratedDocumentNode(clone);
         this.markGeneratedPaginationAtoms(clone);

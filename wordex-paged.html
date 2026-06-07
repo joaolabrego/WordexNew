@@ -128,15 +128,23 @@ body.wordex-generated-report .document > .region::before {
   justify-content: center;
   max-width: 100%;
   text-align: center;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .dynamic-image-box img {
   display: block;
   max-width: 100%;
+  max-height: 100%;
+  width: auto;
   height: auto;
+  object-fit: contain;
 }
 
-.dynamic-image-box strong,
+.dynamic-image-box strong {
+  display: none !important;
+}
+
 .wordex-chart-box strong {
   display: block;
   margin-bottom: 4px;
@@ -147,6 +155,7 @@ body.wordex-generated-report .document > .region::before {
 .wordex-chart-box {
   display: flex;
   flex-direction: column;
+  position: relative;
   max-width: 100%;
   text-align: center;
   overflow: hidden;
@@ -170,6 +179,7 @@ body.wordex-generated-report .document > .region::before {
 .wordex-chart-preview {
   display: flex;
   flex: 1 1 auto;
+  position: relative;
   min-height: 0;
   width: 100%;
   align-items: stretch;
@@ -181,6 +191,72 @@ body.wordex-generated-report .document > .region::before {
   width: 100%;
   height: 100%;
   display: block;
+}
+
+.wordex-chart-legend-panel {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  text-align: left;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.wordex-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wordex-chart-legend-swatch {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+}
+
+.wordex-chart-value-labels,
+.wordex-chart-category-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.wordex-chart-value-label {
+  position: absolute;
+  white-space: nowrap;
+  line-height: 1.1;
+  pointer-events: none;
+  text-align: center;
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+  transform: translate(-50%, -50%) rotate(270deg);
+  transform-origin: center center;
+}
+
+.wordex-chart-value-label.is-hidden {
+  visibility: hidden;
+}
+
+.wordex-chart-category-label {
+  position: absolute;
+  white-space: nowrap;
+  line-height: 1.1;
+  pointer-events: none;
+  text-align: center;
+  transform: translate(-50%, 0);
+  transform-origin: center top;
+  max-width: 7em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wordex-chart-box script.wordex-chart-data {
+  display: none !important;
 }
 
 table.wordex-table {
@@ -384,12 +460,36 @@ body.wordex-generated-report .wordex-paginable-table td {
     overflow: visible !important;
   }
 }
-  </style>
+  
+/* v25: gráficos no paginado não devem cortar labels/legendas posicionados por overlay. */
+body.wordex-generated-report .wordex-chart-box {
+  overflow: visible !important;
+  contain: none !important;
+}
+
+body.wordex-generated-report .wordex-chart-preview {
+  overflow: visible !important;
+}
+
+body.wordex-generated-report .wordex-chart-value-labels,
+body.wordex-generated-report .wordex-chart-category-labels,
+body.wordex-generated-report .wordex-chart-legend-panel {
+  overflow: visible !important;
+}
+
+body.wordex-generated-report .wordex-chart-value-label {
+  display: inline-block;
+  transform: translate(-50%, -50%) rotate(270deg) !important;
+  transform-origin: center center !important;
+}
+
+</style>
   </head>
   <body class="wordex-generated-report">
     <div class="wordex-paged-toolbar" id="wordex-paged-toolbar">
       <div class="wordex-paged-toolbar-title" id="wordex-paged-title">@@WORDEX_TITLE@@</div>
       <div class="wordex-paged-toolbar-actions">
+        <button type="button" id="wordex-paged-save-html" disabled title="Salvar HTML montado">Salvar HTML</button>
         <button type="button" id="wordex-paged-pdf" class="primary" disabled title="Gerar PDF">Gerar PDF</button>
         <button type="button" id="wordex-paged-close" title="Fechar">Fechar</button>
       </div>
@@ -403,6 +503,7 @@ body.wordex-generated-report .wordex-paginable-table td {
     </div>
     <script type="application/json"
       id="wordex-pagex-config">@@WORDEX_PAGEX_CONFIG@@</script>
+    @@WORDEX_PDF_TEMPLATE_BOOT@@
     <script>
     (function () {
       var config = JSON.parse(document.getElementById("wordex-pagex-config").textContent || "{}");
@@ -583,6 +684,143 @@ body.wordex-generated-report .wordex-paginable-table td {
         return body.scrollHeight > maxHeight + 0.5;
       }
 
+
+      function mapChartViewBoxToPreview(svg, preview, x, y) {
+        if (!svg || !preview || !svg.createSVGPoint || typeof svg.getScreenCTM !== "function") {
+          return null;
+        }
+
+        var matrix = svg.getScreenCTM();
+        if (!matrix) return null;
+
+        var point = svg.createSVGPoint();
+        point.x = Number(x) || 0;
+        point.y = Number(y) || 0;
+
+        var mapped = point.matrixTransform(matrix);
+        var previewRect = preview.getBoundingClientRect();
+
+        return {
+          left: mapped.x - previewRect.left,
+          top: mapped.y - previewRect.top
+        };
+      }
+
+      function measureViewBoxDistancePx(svg, preview, dx, dy) {
+        var origin = mapChartViewBoxToPreview(svg, preview, 0, 0);
+        var target = mapChartViewBoxToPreview(svg, preview, dx, dy);
+
+        if (!origin || !target) {
+          return 0;
+        }
+
+        return Math.sqrt(
+          Math.pow(target.left - origin.left, 2) +
+          Math.pow(target.top - origin.top, 2)
+        );
+      }
+
+      function layoutChartBarValueLabels(chartBox) {
+        var preview = chartBox ? chartBox.querySelector(".wordex-chart-preview") : null;
+        var svg = preview ? preview.querySelector("svg") : null;
+        var panel = preview ? preview.querySelector(".wordex-chart-value-labels") : null;
+
+        if (!preview || !svg || !panel) {
+          return;
+        }
+
+        var bars = Array.prototype.slice.call(svg.querySelectorAll(".wordex-chart-bar"));
+        var labels = Array.prototype.slice.call(panel.querySelectorAll(".wordex-chart-value-label"));
+        var zeroY = Number(panel.dataset.viewboxZeroY);
+        var gapPx = 8;
+
+        if (!bars.length || bars.length !== labels.length) {
+          return;
+        }
+
+        labels.forEach(function (label) {
+          label.classList.remove("is-hidden");
+          label.style.visibility = "visible";
+          label.style.position = "absolute";
+          label.style.display = "inline-block";
+          label.style.whiteSpace = "nowrap";
+          label.style.textAlign = "center";
+          label.style.writingMode = "horizontal-tb";
+          label.style.textOrientation = "mixed";
+          label.style.transform = "translate(-50%, -50%) rotate(270deg)";
+          label.style.transformOrigin = "center center";
+        });
+
+        bars.forEach(function (bar, index) {
+          var label = labels[index];
+          if (!label) return;
+
+          var barX = Number(bar.getAttribute("x")) || 0;
+          var barWidth = Number(bar.getAttribute("width")) || 0;
+          var barY = Number(bar.getAttribute("y")) || 0;
+          var isNegative = bar.dataset.negative === "1";
+          var centerX = barX + barWidth / 2;
+          var anchorY = isNegative && Number.isFinite(zeroY) ? zeroY : barY;
+          var mapped = mapChartViewBoxToPreview(svg, preview, centerX, anchorY);
+
+          if (!mapped) {
+            label.classList.add("is-hidden");
+            return;
+          }
+
+          /*
+            Recalcula no HTML paginado, porque o SVG pode ter outra largura real
+            em relação ao editor. Usar o left antigo gera erro progressivo:
+            começa centralizado e vai "comendo" caracteres à direita.
+          */
+          label.style.left = mapped.left + "px";
+          label.style.top = (mapped.top - gapPx) + "px";
+
+          var barWidthPx = measureViewBoxDistancePx(svg, preview, barWidth, 0);
+          if (barWidthPx > 0 && label.offsetHeight > barWidthPx + 12) {
+            label.classList.add("is-hidden");
+          }
+        });
+      }
+
+      function layoutChartCategoryLabels(chartBox) {
+        var preview = chartBox ? chartBox.querySelector(".wordex-chart-preview") : null;
+        var svg = preview ? preview.querySelector("svg") : null;
+        var panel = preview ? preview.querySelector(".wordex-chart-category-labels") : null;
+
+        if (!preview || !svg || !panel) {
+          return;
+        }
+
+        Array.prototype.slice.call(panel.querySelectorAll(".wordex-chart-category-label")).forEach(function (label) {
+          var x = Number(label.dataset.viewboxX);
+          var y = Number(label.dataset.viewboxY);
+
+          if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            return;
+          }
+
+          var mapped = mapChartViewBoxToPreview(svg, preview, x, y);
+          if (!mapped) return;
+
+          label.style.position = "absolute";
+          label.style.left = mapped.left + "px";
+          label.style.top = mapped.top + "px";
+          label.style.transform = "translate(-50%, 0)";
+          label.style.transformOrigin = "center top";
+        });
+      }
+
+      function layoutAllChartOverlays(root) {
+        if (!root) return;
+
+        Array.prototype.slice.call(root.querySelectorAll(".wordex-chart-box")).forEach(function (chartBox) {
+          layoutChartBarValueLabels(chartBox);
+          layoutChartCategoryLabels(chartBox);
+        });
+      }
+
+
       function paginateBlocks(source, output) {
         var originalBody = source.querySelector(".body-flow");
         if (!originalBody) return;
@@ -619,26 +857,21 @@ body.wordex-generated-report .wordex-paginable-table td {
         addPagexCss();
         await waitForResources(source);
         paginateBlocks(source, output);
+        layoutAllChartOverlays(output);
         await waitForResources(output);
         paginateBlocks(source, output);
+        layoutAllChartOverlays(output);
+        requestAnimationFrame(function () { layoutAllChartOverlays(output); });
         document.body.classList.add("wordex-pagex-ready");
         document.documentElement.classList.add("wordex-pagex-ready");
         var pageCount = output.querySelectorAll(".pagex-page").length;
         setPagedStatus(pageCount === 1 ? "1 página pronta." : pageCount + " páginas prontas.");
         var pdfButton = document.getElementById("wordex-paged-pdf");
+        var saveHtmlButton = document.getElementById("wordex-paged-save-html");
         if (pdfButton) pdfButton.disabled = false;
+        if (saveHtmlButton) saveHtmlButton.disabled = false;
       }
 
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", startPagex);
-      } else {
-        startPagex();
-      }
-    }());
-  </script>
-  @@WORDEX_PDF_TEMPLATE_BOOT@@
-  <script>
-    (function () {
       function applyTemplatePlaceholders(template, values) {
         return String(template || "").replace(/@@([A-Z0-9_]+)@@/g, function (match, key) {
           if (!Object.prototype.hasOwnProperty.call(values, key)) {
@@ -654,7 +887,229 @@ body.wordex-generated-report .wordex-paginable-table td {
         return styleNode ? styleNode.textContent + "\\n" : "";
       }
 
-      function openPdfViewerTab() {
+      function readPagexConfig() {
+        try {
+          return JSON.parse(document.getElementById("wordex-pagex-config").textContent || "{}") || {};
+        } catch (error) {
+          return {};
+        }
+      }
+
+      function sanitizeHtmlFileName(value) {
+        var name = String(value || "").trim().replace(/[\\\\/:*?"<>|]+/g, "_");
+        if (!name) return "Relatorio.html";
+        if (!/\\.html$/i.test(name)) name += ".html";
+        return name;
+      }
+
+      function saveMountedHtml() {
+        if (!document.body.classList.contains("wordex-pagex-ready")) {
+          alert("Aguarde a paginação terminar.");
+          return;
+        }
+
+        var config = readPagexConfig();
+        var fileName = sanitizeHtmlFileName(config.htmlFileName || "Relatorio.html");
+        var html = "<!DOCTYPE html>\\n" + document.documentElement.outerHTML;
+        var blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        setTimeout(function () {
+          URL.revokeObjectURL(url);
+        }, 1000);
+
+        setPagedStatus("HTML salvo: " + fileName);
+      }
+
+      function fetchImageAsDataUrl(url) {
+        var src = String(url || "").trim();
+
+        if (!src || src.indexOf("data:") === 0) {
+          return Promise.resolve("");
+        }
+
+        return fetch(src, {
+          mode: "cors",
+          credentials: "omit",
+          cache: "force-cache"
+        })
+          .then(function (response) {
+            if (!response.ok) {
+              return "";
+            }
+
+            return response.blob();
+          })
+          .then(function (blob) {
+            if (!blob || String(blob.type || "").indexOf("image/") !== 0) {
+              return "";
+            }
+
+            return new Promise(function (resolve) {
+              var reader = new FileReader();
+              reader.onload = function () {
+                resolve(String(reader.result || ""));
+              };
+              reader.onerror = function () {
+                resolve("");
+              };
+              reader.readAsDataURL(blob);
+            });
+          })
+          .catch(function () {
+            return "";
+          });
+      }
+
+      function rasterizeLoadedImageElement(img) {
+        if (!img || !img.naturalWidth || !img.naturalHeight) {
+          return "";
+        }
+
+        try {
+          var canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          canvas.getContext("2d").drawImage(img, 0, 0);
+          return canvas.toDataURL("image/png");
+        } catch (error) {
+          return "";
+        }
+      }
+
+      function loadImageAsDataUrl(url, useCrossOrigin) {
+        return new Promise(function (resolve) {
+          var src = String(url || "").trim();
+          if (!src) {
+            resolve("");
+            return;
+          }
+          if (src.indexOf("data:") === 0) {
+            resolve(src);
+            return;
+          }
+
+          var img = new Image();
+          if (useCrossOrigin) {
+            img.crossOrigin = "anonymous";
+          }
+
+          img.onload = function () {
+            resolve(rasterizeLoadedImageElement(img));
+          };
+
+          img.onerror = function () {
+            resolve("");
+          };
+
+          img.src = src;
+        });
+      }
+
+      function isProbablyCrossOriginUrl(url) {
+        var src = String(url || "").trim();
+        if (!src || src.indexOf("data:") === 0 || src.indexOf("blob:") === 0) {
+          return false;
+        }
+
+        try {
+          return new URL(src, window.location.href).origin !== window.location.origin;
+        } catch (error) {
+          return /^https?:/i.test(src);
+        }
+      }
+
+      function omitUnembeddableImage(cloneImg, src) {
+        if (!cloneImg) return;
+        cloneImg.removeAttribute("src");
+        cloneImg.removeAttribute("crossorigin");
+        cloneImg.setAttribute("data-wordex-pdf-omitted", "1");
+        cloneImg.style.visibility = "hidden";
+        cloneImg.style.display = "none";
+      }
+
+      function resolveMappedImageDataUrl(src, imageDataUrlMap) {
+        var text = String(src || "").trim();
+        var map = imageDataUrlMap || {};
+
+        if (!text) {
+          return "";
+        }
+
+        if (map[text] && String(map[text]).indexOf("data:") === 0) {
+          return String(map[text]);
+        }
+
+        return "";
+      }
+
+      async function preparePagexHtmlForPdf(root, imageDataUrlMap) {
+        if (!root) return "";
+
+        var clone = root.cloneNode(true);
+        var liveImgs = root.querySelectorAll("img");
+        var cloneImgs = clone.querySelectorAll("img");
+        var tasks = [];
+
+        for (var i = 0; i < liveImgs.length; i++) {
+          (function (liveImg, cloneImg) {
+            if (!cloneImg) return;
+
+            tasks.push((async function () {
+              var src = String(cloneImg.getAttribute("src") || liveImg.currentSrc || liveImg.src || "").trim();
+              var mappedDataUrl = resolveMappedImageDataUrl(src, imageDataUrlMap);
+
+              if (mappedDataUrl) {
+                cloneImg.setAttribute("src", mappedDataUrl);
+                cloneImg.removeAttribute("crossorigin");
+                return;
+              }
+
+              var dataUrl = rasterizeLoadedImageElement(liveImg);
+              if (dataUrl) {
+                cloneImg.setAttribute("src", dataUrl);
+                cloneImg.removeAttribute("crossorigin");
+                return;
+              }
+
+              if (!src || src.indexOf("data:") === 0) return;
+
+              if (isProbablyCrossOriginUrl(src)) {
+                var fetchedDataUrl = await fetchImageAsDataUrl(src);
+                if (fetchedDataUrl) {
+                  cloneImg.setAttribute("src", fetchedDataUrl);
+                  cloneImg.removeAttribute("crossorigin");
+                  return;
+                }
+
+                omitUnembeddableImage(cloneImg, src);
+                return;
+              }
+
+              var corsDataUrl = await loadImageAsDataUrl(src, true);
+              if (corsDataUrl) {
+                cloneImg.setAttribute("src", corsDataUrl);
+                cloneImg.removeAttribute("crossorigin");
+                return;
+              }
+
+              omitUnembeddableImage(cloneImg, src);
+            })());
+          })(liveImgs[i], cloneImgs[i]);
+        }
+
+        await Promise.all(tasks);
+        return clone.innerHTML;
+      }
+
+      async function openPdfViewerTab() {
         var template = window.WORDEX_PDF_TEMPLATE;
         if (!template) {
           alert("Template PDF indisponível. Volte ao editor e clique em Montar HTML novamente.");
@@ -668,26 +1123,27 @@ body.wordex-generated-report .wordex-paginable-table td {
 
         var pagexOutput = document.getElementById("wordex-pagex-output");
         var pagexStyle = document.getElementById("wordex-pagex-style");
-        var configNode = document.getElementById("wordex-pagex-config");
-        var config = {};
-
-        try {
-          config = JSON.parse(configNode ? configNode.textContent : "{}") || {};
-        } catch (error) {
-          config = {};
-        }
-
+        var config = readPagexConfig();
         var pdfTitle = String(config.pdfTitle || document.title || "Relatório Wordex").trim();
         var pdfFileName = String(config.pdfFileName || "Relatorio.pdf").trim();
+        var imageDataUrlMap = config.imageDataUrlMap || {};
         var pdfConfig = JSON.stringify({
           fileName: pdfFileName,
-          title: pdfTitle
+          title: pdfTitle,
+          imageDataUrlMap: imageDataUrlMap
         }).split("<\\\/").join("<\\\\/");
+
+        var pagexHtml = "";
+
+        if (pagexOutput) {
+          await waitForImages(pagexOutput, 10000);
+          pagexHtml = await preparePagexHtmlForPdf(pagexOutput, imageDataUrlMap);
+        }
 
         var html = applyTemplatePlaceholders(template, {
           WORDEX_TITLE: pdfTitle,
           WORDEX_PDF_CONFIG: pdfConfig,
-          WORDEX_PAGEX_HTML: pagexOutput ? pagexOutput.innerHTML : "",
+          WORDEX_PAGEX_HTML: pagexHtml,
           WORDEX_PAGEX_STYLE: pagexStyle ? pagexStyle.textContent : "",
           WORDEX_REPORT_STYLES: collectReportStyles()
         });
@@ -702,11 +1158,20 @@ body.wordex-generated-report .wordex-paginable-table td {
       }
 
       function bindPagedToolbarActions() {
+        var saveHtmlButton = document.getElementById("wordex-paged-save-html");
         var pdfButton = document.getElementById("wordex-paged-pdf");
         var closeButton = document.getElementById("wordex-paged-close");
 
+        if (saveHtmlButton) {
+          saveHtmlButton.addEventListener("click", saveMountedHtml);
+        }
+
         if (pdfButton) {
-          pdfButton.addEventListener("click", openPdfViewerTab);
+          pdfButton.addEventListener("click", function () {
+            openPdfViewerTab().catch(function (error) {
+              alert("Erro ao gerar PDF: " + error.message);
+            });
+          });
         }
 
         if (closeButton) {
@@ -716,10 +1181,15 @@ body.wordex-generated-report .wordex-paginable-table td {
         }
       }
 
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", bindPagedToolbarActions);
-      } else {
+      function initPagedDocument() {
         bindPagedToolbarActions();
+        startPagex();
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initPagedDocument);
+      } else {
+        initPagedDocument();
       }
     }());
   </script>

@@ -33,20 +33,22 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
 
     #wordex-pagex-source {
       position: fixed;
-      left: 0;
+      left: -100000px;
       top: 0;
       z-index: -1;
-      opacity: 0;
+      opacity: 1;
+      visibility: visible;
       pointer-events: none;
       width: max-content;
     }
 
     #wordex-pdf-capture-host {
       position: fixed;
-      left: 0;
+      left: -100000px;
       top: 0;
       z-index: -1;
-      opacity: 0;
+      opacity: 1;
+      visibility: visible;
       pointer-events: none;
       width: max-content;
     }
@@ -369,6 +371,10 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
         statusNode.classList.toggle("is-error", !!isError);
       }
 
+      function waitForDocumentFonts() {
+        return document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+      }
+
       function waitForImagesInNode(node, timeoutMs) {
         var images = node ? Array.prototype.slice.call(node.querySelectorAll("img")) : [];
         if (images.length === 0) return Promise.resolve();
@@ -428,13 +434,13 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
 
       function getPageMetrics(page) {
         var rect = page.getBoundingClientRect();
+        var style = window.getComputedStyle(page);
         var widthPx = rect.width;
         var heightPx = rect.height;
 
         if (widthPx < 1 || heightPx < 1) {
-          var style = window.getComputedStyle(page);
-          widthPx = parseFloat(style.width) || 0;
-          heightPx = parseFloat(style.height) || 0;
+          widthPx = cssLengthToPx(style.width, 794, 1123);
+          heightPx = cssLengthToPx(style.height, 794, 1123);
         }
 
         if (widthPx < 1 || heightPx < 1) {
@@ -448,6 +454,202 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
           widthPx: widthPx,
           heightPx: heightPx
         };
+      }
+
+      function waitForNextPaint() {
+        return new Promise(function (resolve) {
+          requestAnimationFrame(function () {
+            requestAnimationFrame(resolve);
+          });
+        });
+      }
+
+      function isCanvasUsableCapture(canvas) {
+        if (!canvas || !canvas.width || !canvas.height) {
+          return false;
+        }
+
+        var context = canvas.getContext("2d", { willReadFrequently: true });
+
+        if (!context) {
+          return false;
+        }
+
+        var sampleSize = 24;
+        var samplePoints = [
+          [0.12, 0.12],
+          [0.5, 0.12],
+          [0.88, 0.12],
+          [0.12, 0.5],
+          [0.5, 0.5],
+          [0.88, 0.5],
+          [0.12, 0.88],
+          [0.5, 0.88],
+          [0.88, 0.88]
+        ];
+        var usableSamples = 0;
+
+        try {
+          for (var p = 0; p < samplePoints.length; p++) {
+            var point = samplePoints[p];
+            var x = Math.max(
+              0,
+              Math.min(
+                canvas.width - sampleSize,
+                Math.round(canvas.width * point[0]) - Math.floor(sampleSize / 2)
+              )
+            );
+            var y = Math.max(
+              0,
+              Math.min(
+                canvas.height - sampleSize,
+                Math.round(canvas.height * point[1]) - Math.floor(sampleSize / 2)
+              )
+            );
+            var width = Math.min(sampleSize, canvas.width - x);
+            var height = Math.min(sampleSize, canvas.height - y);
+            var data = context.getImageData(x, y, width, height).data;
+            var whiteLike = 0;
+            var blackLike = 0;
+            var total = data.length / 4;
+
+            for (var i = 0; i < data.length; i += 4) {
+              if (data[i] > 250 && data[i + 1] > 250 && data[i + 2] > 250) {
+                whiteLike++;
+              }
+
+              if (data[i] < 8 && data[i + 1] < 8 && data[i + 2] < 8) {
+                blackLike++;
+              }
+            }
+
+            var whiteRatio = whiteLike / total;
+            var blackRatio = blackLike / total;
+
+            if (whiteRatio < 0.985 && blackRatio < 0.985) {
+              usableSamples++;
+            }
+          }
+        } catch (error) {
+          return false;
+        }
+
+        return usableSamples >= 1;
+      }
+
+      function repositionCaptureHostForRendering(host) {
+        if (!host) {
+          return function () {};
+        }
+
+        var previous = {
+          left: host.style.left,
+          top: host.style.top,
+          zIndex: host.style.zIndex,
+          visibility: host.style.visibility,
+          opacity: host.style.opacity
+        };
+
+        host.style.left = "0px";
+        host.style.top = "0px";
+        host.style.zIndex = "-1";
+        host.style.visibility = "visible";
+        host.style.opacity = "1";
+
+        return function restoreCaptureHostPosition() {
+          host.style.left = previous.left;
+          host.style.top = previous.top;
+          host.style.zIndex = previous.zIndex;
+          host.style.visibility = previous.visibility;
+          host.style.opacity = previous.opacity;
+        };
+      }
+
+      async function renderCaptureCanvas(clone, metrics, captureHost) {
+        var baseOptions = {
+          scale: 2,
+          useCORS: false,
+          allowTaint: false,
+          backgroundColor: "#ffffff",
+          logging: false,
+          scrollX: 0,
+          scrollY: 0,
+          onclone: function (doc, clonedNode) {
+            var host = doc.getElementById("wordex-pdf-capture-host");
+            if (host) {
+              host.style.opacity = "1";
+              host.style.visibility = "visible";
+              host.style.left = "0px";
+              host.style.top = "0px";
+            }
+
+            var captureRoot = clonedNode || (host ? host.querySelector(".pagex-page") : null);
+            if (captureRoot) {
+              captureRoot.style.opacity = "1";
+              captureRoot.style.visibility = "visible";
+              captureRoot.style.background = "#ffffff";
+              hideOmittedImagesInCaptureRoot(captureRoot);
+            }
+
+            if (!host) return;
+
+            hideOmittedImagesInCaptureRoot(host);
+
+            host.querySelectorAll("*").forEach(function (node) {
+              node.style.opacity = "1";
+              node.style.visibility = "visible";
+
+              if (node.classList && node.classList.contains("pagex-watermark")) {
+                node.style.overflow = "visible";
+                return;
+              }
+
+              node.style.overflow = "hidden";
+              node.style.scrollbarWidth = "none";
+            });
+          }
+        };
+
+        var targets = [clone];
+        if (captureHost && captureHost.firstElementChild && captureHost.firstElementChild !== clone) {
+          targets.push(captureHost.firstElementChild);
+        }
+
+        var attempts = [
+          baseOptions,
+          Object.assign({}, baseOptions, {
+            width: metrics.widthPx,
+            height: metrics.heightPx
+          }),
+          Object.assign({}, baseOptions, {
+            scale: 1,
+            width: metrics.widthPx,
+            height: metrics.heightPx
+          })
+        ];
+
+        var lastCanvas = null;
+
+        for (var t = 0; t < targets.length; t++) {
+          for (var i = 0; i < attempts.length; i++) {
+            try {
+              var canvas = await window.html2canvas(targets[t], attempts[i]);
+              lastCanvas = canvas;
+
+              if (isCanvasUsableCapture(canvas)) {
+                return canvas;
+              }
+            } catch (error) {
+              continue;
+            }
+          }
+        }
+
+        if (lastCanvas && lastCanvas.width > 0 && lastCanvas.height > 0) {
+          return lastCanvas;
+        }
+
+        throw new Error("Não foi possível capturar a página para o PDF.");
       }
 
       function renderPdfViewer() {
@@ -527,6 +729,258 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
         return pageWidthPx * 0.76;
       }
 
+      function isProbablyCrossOriginUrl(url) {
+        var src = String(url || "").trim();
+        if (!src || src.indexOf("data:") === 0 || src.indexOf("blob:") === 0) {
+          return false;
+        }
+
+        try {
+          return new URL(src, window.location.href).origin !== window.location.origin;
+        } catch (error) {
+          return /^https?:/i.test(src);
+        }
+      }
+
+      function omitUnembeddableImage(cloneImg, src, skipped) {
+        if (cloneImg) {
+          cloneImg.removeAttribute("src");
+          cloneImg.removeAttribute("crossorigin");
+          cloneImg.setAttribute("data-wordex-pdf-omitted", "1");
+          cloneImg.style.visibility = "hidden";
+          cloneImg.style.display = "none";
+        }
+
+        if (src && skipped.indexOf(src) === -1) {
+          skipped.push(src);
+        }
+      }
+
+      function stripExternalImagesFromClone(clone) {
+        if (!clone) return;
+
+        clone.querySelectorAll("img").forEach(function (img) {
+          var src = String(img.getAttribute("src") || "").trim();
+
+          if (src && src.indexOf("data:") !== 0 && src.indexOf("blob:") !== 0) {
+            img.removeAttribute("src");
+            img.removeAttribute("crossorigin");
+            img.setAttribute("data-wordex-pdf-omitted", "1");
+            img.style.visibility = "hidden";
+            img.style.display = "none";
+          }
+        });
+      }
+
+      function exportCanvasToJpegDataUrl(canvas) {
+        if (!canvas) {
+          return "";
+        }
+
+        try {
+          return canvas.toDataURL("image/jpeg", 0.95);
+        } catch (error) {
+          return "";
+        }
+      }
+
+      function hideOmittedImagesInCaptureRoot(root) {
+        if (!root) return;
+
+        root.querySelectorAll('[data-wordex-pdf-omitted="1"]').forEach(function (img) {
+          img.removeAttribute("src");
+          img.removeAttribute("crossorigin");
+          img.style.visibility = "hidden";
+          img.style.display = "none";
+        });
+      }
+
+      function blobToDataUrl(blob) {
+        return new Promise(function (resolve) {
+          if (!blob) {
+            resolve("");
+            return;
+          }
+
+          var reader = new FileReader();
+          reader.onload = function () {
+            resolve(String(reader.result || ""));
+          };
+          reader.onerror = function () {
+            resolve("");
+          };
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      function fetchImageAsDataUrl(url) {
+        var src = String(url || "").trim();
+
+        if (!src || src.indexOf("data:") === 0) {
+          return Promise.resolve("");
+        }
+
+        return fetch(src, {
+          mode: "cors",
+          credentials: "omit",
+          cache: "force-cache"
+        })
+          .then(function (response) {
+            if (!response.ok) {
+              return "";
+            }
+
+            return response.blob();
+          })
+          .then(function (blob) {
+            if (!blob || String(blob.type || "").indexOf("image/") !== 0) {
+              return "";
+            }
+
+            return blobToDataUrl(blob);
+          })
+          .catch(function () {
+            return "";
+          });
+      }
+
+      function rasterizeLoadedImageElement(img) {
+        if (!img || !img.naturalWidth || !img.naturalHeight) {
+          return "";
+        }
+
+        try {
+          var canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          canvas.getContext("2d").drawImage(img, 0, 0);
+          return canvas.toDataURL("image/png");
+        } catch (error) {
+          return "";
+        }
+      }
+
+      function loadImageAsDataUrl(url, useCrossOrigin) {
+        return new Promise(function (resolve) {
+          var src = String(url || "").trim();
+          if (!src) {
+            resolve("");
+            return;
+          }
+
+          if (src.indexOf("data:") === 0) {
+            resolve(src);
+            return;
+          }
+
+          var img = new Image();
+          if (useCrossOrigin) {
+            img.crossOrigin = "anonymous";
+          }
+
+          img.onload = function () {
+            resolve(rasterizeLoadedImageElement(img));
+          };
+
+          img.onerror = function () {
+            resolve("");
+          };
+
+          img.src = src;
+        });
+      }
+
+      function resolveMappedImageDataUrl(src, imageDataUrlMap) {
+        var text = String(src || "").trim();
+        var map = imageDataUrlMap || {};
+
+        if (!text) {
+          return "";
+        }
+
+        if (map[text] && String(map[text]).indexOf("data:") === 0) {
+          return String(map[text]);
+        }
+
+        return "";
+      }
+
+      async function inlineImagesFromSourcePage(sourcePage, clone) {
+        var sourceImgs = sourcePage.querySelectorAll("img");
+        var cloneImgs = clone.querySelectorAll("img");
+        var skipped = [];
+        var imageMap = config.imageDataUrlMap || {};
+
+        for (var i = 0; i < cloneImgs.length; i++) {
+          var cloneImg = cloneImgs[i];
+          var sourceImg = sourceImgs[i];
+          var src = String(
+            cloneImg.getAttribute("src") ||
+            (sourceImg ? (sourceImg.currentSrc || sourceImg.src) : "") ||
+            ""
+          ).trim();
+
+          if (!src) {
+            continue;
+          }
+
+          var mappedDataUrl = resolveMappedImageDataUrl(src, imageMap);
+
+          if (mappedDataUrl) {
+            cloneImg.setAttribute("src", mappedDataUrl);
+            cloneImg.removeAttribute("crossorigin");
+            continue;
+          }
+
+          if (src.indexOf("data:") === 0) {
+            continue;
+          }
+
+          var dataUrl = rasterizeLoadedImageElement(sourceImg);
+
+          if (!dataUrl && isProbablyCrossOriginUrl(src)) {
+            dataUrl = await fetchImageAsDataUrl(src);
+          }
+
+          if (!dataUrl && !isProbablyCrossOriginUrl(src)) {
+            dataUrl = await loadImageAsDataUrl(src, true);
+          }
+
+          if (dataUrl) {
+            cloneImg.setAttribute("src", dataUrl);
+            cloneImg.removeAttribute("crossorigin");
+          } else {
+            omitUnembeddableImage(cloneImg, src, skipped);
+          }
+        }
+
+        return skipped;
+      }
+
+      function prepareBodyImagesInClone(sourcePage, clone, metrics) {
+        var sourceImgs = sourcePage.querySelectorAll(".pagex-header img, .pagex-body img, .pagex-footer img, .dynamic-image-box img");
+        var cloneImgs = clone.querySelectorAll(".pagex-header img, .pagex-body img, .pagex-footer img, .dynamic-image-box img");
+
+        cloneImgs.forEach(function (img, index) {
+          var sourceImg = sourceImgs[index];
+          var widthPx = sourceImg ? (sourceImg.offsetWidth || sourceImg.naturalWidth || 0) : 0;
+          var heightPx = sourceImg ? (sourceImg.offsetHeight || sourceImg.naturalHeight || 0) : 0;
+
+          if (widthPx > 0) {
+            img.style.width = widthPx + "px";
+          }
+
+          if (heightPx > 0) {
+            img.style.height = heightPx + "px";
+          }
+
+          img.style.maxWidth = Math.round(metrics.widthPx * 0.95) + "px";
+          img.style.maxHeight = Math.round(metrics.heightPx * 0.8) + "px";
+          img.style.objectFit = "contain";
+          img.style.display = "block";
+        });
+      }
+
       function prepareCaptureClone(page, metrics) {
         var clone = page.cloneNode(true);
         clone.style.width = metrics.widthPx + "px";
@@ -535,6 +989,9 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
         clone.style.maxHeight = "none";
         clone.style.boxShadow = "none";
         clone.style.overflow = "hidden";
+        clone.style.opacity = "1";
+        clone.style.visibility = "visible";
+        clone.style.background = "#ffffff";
 
         clone.querySelectorAll(".pagex-watermark img").forEach(function (img) {
           var configuredWidth = img.style.width || "160mm";
@@ -577,40 +1034,34 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
         }
 
         captureHost.innerHTML = "";
+        captureHost.style.opacity = "1";
+        captureHost.style.visibility = "visible";
+
         var clone = prepareCaptureClone(page, metrics);
+        prepareBodyImagesInClone(page, clone, metrics);
+        var skippedImages = await inlineImagesFromSourcePage(page, clone);
+        stripExternalImagesFromClone(clone);
         captureHost.appendChild(clone);
 
-        await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
+        await waitForDocumentFonts();
         await waitForImagesInNode(clone, 8000);
+        await waitForNextPaint();
 
-        var canvas = await window.html2canvas(clone, {
-          scale: 2,
-          width: metrics.widthPx,
-          height: metrics.heightPx,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: "#ffffff",
-          logging: false,
-          scrollX: 0,
-          scrollY: 0,
-          onclone: function (doc) {
-            var host = doc.getElementById("wordex-pdf-capture-host");
-            if (!host) return;
+        var restoreCaptureHostPosition = repositionCaptureHostForRendering(captureHost);
+        var canvas;
 
-            host.querySelectorAll("*").forEach(function (node) {
-              if (node.classList && node.classList.contains("pagex-watermark")) {
-                node.style.overflow = "visible";
-                return;
-              }
-
-              node.style.overflow = "hidden";
-              node.style.scrollbarWidth = "none";
-            });
-          }
-        });
+        try {
+          await waitForNextPaint();
+          canvas = await renderCaptureCanvas(clone, metrics, captureHost);
+        } finally {
+          restoreCaptureHostPosition();
+        }
 
         captureHost.innerHTML = "";
-        return canvas;
+        return {
+          canvas: canvas,
+          skippedImages: skippedImages
+        };
       }
 
       async function generatePdfFromPagexPages() {
@@ -630,8 +1081,9 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
           setStatus("Removida(s) " + (originalPageCount - pages.length) + " página(s) vazia(s) no final.");
         }
 
-        await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
+        await waitForDocumentFonts();
         await waitForImagesInNode(source, 10000);
+        await waitForNextPaint();
 
         var JsPDF = getJsPdfConstructor();
         if (!JsPDF || !window.html2canvas) {
@@ -646,12 +1098,26 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
           compress: true
         });
 
+        var omittedImages = [];
+
         for (var i = 0; i < pages.length; i++) {
           setStatus("Gerando PDF: página " + (i + 1) + " de " + pages.length + "...");
           var page = pages[i];
           var metrics = getPageMetrics(page);
-          var canvas = await capturePagexPage(page, metrics);
-          var imageData = canvas.toDataURL("image/jpeg", 0.95);
+          var captureResult = await capturePagexPage(page, metrics);
+          var canvas = captureResult.canvas;
+
+          (captureResult.skippedImages || []).forEach(function (src) {
+            if (omittedImages.indexOf(src) === -1) {
+              omittedImages.push(src);
+            }
+          });
+
+          var imageData = exportCanvasToJpegDataUrl(canvas);
+
+          if (!imageData) {
+            throw new Error("Não foi possível converter a página capturada para JPEG.");
+          }
 
           if (i > 0) {
             pdf.addPage(
@@ -666,7 +1132,16 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
         pdfBlob = pdf.output("blob");
         pdfDataUrl = URL.createObjectURL(pdfBlob);
         renderPdfViewer();
-        setStatus("PDF pronto.");
+
+        if (omittedImages.length) {
+          setStatus(
+            "PDF pronto (sem " +
+              omittedImages.length +
+              " imagem(ns) externa(s)). Para incluir logos: npm run embed-images → carregar JSON → Montar HTML."
+          );
+        } else {
+          setStatus("PDF pronto.");
+        }
       }
 
       bindActions();
