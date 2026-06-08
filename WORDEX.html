@@ -1241,14 +1241,12 @@
 <button aria-label="Parágrafo" class="ribbon-large" data-icon="¶" onclick="wordex.insertParagraph()" title="Parágrafo"></button>
 <button aria-label="Excluir" class="danger" data-icon="🗑" onclick="wordex.deleteSelectedParagraph()" title="Excluir"></button>
 <button aria-label="Imagem" class="wordex-toolbar-hidden" data-icon="▧" data-wordex-toolbar-context="json-image" onclick="wordex.insertDynamicImage()" title="Imagem (JSON)"></button>
-<select id="chartInsertType" class="small" title="Tipo do gráfico" aria-label="Tipo do gráfico">
-<option selected="" value="bar">Bar</option>
-<option value="line">Line</option>
-<option value="pie">Pie</option>
-<option value="doughnut">Doughnut</option>
+<select id="chartInsertType" class="small" title="Orientação do histograma" aria-label="Orientação do histograma" onchange="wordex.applyChartTypeFromToolbar()">
+<option selected="" value="bar">Vertical</option>
+<option value="hbar">Horizontal</option>
 </select>
-<button aria-label="Gráfico" data-icon="📊" onclick="wordex.insertChart()" title="Gráfico"></button>
-<button aria-label="Dados do gráfico" data-icon="▥" onclick="wordex.openChartDataDialog()" title="Dados do gráfico (selecione um gráfico)"></button>
+<button aria-label="Histograma" data-icon="📊" onclick="wordex.insertChart()" title="Histograma"></button>
+<button aria-label="Dados do histograma" data-icon="▥" onclick="wordex.openChartDataDialog()" title="Dados do histograma (selecione um histograma)"></button>
 <button aria-label="Textbox" data-icon="▤" onclick="wordex.insertTextbox()" title="Textbox"></button>
 <button aria-label="Tabela" data-icon="▦" onclick="wordex.insertTable()" title="Tabela"></button>
 <button aria-label="Configurar objeto" class="wordex-toolbar-hidden" data-icon="⚙" data-wordex-toolbar-context="object" onclick="wordex.configureSelectedObject()" title="Configurar objeto"></button>
@@ -3242,7 +3240,7 @@
         const paragraphElement = this.getSelectedObjectParagraphElement();
 
         if (!paragraphElement) {
-          alert("Selecione um parágrafo de objeto (imagem, gráfico ou tabela) para inserir o textbox.");
+          alert("Selecione um parágrafo de objeto (imagem, histograma ou tabela) para inserir o textbox.");
           return;
         }
 
@@ -3757,11 +3755,24 @@
       getSelectedChartInsertType() {
         const value = String(document.getElementById("chartInsertType")?.value || "bar").trim().toLowerCase();
 
-        if (["bar", "line", "pie", "doughnut"].includes(value)) {
+        if (["bar", "hbar"].includes(value)) {
           return value;
         }
 
         return "bar";
+      }
+
+      applyChartTypeFromToolbar() {
+        const chartBox = this.getLiveSelectedObject?.();
+
+        if (!chartBox?.matches?.(".wordex-chart-box")) {
+          return;
+        }
+
+        chartBox.dataset.chartType = this.getSelectedChartInsertType();
+        this.updateChartBoxPresentation(chartBox);
+        this.syncObjectAfterChange(chartBox);
+        this.selectObject(chartBox);
       }
 
       getChartTextStyle(chartBox) {
@@ -3905,7 +3916,7 @@
       }
 
       getChartValueLabelGapPx() {
-        return 2;
+        return 5;
       }
 
       getChartMinBarWidthForValueLabelPx() {
@@ -4163,6 +4174,8 @@
           let anchorY = 0;
           let spanViewbox = defaultSpanViewbox;
 
+          const isHorizontalBar = !isLinePoint && anchor.dataset.horizontal === "1";
+
           if (isLinePoint) {
             centerX = Number(anchor.getAttribute("cx")) || 0;
             const pointY = Number(anchor.getAttribute("cy")) || 0;
@@ -4171,17 +4184,29 @@
             const barX = Number(anchor.getAttribute("x")) || 0;
             const barWidth = Number(anchor.getAttribute("width")) || 0;
             const barY = Number(anchor.getAttribute("y")) || 0;
+            const barHeight = Number(anchor.getAttribute("height")) || 0;
 
-            centerX = barX + barWidth / 2;
-            anchorY = isNegative && Number.isFinite(zeroY) ? zeroY : barY;
-            spanViewbox = barWidth;
+            if (isHorizontalBar) {
+              /*
+                v39: no histograma horizontal, os valores ficam relativos ao eixo zero.
+                Positivos à esquerda do eixo; negativos à direita do eixo.
+                Aqui zeroY contém o eixo X do histograma horizontal.
+              */
+              centerX = Number.isFinite(zeroY) ? zeroY : (isNegative ? barX + barWidth : barX);
+              anchorY = barY + barHeight / 2;
+              spanViewbox = barHeight;
+            } else {
+              centerX = barX + barWidth / 2;
+              anchorY = isNegative && Number.isFinite(zeroY) ? zeroY : barY;
+              spanViewbox = barWidth;
+            }
           }
 
           const spanPx = this.measureViewBoxDistancePx(
             svg,
             preview,
             Number.isFinite(spanViewbox) ? spanViewbox : 20,
-            0
+            isHorizontalBar ? spanViewbox : 0
           );
           const mapped = this.mapChartViewBoxToPreview(svg, preview, centerX, anchorY);
 
@@ -4193,26 +4218,35 @@
             return;
           }
 
-          const position = this.formatChartOverlayPosition(mapped);
-
-          label.style.left = position.left;
-
-          if (mapped.unit === "percent") {
-            const gapViewBox = 1.5;
-            const anchorMapped = this.mapChartViewBoxToPreview(
-              svg,
-              preview,
-              centerX,
-              Math.max(0, anchorY - gapViewBox)
-            );
-            const anchorPosition = this.formatChartOverlayPosition(anchorMapped);
-
-            label.style.top = anchorPosition?.top || position.top;
+          if (isHorizontalBar) {
+            label.style.transform = "translate(0, -50%)";
+            label.style.transformOrigin = "left center";
+            label.style.left = `${mapped.left + (isNegative ? gapPx : -gapPx - label.offsetWidth)}px`;
+            label.style.top = `${mapped.top}px`;
           } else {
-            const rotatedVisualHeight = label.offsetWidth || 0;
-            const labelCenterY = mapped.top - gapPx - rotatedVisualHeight / 2;
+            label.style.transform = "translate(-50%, -50%) rotate(270deg)";
+            label.style.transformOrigin = "center center";
+            const position = this.formatChartOverlayPosition(mapped);
 
-            label.style.top = `${labelCenterY}px`;
+            label.style.left = position.left;
+
+            if (mapped.unit === "percent") {
+              const gapViewBox = 1.5;
+              const anchorMapped = this.mapChartViewBoxToPreview(
+                svg,
+                preview,
+                centerX,
+                Math.max(0, anchorY - gapViewBox)
+              );
+              const anchorPosition = this.formatChartOverlayPosition(anchorMapped);
+
+              label.style.top = anchorPosition?.top || position.top;
+            } else {
+              const rotatedVisualHeight = label.offsetWidth || 0;
+              const labelCenterY = mapped.top - gapPx - rotatedVisualHeight / 2;
+
+              label.style.top = `${labelCenterY}px`;
+            }
           }
 
           if (!this.shouldShowChartBarValueLabel(label, spanPx)) {
@@ -4248,8 +4282,18 @@
 
           const position = this.formatChartOverlayPosition(mapped);
 
-          label.style.left = position.left;
-          label.style.top = position.top;
+          if (label.dataset.horizontal === "1") {
+            label.style.left = position.left;
+            label.style.top = position.top;
+            label.style.transform = "translate(-100%, -50%)";
+            label.style.transformOrigin = "right center";
+            label.style.maxWidth = "9em";
+          } else {
+            label.style.left = position.left;
+            label.style.top = position.top;
+            label.style.transform = "translate(-50%, 0)";
+            label.style.transformOrigin = "center top";
+          }
         });
       }
 
@@ -4364,6 +4408,101 @@
           plotBottomLimit,
           axisY: zeroY,
           groupWidth
+        };
+      }
+
+
+      computeHorizontalBarChartLayout(chartData, chartStyle = null, seriesColors = null) {
+        const payload = this.normalizeChartPayload(chartData);
+        const categoryLabels = this.getChartCategoryLabels(chartData);
+        const categoryCount = Math.max(categoryLabels.length, payload?.Items?.length || 0, 1);
+        const seriesCount = this.getChartSeriesCount(chartData);
+        const barSeriesColors = Array.isArray(seriesColors) && seriesColors.length
+          ? seriesColors
+          : this.getDefaultChartSeriesColors();
+        const plotLeft = 42;
+        const plotRight = 208;
+        const plotWidth = plotRight - plotLeft;
+        const plotTop = 8;
+        const plotBottomLimit = this.getChartPlotBottomLimit();
+        const availableHeight = plotBottomLimit - plotTop;
+        const groupGap = 5;
+        const innerGap = 1.4;
+        const allValues = this.getAllChartNumericValues(chartData);
+        const maxPositive = Math.max(0, ...allValues, 0);
+        const maxNegative = Math.abs(Math.min(0, ...allValues, 0));
+        let zeroX = plotLeft;
+        let posBarWidth = plotWidth;
+        let negBarWidth = 0;
+
+        if (maxNegative > 0 && maxPositive > 0) {
+          negBarWidth = plotWidth * (maxNegative / (maxPositive + maxNegative));
+          posBarWidth = plotWidth - negBarWidth;
+          zeroX = plotLeft + negBarWidth;
+        } else if (maxNegative > 0) {
+          zeroX = plotRight;
+          posBarWidth = 0;
+          negBarWidth = plotWidth;
+        }
+
+        const scalePositive = maxPositive > 0 ? maxPositive : 1;
+        const scaleNegative = maxNegative > 0 ? maxNegative : 1;
+        const availableGroupHeight = availableHeight - groupGap * (categoryCount + 1);
+        const groupHeight = availableGroupHeight / categoryCount;
+        const barHeight = Math.max(2, (groupHeight - innerGap * Math.max(seriesCount - 1, 0)) / seriesCount);
+        const bars = [];
+        const valueLabels = [];
+
+        for (let categoryIndex = 0; categoryIndex < categoryCount; categoryIndex++) {
+          const groupY = plotTop + groupGap + categoryIndex * (groupHeight + groupGap);
+          const item = payload?.Items?.[categoryIndex] || { values: [] };
+
+          for (let seriesIndex = 0; seriesIndex < seriesCount; seriesIndex++) {
+            const cell = item.values?.[seriesIndex] || { value: 0 };
+            const value = this.toChartNumericValue(cell.value);
+            let width = 0;
+            let x = zeroX;
+            let negativeAttr = "";
+
+            if (value > 0) {
+              width = Math.max(1, posBarWidth * value / scalePositive);
+              x = zeroX;
+            } else if (value < 0) {
+              width = Math.max(1, negBarWidth * Math.abs(value) / scaleNegative);
+              x = zeroX - width;
+              negativeAttr = ' data-negative="1"';
+            }
+
+            bars.push(
+              `<rect class="wordex-chart-bar" data-horizontal="1" data-series-index="${seriesIndex}"${negativeAttr} x="${x}" y="${groupY + seriesIndex * (barHeight + innerGap)}" width="${width}" height="${barHeight}" fill="${barSeriesColors[seriesIndex % barSeriesColors.length]}"><title>${this.escapeHtml(this.formatChartNumericTooltip(value))}</title></rect>`
+            );
+
+            valueLabels.push(this.getChartBarValueLabel(cell));
+          }
+        }
+
+        const categoryLabelSpecs = categoryLabels.map((label, index) => {
+          if (!label) {
+            return null;
+          }
+
+          const groupY = plotTop + groupGap + index * (groupHeight + groupGap);
+          const y = groupY + groupHeight / 2;
+
+          return { label, x: plotLeft - 3, y, horizontal: true };
+        }).filter(Boolean);
+
+        return {
+          bars,
+          valueLabels,
+          categoryLabelSpecs,
+          plotLeft,
+          plotRight,
+          plotTop,
+          plotBottomLimit,
+          axisY: zeroX,
+          axisX: zeroX,
+          groupWidth: groupHeight
         };
       }
 
@@ -4587,7 +4726,7 @@
 
         const chartType = String(chartBox.dataset.chartType || "bar").trim().toLowerCase();
 
-        if (typeSelect && ["bar", "line", "pie", "doughnut"].includes(chartType)) {
+        if (typeSelect && ["bar", "hbar"].includes(chartType)) {
           typeSelect.value = chartType;
         }
 
@@ -4608,7 +4747,7 @@
           fontColor.value = this.normalizeColorForInput(style.color);
         }
 
-        if (chartType !== "bar" && chartType !== "line") {
+        if (chartType !== "bar" && chartType !== "hbar") {
           return;
         }
 
@@ -4795,7 +4934,7 @@
       }
 
       applyChartSeriesColor(chartBox, seriesIndex, color) {
-        if (!chartBox?.matches?.(".wordex-chart-box") || !["bar", "line"].includes(chartBox.dataset.chartType)) {
+        if (!chartBox?.matches?.(".wordex-chart-box") || !["bar", "hbar"].includes(chartBox.dataset.chartType)) {
           return;
         }
 
@@ -4827,7 +4966,7 @@
       }
 
       bindChartBarSeriesInteraction(chartBox) {
-        if (!chartBox?.matches?.(".wordex-chart-box") || !["bar", "line"].includes(chartBox.dataset.chartType)) {
+        if (!chartBox?.matches?.(".wordex-chart-box") || !["bar", "hbar"].includes(chartBox.dataset.chartType)) {
           return;
         }
 
@@ -4870,7 +5009,7 @@
 
       insertTextbox() {
         if (!this.getSelectedObjectParagraphElement()) {
-          alert("Selecione um parágrafo de objeto (imagem, gráfico ou tabela) para inserir o textbox.");
+          alert("Selecione um parágrafo de objeto (imagem, histograma ou tabela) para inserir o textbox.");
           return;
         }
 
@@ -4883,13 +5022,13 @@
       }
 
       askChartType(defaultValue) {
-        const value = prompt("Tipo do gráfico: bar, line, pie ou doughnut", defaultValue);
+        const value = prompt("Orientação do histograma: bar, line, pie ou doughnut", defaultValue);
 
         if (!value) return null;
 
         const chartType = value.trim().toLowerCase();
 
-        if (!["bar", "line", "pie", "doughnut"].includes(chartType)) {
+        if (!["bar", "hbar"].includes(chartType)) {
           alert("Tipo inválido. Use bar, line, pie ou doughnut.");
           return null;
         }
@@ -5052,9 +5191,9 @@
         let valueLabelsHtml = "";
         let categoryLabelsHtml = "";
 
-        if (chartData && (chartType === "bar" || chartType === "line")) {
-          const layout = chartType === "line"
-            ? this.computeLineChartLayout(chartData, chartStyle, seriesColors)
+        if (chartData && (chartType === "bar" || chartType === "hbar")) {
+          const layout = chartType === "hbar"
+            ? this.computeHorizontalBarChartLayout(chartData, chartStyle, seriesColors)
             : this.computeBarChartLayout(chartData, chartStyle, seriesColors);
           const seriesCount = this.getChartSeriesCount(chartData);
           valueLabelsHtml = this.buildChartBarValueLabelsPanelHtml(
@@ -5067,7 +5206,7 @@
           categoryLabelsHtml = this.buildChartCategoryLabelsPanelHtml(layout.categoryLabelSpecs, chartStyle);
         }
 
-        if (chartData && (chartType === "bar" || chartType === "line") && this.getChartSeriesCount(chartData) >= 2) {
+        if (chartData && (chartType === "bar" || chartType === "hbar") && this.getChartSeriesCount(chartData) >= 2) {
           const seriesLabels = this.getChartSeriesLabels(chartData);
           const colors = Array.isArray(seriesColors) && seriesColors.length
             ? seriesColors
@@ -5087,28 +5226,15 @@
       }
 
       generateChartSvg(chartType) {
-        if (chartType === "line") {
+        if (chartType === "hbar") {
           return `
             <svg viewBox="0 0 220 100" preserveAspectRatio="none">
-              <polyline points="14,82 48,52 84,66 120,24 156,42 192,12 208,22"
-                fill="none" stroke="#555" stroke-width="4" />
-              <line x1="14" y1="90" x2="208" y2="90" stroke="#bbb" stroke-width="1" />
-              <line x1="14" y1="8" x2="14" y2="90" stroke="#bbb" stroke-width="1" />
-            </svg>
-          `;
-        }
-
-        if (chartType === "pie" || chartType === "doughnut") {
-          const hole = chartType === "doughnut"
-            ? '<circle cx="110" cy="50" r="22" fill="#fafafa"></circle>'
-            : "";
-
-          return `
-            <svg viewBox="0 0 220 100">
-              <circle cx="110" cy="50" r="42" fill="#ddd"></circle>
-              <path d="M110 50 L110 8 A42 42 0 0 1 150 63 Z" fill="#aaa"></path>
-              <path d="M110 50 L150 63 A42 42 0 0 1 78 78 Z" fill="#c8c8c8"></path>
-              ${hole}
+              <rect x="42" y="14" width="72" height="10" fill="#bbb"></rect>
+              <rect x="42" y="31" width="118" height="10" fill="#999"></rect>
+              <rect x="42" y="48" width="54" height="10" fill="#ccc"></rect>
+              <rect x="42" y="65" width="148" height="10" fill="#888"></rect>
+              <line x1="42" y1="8" x2="42" y2="84" stroke="#777" stroke-width="1"></line>
+              <line x1="42" y1="84" x2="208" y2="84" stroke="#aaa" stroke-width="1"></line>
             </svg>
           `;
         }
@@ -5426,12 +5552,12 @@
         const chartBox = this.selectedObject;
 
         if (!chartBox?.matches?.(".wordex-chart-box")) {
-          alert("Selecione um gráfico.");
+          alert("Selecione um histograma.");
           return;
         }
 
         if (this.hasChartMacroSource(chartBox)) {
-          alert("Este gráfico usa macro JSON. Na montagem, os dados vêm da macro e não desta tabela.");
+          alert("Este histograma usa macro JSON. Na montagem, os dados vêm da macro e não desta tabela.");
           return;
         }
 
@@ -5442,7 +5568,7 @@
         backdrop.className = "wordex-chart-data-dialog-backdrop";
         backdrop.innerHTML = `
           <div class="wordex-chart-data-dialog" role="dialog" aria-modal="true" aria-labelledby="wordex-chart-data-title">
-            <h2 id="wordex-chart-data-title">Dados do gráfico</h2>
+            <h2 id="wordex-chart-data-title">Dados do histograma</h2>
             <div class="wordex-chart-data-dialog-fields">
               <label>Campo categoria
                 <input type="text" id="wordexChartDialogCategoryField" value="${this.escapeHtml(model.categoryField)}" />
@@ -5708,43 +5834,16 @@
       }
 
       generateChartSvgFromData(chartType, chartData, chartStyle = null, seriesColors = null) {
-        if (chartType === "line") {
-          const layout = this.computeLineChartLayout(chartData, chartStyle, seriesColors);
+        if (chartType === "hbar") {
+          const layout = this.computeHorizontalBarChartLayout(chartData, chartStyle, seriesColors);
 
           return `
             <svg viewBox="0 0 220 100" preserveAspectRatio="xMidYMid meet">
-              ${layout.lines.join("")}
-              ${layout.markers.join("")}
-              <line x1="${layout.plotLeft}" y1="${layout.axisY}" x2="${layout.plotRight}" y2="${layout.axisY}" stroke="#777" stroke-width="1"></line>
-              <line x1="${layout.plotLeft}" y1="${layout.plotTop}" x2="${layout.plotLeft}" y2="${layout.plotBottomLimit}" stroke="#aaa" stroke-width="1"></line>
+              ${layout.bars.join("")}
+              <line x1="${layout.axisX}" y1="${layout.plotTop}" x2="${layout.axisX}" y2="${layout.plotBottomLimit}" stroke="#777" stroke-width="1"></line>
+              <line x1="${layout.plotLeft}" y1="${layout.plotBottomLimit}" x2="${layout.plotRight}" y2="${layout.plotBottomLimit}" stroke="#aaa" stroke-width="1"></line>
             </svg>
           `;
-        }
-
-        const values = this.getChartSeriesValues(chartData, 0);
-
-        if (chartType === "pie" || chartType === "doughnut") {
-          const total = values.reduce((sum, value) => sum + value, 0) || 1;
-          let angle = -Math.PI / 2;
-          const cx = 110;
-          const cy = 50;
-          const radius = 42;
-          const colors = ["#888", "#aaa", "#bbb", "#999", "#777", "#ccc"];
-          const slices = values.map((value, index) => {
-            const sliceAngle = (value / total) * Math.PI * 2;
-            const x1 = cx + Math.cos(angle) * radius;
-            const y1 = cy + Math.sin(angle) * radius;
-            angle += sliceAngle;
-            const x2 = cx + Math.cos(angle) * radius;
-            const y2 = cy + Math.sin(angle) * radius;
-            const largeArc = sliceAngle > Math.PI ? 1 : 0;
-            return `<path d="M${cx} ${cy} L${x1} ${y1} A${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z" fill="${colors[index % colors.length]}"></path>`;
-          }).join("");
-          const hole = chartType === "doughnut"
-            ? `<circle cx="${cx}" cy="${cy}" r="22" fill="#fafafa"></circle>`
-            : "";
-
-          return `<svg viewBox="0 0 220 100">${slices}${hole}</svg>`;
         }
 
         const layout = this.computeBarChartLayout(chartData, chartStyle, seriesColors);
@@ -6238,7 +6337,7 @@
         /*
           Se já existe objeto selecionado dentro do parágrafo, o novo objeto
           deve ser inserido DEPOIS dele, nunca dentro dele.
-          Isso evita tabela/imagem/gráfico invadindo o gráfico anterior.
+          Isso evita tabela/imagem/histograma invadindo o histograma anterior.
         */
         if (this.selectedObject && paragraphElement.contains(this.selectedObject)) {
           range = document.createRange();
@@ -6278,7 +6377,7 @@
 
         /*
           Mantém um ponto de edição depois do objeto, fora da caixa.
-          Isso evita que o próximo objeto seja inserido dentro do gráfico/imagem.
+          Isso evita que o próximo objeto seja inserido dentro do histograma/imagem.
         */
         const afterObjectAnchor = document.createTextNode("\u200B");
         node.after(afterObjectAnchor);
@@ -7264,7 +7363,7 @@
         }
 
         if (!this.selectedObject) {
-          alert("Selecione uma imagem, gráfico, textbox ou tabela.");
+          alert("Selecione uma imagem, histograma, textbox ou tabela.");
           return;
         }
 
@@ -7307,7 +7406,7 @@
 
       configureSelectedObject() {
         if (!this.selectedObject) {
-          alert("Selecione uma imagem, gráfico, textbox ou tabela.");
+          alert("Selecione uma imagem, histograma, textbox ou tabela.");
           return;
         }
 
@@ -7871,7 +7970,7 @@
         if (!element) return;
 
         /*
-          v242: borda precisa funcionar também em textbox, imagem, gráfico e
+          v242: borda precisa funcionar também em textbox, imagem, histograma e
           parágrafo. Alguns desses elementos possuem borda/outline definidos no
           CSS do editor; por isso usamos setProperty(..., "important") para que
           a escolha do usuário prevaleça visualmente e também no HTML salvo.
@@ -8241,7 +8340,7 @@
         const target = this.getCurrentMarginTarget();
 
         if (!target) {
-          alert("Selecione um parágrafo, imagem, gráfico, textbox ou a tabela inteira para alterar a margem.");
+          alert("Selecione um parágrafo, imagem, histograma, textbox ou a tabela inteira para alterar a margem.");
           return;
         }
 
@@ -8507,7 +8606,7 @@
         /*
           Se o objeto encontrado for a própria tabela dona da célula,
           não é objeto interno: deixa o fluxo normal selecionar célula/tabela.
-          Imagem, gráfico, textbox e tabela aninhada dentro da célula devem
+          Imagem, histograma, textbox e tabela aninhada dentro da célula devem
           poder ser selecionados para configurar/redimensionar.
         */
         if (ownerTable && object === ownerTable) {
@@ -10823,7 +10922,7 @@
         /*
           Defesa extra:
           Ctrl+setas nunca pode mover um objeto para dentro de outro objeto.
-          O caso que causava invasão era texto interno do gráfico sendo usado
+          O caso que causava invasão era texto interno do histograma sendo usado
           como ponto de inserção.
         */
         const parentElement = parent.nodeType === Node.ELEMENT_NODE
@@ -10904,7 +11003,7 @@
 
       deleteSelectedObject() {
         if (!this.selectedObject) {
-          alert("Selecione uma imagem, gráfico, textbox ou tabela.");
+          alert("Selecione uma imagem, histograma, textbox ou tabela.");
           return;
         }
 
@@ -11089,7 +11188,7 @@
       getCleanInnerHtml(paragraphElement) {
         /*
           Tabelas (contenteditable=false dentro do parágrafo) por vezes não entram
-          de forma fiável no innerHTML do clone. Imagem/gráfico não têm esse problema.
+          de forma fiável no innerHTML do clone. Imagem/histograma não têm esse problema.
         */
         if (paragraphElement.querySelector("table.wordex-table")) {
           return this.serializeParagraphInlineObjects(paragraphElement);
@@ -13889,7 +13988,7 @@
         const fields = this.getMacroFieldsForCollection(collectionName, options);
         const { mode } = this.normalizeMacroFieldOptions(options);
 
-        fieldSelect.innerHTML = `<option value="">${mode === "chart" ? "Gráfico" : "Campo"}</option>`;
+        fieldSelect.innerHTML = `<option value="">${mode === "chart" ? "Histograma" : "Campo"}</option>`;
 
         fields.forEach(fieldName => {
           const option = document.createElement("option");

@@ -779,10 +779,6 @@ body.wordex-generated-report .wordex-chart-value-label {
         var labels = Array.prototype.slice.call(panel.querySelectorAll(".wordex-chart-value-label"));
         var zeroY = Number(panel.dataset.viewboxZeroY);
         var defaultSpanViewbox = Number(panel.dataset.anchorSpanViewbox);
-        /*
-          v36: distância real entre a extremidade do rótulo rotacionado
-          e o topo da barra/eixo X. Não posiciona o centro do texto no eixo.
-        */
         var chartValueLabelGapPx = 5;
 
         if (!anchors.length || anchors.length !== labels.length) {
@@ -798,8 +794,6 @@ body.wordex-generated-report .wordex-chart-value-label {
           label.style.textAlign = "center";
           label.style.writingMode = "horizontal-tb";
           label.style.textOrientation = "mixed";
-          label.style.transform = "translate(-50%, -50%) rotate(270deg)";
-          label.style.transformOrigin = "center center";
         });
 
         anchors.forEach(function (anchor, index) {
@@ -811,6 +805,7 @@ body.wordex-generated-report .wordex-chart-value-label {
           var spanViewbox = defaultSpanViewbox;
           var isLinePoint = anchor.classList.contains("wordex-chart-line-point");
           var isNegative = anchor.dataset.negative === "1";
+          var isHorizontalBar = !isLinePoint && anchor.dataset.horizontal === "1";
 
           if (isLinePoint) {
             centerX = Number(anchor.getAttribute("cx")) || 0;
@@ -820,22 +815,40 @@ body.wordex-generated-report .wordex-chart-value-label {
             var barX = Number(anchor.getAttribute("x")) || 0;
             var barWidth = Number(anchor.getAttribute("width")) || 0;
             var barY = Number(anchor.getAttribute("y")) || 0;
+            var barHeight = Number(anchor.getAttribute("height")) || 0;
 
-            centerX = barX + barWidth / 2;
-            anchorY = isNegative && Number.isFinite(zeroY) ? zeroY : barY;
-            spanViewbox = barWidth;
+            if (isHorizontalBar) {
+              /*
+                v39: no histograma horizontal, os valores ficam relativos ao eixo zero.
+                Positivos à esquerda do eixo; negativos à direita do eixo.
+                Aqui zeroY contém o eixo X do histograma horizontal.
+              */
+              centerX = Number.isFinite(zeroY) ? zeroY : (isNegative ? barX + barWidth : barX);
+              anchorY = barY + barHeight / 2;
+              spanViewbox = barHeight;
+            } else {
+              centerX = barX + barWidth / 2;
+              anchorY = isNegative && Number.isFinite(zeroY) ? zeroY : barY;
+              spanViewbox = barWidth;
+            }
           }
 
-          /*
-            v33: posição pelo viewBox real renderizado dentro do preview.
-            Corrige o espaço morto criado por preserveAspectRatio="xMidYMid meet".
-          */
           var mapped = mapChartViewBoxToPreviewBox(svg, preview, centerX, anchorY);
-          var rotatedVisualHeight = label.offsetWidth || 0;
-          var offsetPx = rotatedVisualHeight / 2 + chartValueLabelGapPx;
 
-          label.style.left = mapped.left + "px";
-          label.style.top = (mapped.top - offsetPx) + "px";
+          if (isHorizontalBar) {
+            label.style.transform = "translate(0, -50%)";
+            label.style.transformOrigin = "left center";
+            label.style.left = (mapped.left + (isNegative ? chartValueLabelGapPx : -chartValueLabelGapPx - label.offsetWidth)) + "px";
+            label.style.top = mapped.top + "px";
+          } else {
+            label.style.transform = "translate(-50%, -50%) rotate(270deg)";
+            label.style.transformOrigin = "center center";
+            var rotatedVisualHeight = label.offsetWidth || 0;
+            var offsetPx = rotatedVisualHeight / 2 + chartValueLabelGapPx;
+
+            label.style.left = mapped.left + "px";
+            label.style.top = (mapped.top - offsetPx) + "px";
+          }
 
           var spanPx = Number.isFinite(spanViewbox) ? spanViewbox * mapped.scale : 20 * mapped.scale;
           var bounds = label.getBoundingClientRect();
@@ -869,8 +882,15 @@ body.wordex-generated-report .wordex-chart-value-label {
           label.style.position = "absolute";
           label.style.left = mapped.left + "px";
           label.style.top = mapped.top + "px";
-          label.style.transform = "translate(-50%, 0)";
-          label.style.transformOrigin = "center top";
+
+          if (label.dataset.horizontal === "1") {
+            label.style.transform = "translate(-100%, -50%)";
+            label.style.transformOrigin = "right center";
+            label.style.maxWidth = "9em";
+          } else {
+            label.style.transform = "translate(-50%, 0)";
+            label.style.transformOrigin = "center top";
+          }
         });
       }
 
