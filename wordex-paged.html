@@ -720,6 +720,52 @@ body.wordex-generated-report .wordex-chart-value-label {
         return (Number(widthViewBox) || 0) * rect.width / viewBox.width;
       }
 
+      function getChartViewBoxRenderedRect(svg, preview) {
+        var viewBox = getChartSvgViewBox(svg);
+        var previewRect = preview ? preview.getBoundingClientRect() : null;
+
+        if (!previewRect || !viewBox.width || !viewBox.height) {
+          return {
+            left: 0,
+            top: 0,
+            width: preview ? preview.clientWidth : 0,
+            height: preview ? preview.clientHeight : 0,
+            scale: 1,
+            viewBox: viewBox
+          };
+        }
+
+        /*
+          O SVG usa preserveAspectRatio="xMidYMid meet".
+          Portanto, quando o preview é mais alto que o viewBox, sobra uma
+          faixa vertical em cima/baixo. Percentual puro ignora essa faixa e
+          joga os labels para longe das barras.
+        */
+        var scale = Math.min(previewRect.width / viewBox.width, previewRect.height / viewBox.height);
+        var renderedWidth = viewBox.width * scale;
+        var renderedHeight = viewBox.height * scale;
+
+        return {
+          left: (previewRect.width - renderedWidth) / 2,
+          top: (previewRect.height - renderedHeight) / 2,
+          width: renderedWidth,
+          height: renderedHeight,
+          scale: scale,
+          viewBox: viewBox
+        };
+      }
+
+      function mapChartViewBoxToPreviewBox(svg, preview, x, y) {
+        var box = getChartViewBoxRenderedRect(svg, preview);
+        var viewBox = box.viewBox;
+
+        return {
+          left: box.left + ((Number(x) - viewBox.x) * box.scale),
+          top: box.top + ((Number(y) - viewBox.y) * box.scale),
+          scale: box.scale
+        };
+      }
+
       function layoutChartBarValueLabels(chartBox) {
         var preview = chartBox ? chartBox.querySelector(".wordex-chart-preview") : null;
         var svg = preview ? preview.querySelector("svg") : null;
@@ -734,11 +780,10 @@ body.wordex-generated-report .wordex-chart-value-label {
         var zeroY = Number(panel.dataset.viewboxZeroY);
         var defaultSpanViewbox = Number(panel.dataset.anchorSpanViewbox);
         /*
-          v31: afastamento visual calibrado. Com rotate(270deg) + translate(-50%, -50%),
-          top representa o centro visual do rótulo; 2px deixava o texto encostar/entrar
-          na barra. 14px deixa o rótulo próximo, mas legível.
+          v36: distância real entre a extremidade do rótulo rotacionado
+          e o topo da barra/eixo X. Não posiciona o centro do texto no eixo.
         */
-        var gapPx = 14;
+        var chartValueLabelGapPx = 5;
 
         if (!anchors.length || anchors.length !== labels.length) {
           return;
@@ -757,56 +802,42 @@ body.wordex-generated-report .wordex-chart-value-label {
           label.style.transformOrigin = "center center";
         });
 
-        var previewRect = preview.getBoundingClientRect();
-        var svgRect = svg.getBoundingClientRect();
-        var viewBox = getChartSvgViewBox(svg);
-
-        function mapViewBoxYToPreviewPx(y) {
-          if (!viewBox.height || !svgRect.height) {
-            return 0;
-          }
-
-          return (svgRect.top - previewRect.top) + ((Number(y) - viewBox.y) / viewBox.height) * svgRect.height;
-        }
-
         anchors.forEach(function (anchor, index) {
           var label = labels[index];
           if (!label) return;
 
-          var anchorRect = anchor.getBoundingClientRect();
+          var centerX = 0;
+          var anchorY = 0;
+          var spanViewbox = defaultSpanViewbox;
           var isLinePoint = anchor.classList.contains("wordex-chart-line-point");
           var isNegative = anchor.dataset.negative === "1";
-          var spanViewbox = defaultSpanViewbox;
-
-          var centerX = anchorRect.left - previewRect.left + anchorRect.width / 2;
-          var anchorTopY = anchorRect.top - previewRect.top;
 
           if (isLinePoint) {
+            centerX = Number(anchor.getAttribute("cx")) || 0;
             var pointY = Number(anchor.getAttribute("cy")) || 0;
-            anchorTopY = isNegative && Number.isFinite(zeroY)
-              ? mapViewBoxYToPreviewPx(zeroY)
-              : mapViewBoxYToPreviewPx(pointY);
+            anchorY = isNegative && Number.isFinite(zeroY) ? zeroY : pointY;
           } else {
+            var barX = Number(anchor.getAttribute("x")) || 0;
             var barWidth = Number(anchor.getAttribute("width")) || 0;
-            spanViewbox = barWidth;
+            var barY = Number(anchor.getAttribute("y")) || 0;
 
-            if (isNegative && Number.isFinite(zeroY)) {
-              anchorTopY = mapViewBoxYToPreviewPx(zeroY);
-            }
+            centerX = barX + barWidth / 2;
+            anchorY = isNegative && Number.isFinite(zeroY) ? zeroY : barY;
+            spanViewbox = barWidth;
           }
 
           /*
-            v30: usa a geometria real do elemento já renderizado para Y.
-            O X também vem do retângulo real da barra/ponto. Assim a posição
-            acompanha qualquer redimensionamento final do SVG/página.
+            v33: posição pelo viewBox real renderizado dentro do preview.
+            Corrige o espaço morto criado por preserveAspectRatio="xMidYMid meet".
           */
-          label.style.left = centerX + "px";
-          label.style.top = (anchorTopY - gapPx) + "px";
+          var mapped = mapChartViewBoxToPreviewBox(svg, preview, centerX, anchorY);
+          var rotatedVisualHeight = label.offsetWidth || 0;
+          var offsetPx = rotatedVisualHeight / 2 + chartValueLabelGapPx;
 
-          var spanPx = isLinePoint
-            ? measureViewBoxWidthPx(svg, preview, Number.isFinite(spanViewbox) ? spanViewbox : 20)
-            : anchorRect.width;
+          label.style.left = mapped.left + "px";
+          label.style.top = (mapped.top - offsetPx) + "px";
 
+          var spanPx = Number.isFinite(spanViewbox) ? spanViewbox * mapped.scale : 20 * mapped.scale;
           var bounds = label.getBoundingClientRect();
           var labelSpanPx = Math.max(bounds.width, bounds.height, 1);
 
@@ -833,9 +864,11 @@ body.wordex-generated-report .wordex-chart-value-label {
             return;
           }
 
+          var mapped = mapChartViewBoxToPreviewBox(svg, preview, x, y);
+
           label.style.position = "absolute";
-          label.style.left = viewBoxPercentX(svg, x) + "%";
-          label.style.top = viewBoxPercentY(svg, y) + "%";
+          label.style.left = mapped.left + "px";
+          label.style.top = mapped.top + "px";
           label.style.transform = "translate(-50%, 0)";
           label.style.transformOrigin = "center top";
         });
