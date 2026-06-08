@@ -164,11 +164,35 @@
     #fontFamily { width: 112px; }
     #fontSize { width: 52px; }
 
-    #chartInsertType {
-      width: 72px;
-      min-width: 72px;
-      max-width: 72px;
-      padding: 2px 12px 2px 2px;
+    .toolbar-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      height: 22px;
+      min-height: 22px;
+      padding: 2px 6px;
+      border: 1px solid #bdbdbd;
+      border-radius: 3px;
+      background: #fff;
+      color: #222;
+      font-size: 10px;
+      line-height: 1;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .toolbar-check input[type="checkbox"] {
+      width: 12px;
+      height: 12px;
+      margin: 0;
+      cursor: pointer;
+    }
+
+    #chartMode {
+      width: 86px;
+      min-width: 86px;
+      max-width: 86px;
+      padding: 2px 18px 2px 5px;
       font-size: 10px;
     }
 
@@ -1241,12 +1265,7 @@
 <button aria-label="Parágrafo" class="ribbon-large" data-icon="¶" onclick="wordex.insertParagraph()" title="Parágrafo"></button>
 <button aria-label="Excluir" class="danger" data-icon="🗑" onclick="wordex.deleteSelectedParagraph()" title="Excluir"></button>
 <button aria-label="Imagem" class="wordex-toolbar-hidden" data-icon="▧" data-wordex-toolbar-context="json-image" onclick="wordex.insertDynamicImage()" title="Imagem (JSON)"></button>
-<select id="chartInsertType" class="small" title="Orientação do histograma" aria-label="Orientação do histograma" onchange="wordex.applyChartTypeFromToolbar()">
-<option selected="" value="bar">Vertical</option>
-<option value="hbar">Horizontal</option>
-</select>
 <button aria-label="Histograma" data-icon="📊" onclick="wordex.insertChart()" title="Histograma"></button>
-<button aria-label="Dados do histograma" data-icon="▥" onclick="wordex.openChartDataDialog()" title="Dados do histograma (selecione um histograma)"></button>
 <button aria-label="Textbox" data-icon="▤" onclick="wordex.insertTextbox()" title="Textbox"></button>
 <button aria-label="Tabela" data-icon="▦" onclick="wordex.insertTable()" title="Tabela"></button>
 <button aria-label="Configurar objeto" class="wordex-toolbar-hidden" data-icon="⚙" data-wordex-toolbar-context="object" onclick="wordex.configureSelectedObject()" title="Configurar objeto"></button>
@@ -1266,7 +1285,17 @@
 </select>
 </div>
 <div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="chart-bar">
-<span class="toolbar-title">Barras</span>
+<span class="toolbar-title">Histograma</span>
+<label class="toolbar-check" title="Histograma horizontal">
+<input id="chartHorizontal" type="checkbox" onchange="wordex.applyChartTypeFromToolbar()">
+<span>Horizontal</span>
+</label>
+<select id="chartMode" title="Modo do histograma" onchange="wordex.applyChartModeFromToolbar()">
+<option value="normal" selected>normal</option>
+<option value="stacked">acumulado</option>
+<option value="mixed">misto</option>
+</select>
+<button aria-label="Dados do histograma" data-icon="▥" onclick="wordex.openChartDataDialog()" title="Dados do histograma"></button>
 <span class="toolbar-label" id="chartSeriesColorLabel">Série</span>
 <input id="chartSeriesColor" onchange="wordex.applyChartSeriesColorFromToolbar(this.value)" type="color" value="#555555" title="Cor da série (clique numa barra para escolher a série)"/>
 </div>
@@ -3746,20 +3775,20 @@
 
       insertChart() {
         const chartType = this.getSelectedChartInsertType();
+        const chartMode = this.getSelectedChartMode();
+        const chartBox = this.createChartElement("", chartType, "left", "100mm", "60mm");
 
-        this.insertNodeAtCurrentInsertionPoint(
-          this.createChartElement("", chartType, "left", "100mm", "60mm")
-        );
+        chartBox.dataset.chartMode = chartMode;
+
+        this.insertNodeAtCurrentInsertionPoint(chartBox);
       }
 
       getSelectedChartInsertType() {
-        const value = String(document.getElementById("chartInsertType")?.value || "bar").trim().toLowerCase();
+        return document.getElementById("chartHorizontal")?.checked ? "hbar" : "bar";
+      }
 
-        if (["bar", "hbar"].includes(value)) {
-          return value;
-        }
-
-        return "bar";
+      getSelectedChartMode() {
+        return String(document.getElementById("chartMode")?.value || "normal");
       }
 
       applyChartTypeFromToolbar() {
@@ -3775,6 +3804,20 @@
         this.selectObject(chartBox);
       }
 
+
+
+      applyChartModeFromToolbar() {
+        const chartBox = this.getLiveSelectedObject?.();
+
+        if (!chartBox?.matches?.(".wordex-chart-box")) {
+          return;
+        }
+
+        chartBox.dataset.chartMode = this.getSelectedChartMode();
+        this.updateChartBoxPresentation(chartBox);
+        this.syncObjectAfterChange(chartBox);
+        this.selectObject(chartBox);
+      }
       getChartTextStyle(chartBox) {
         return {
           fontFamily: chartBox?.style?.fontFamily || "Arial",
@@ -4150,13 +4193,292 @@
           return;
         }
 
-        const anchors = svg.querySelectorAll(".wordex-chart-bar, .wordex-chart-line-point");
-        const labels = panel.querySelectorAll(".wordex-chart-value-label");
+        const anchors = Array.from(svg.querySelectorAll(".wordex-chart-bar, .wordex-chart-line-point"));
+        const labels = Array.from(panel.querySelectorAll(".wordex-chart-value-label"));
         const seriesCount = Number(panel.dataset.seriesCount) || 1;
         const zeroY = Number(panel.dataset.viewboxZeroY);
         const defaultSpanViewbox = Number(panel.dataset.anchorSpanViewbox);
 
         if (!anchors.length || anchors.length !== labels.length) {
+          return;
+        }
+
+        /*
+          v49: no histograma horizontal acumulado/misto, os percentuais não ficam
+          dentro dos segmentos. Eles viram uma pequena legenda percentual sobre
+          a própria barra/categoria, posicionada ao lado do eixo/barra:
+          - se houver positivo na categoria, fica à direita da maior extensão positiva;
+          - se só houver negativos, fica à esquerda da maior extensão negativa.
+        */
+        const hasHorizontalStacked = anchors.some(anchor =>
+          anchor.dataset.horizontal === "1" && anchor.dataset.stacked === "1"
+        );
+
+        if (hasHorizontalStacked) {
+          const gapPx = this.getChartValueLabelGapPx();
+          const slotPx = 42;
+          const categoryCount = Math.ceil(labels.length / Math.max(seriesCount, 1));
+
+          labels.forEach(label => {
+            label.classList.remove("is-hidden");
+            label.style.visibility = "visible";
+            label.style.position = "absolute";
+            label.style.display = "inline-block";
+            label.style.whiteSpace = "nowrap";
+            label.style.textAlign = "left";
+            label.style.writingMode = "horizontal-tb";
+            label.style.textOrientation = "mixed";
+            label.style.transform = "translate(0, -50%)";
+            label.style.transformOrigin = "left center";
+            label.style.margin = "0";
+            label.style.padding = "0";
+            label.style.lineHeight = "1";
+          });
+
+          for (let categoryIndex = 0; categoryIndex < categoryCount; categoryIndex++) {
+            const startIndex = categoryIndex * seriesCount;
+            const groupAnchors = anchors.slice(startIndex, startIndex + seriesCount);
+            const groupLabels = labels.slice(startIndex, startIndex + seriesCount);
+
+            const mappedRects = groupAnchors.map(anchor => {
+              if (!anchor || anchor.dataset.horizontal !== "1" || anchor.dataset.stacked !== "1") {
+                return null;
+              }
+
+              const x = Number(anchor.getAttribute("x")) || 0;
+              const y = Number(anchor.getAttribute("y")) || 0;
+              const width = Number(anchor.getAttribute("width")) || 0;
+              const height = Number(anchor.getAttribute("height")) || 0;
+              const leftPoint = this.mapChartViewBoxToPreview(svg, preview, x, y + height / 2);
+              const rightPoint = this.mapChartViewBoxToPreview(svg, preview, x + width, y + height / 2);
+              const topPoint = this.mapChartViewBoxToPreview(svg, preview, x, y);
+
+              if (!leftPoint || !rightPoint || !topPoint || leftPoint.unit !== "px" || rightPoint.unit !== "px" || topPoint.unit !== "px") {
+                return null;
+              }
+
+              return {
+                anchor,
+                left: Math.min(leftPoint.left, rightPoint.left),
+                right: Math.max(leftPoint.left, rightPoint.left),
+                centerTop: leftPoint.top,
+                top: topPoint.top,
+                negative: anchor.dataset.negative === "1"
+              };
+            }).filter(Boolean);
+
+            if (!mappedRects.length) {
+              groupLabels.forEach(label => label?.classList?.add("is-hidden"));
+              continue;
+            }
+
+            /*
+              A legenda percentual deve ficar sobre a barra, não dentro dela.
+              Sem afastamento vertical extra: encosta visualmente no topo da barra.
+            */
+            const top = Math.min(...mappedRects.map(item => item.top));
+            const zeroPoint = this.mapChartViewBoxToPreview(svg, preview, Number.isFinite(zeroY) ? zeroY : 0, 0);
+            const zeroX = zeroPoint && zeroPoint.unit === "px"
+              ? zeroPoint.left
+              : mappedRects.reduce((sum, item) => sum + (item.left + item.right) / 2, 0) / mappedRects.length;
+
+            /*
+              v52:
+              - percentuais positivos à direita do eixo, do primeiro para o último;
+              - percentuais negativos à esquerda do eixo, do último para o primeiro;
+              - quando houver positivos e negativos, mostra os dois lados.
+            */
+            const positiveLabelItems = [];
+            const negativeLabelItems = [];
+
+            groupLabels.forEach((label, seriesIndex) => {
+              const anchor = groupAnchors[seriesIndex];
+
+              if (!label || !anchor) {
+                return;
+              }
+
+              const item = { label, seriesIndex };
+
+              if (anchor.dataset.negative === "1") {
+                negativeLabelItems.push(item);
+              } else {
+                positiveLabelItems.push(item);
+              }
+            });
+
+            const labelGapPx = 16;
+            let positiveCursorX = zeroX + gapPx;
+
+            positiveLabelItems.forEach(item => {
+              const label = item.label;
+
+              label.classList.remove("is-hidden");
+              label.style.top = `${top}px`;
+              label.style.left = `${positiveCursorX}px`;
+              label.style.textAlign = "left";
+              label.style.transform = "translate(0, -100%)";
+
+              positiveCursorX += (label.offsetWidth || slotPx) + labelGapPx;
+            });
+
+            /*
+              Negativos: seguem a ordem visual da barra da esquerda para a direita.
+              O último percentual negativo fica com sua borda direita a 5px do eixo.
+            */
+            const negativeOrdered = negativeLabelItems.slice().reverse();
+            let negativeCursorRight = zeroX - gapPx;
+
+            negativeOrdered.slice().reverse().forEach(item => {
+              const label = item.label;
+              const width = label.offsetWidth || slotPx;
+
+              label.classList.remove("is-hidden");
+              label.style.top = `${top}px`;
+              label.style.left = `${negativeCursorRight - width}px`;
+              label.style.textAlign = "left";
+              label.style.transform = "translate(0, -100%)";
+
+              negativeCursorRight -= width + labelGapPx;
+            });
+          }
+
+          return;
+        }
+
+        const hasVerticalStacked = anchors.some(anchor =>
+          anchor.dataset.stacked === "1" && anchor.dataset.horizontal !== "1"
+        );
+
+        if (hasVerticalStacked) {
+          const gapPx = this.getChartValueLabelGapPx();
+          const labelGapPx = 16;
+          const categoryCount = Math.ceil(labels.length / Math.max(seriesCount, 1));
+
+          labels.forEach(label => {
+            label.classList.remove("is-hidden");
+            label.style.visibility = "visible";
+            label.style.position = "absolute";
+            label.style.display = "inline-block";
+            label.style.whiteSpace = "nowrap";
+            label.style.textAlign = "left";
+            label.style.writingMode = "horizontal-tb";
+            label.style.textOrientation = "mixed";
+            label.style.transform = "translate(0, -100%)";
+            label.style.transformOrigin = "left top";
+            label.style.margin = "0";
+            label.style.padding = "0";
+            label.style.lineHeight = "1";
+          });
+
+          for (let categoryIndex = 0; categoryIndex < categoryCount; categoryIndex++) {
+            const startIndex = categoryIndex * seriesCount;
+            const groupAnchors = anchors.slice(startIndex, startIndex + seriesCount);
+            const groupLabels = labels.slice(startIndex, startIndex + seriesCount);
+
+            const mappedRects = groupAnchors.map(anchor => {
+              if (!anchor || anchor.dataset.stacked !== "1" || anchor.dataset.horizontal === "1") {
+                return null;
+              }
+
+              const x = Number(anchor.getAttribute("x")) || 0;
+              const y = Number(anchor.getAttribute("y")) || 0;
+              const width = Number(anchor.getAttribute("width")) || 0;
+              const height = Number(anchor.getAttribute("height")) || 0;
+              const centerPoint = this.mapChartViewBoxToPreview(svg, preview, x + width / 2, y);
+              const bottomPoint = this.mapChartViewBoxToPreview(svg, preview, x + width / 2, y + height);
+
+              if (!centerPoint || !bottomPoint || centerPoint.unit !== "px" || bottomPoint.unit !== "px") {
+                return null;
+              }
+
+              return {
+                anchor,
+                x: centerPoint.left,
+                top: Math.min(centerPoint.top, bottomPoint.top),
+                bottom: Math.max(centerPoint.top, bottomPoint.top),
+                negative: anchor.dataset.negative === "1"
+              };
+            }).filter(Boolean);
+
+            if (!mappedRects.length) {
+              groupLabels.forEach(label => label?.classList?.add("is-hidden"));
+              continue;
+            }
+
+            const zeroPoint = this.mapChartViewBoxToPreview(svg, preview, 0, Number.isFinite(zeroY) ? zeroY : 0);
+            const zeroTop = zeroPoint && zeroPoint.unit === "px"
+              ? zeroPoint.top
+              : Math.max(...mappedRects.map(item => item.bottom));
+
+            const positiveRects = mappedRects.filter(item => !item.negative);
+            const negativeRects = mappedRects.filter(item => item.negative);
+            const positiveTop = positiveRects.length
+              ? Math.min(...positiveRects.map(item => item.top)) - gapPx
+              : zeroTop - gapPx;
+            const negativeTop = zeroTop - gapPx;
+            const baseX = mappedRects.reduce((sum, item) => sum + item.x, 0) / mappedRects.length;
+
+            const positiveLabelItems = [];
+            const negativeLabelItems = [];
+
+            groupLabels.forEach((label, seriesIndex) => {
+              const anchor = groupAnchors[seriesIndex];
+
+              if (!label || !anchor) {
+                return;
+              }
+
+              const item = { label, seriesIndex };
+
+              if (anchor.dataset.negative === "1") {
+                negativeLabelItems.push(item);
+              } else {
+                positiveLabelItems.push(item);
+              }
+            });
+
+            const placeCenteredRow = (items, top) => {
+              if (!items.length) {
+                return;
+              }
+
+              const widths = items.map(item => item.label.offsetWidth || slotPx);
+              const totalWidth = widths.reduce((sum, width) => sum + width, 0) + labelGapPx * Math.max(items.length - 1, 0);
+              let cursorX = baseX - totalWidth / 2;
+
+              items.forEach((item, index) => {
+                const label = item.label;
+
+                label.classList.remove("is-hidden");
+                label.style.top = `${top}px`;
+                label.style.left = `${cursorX}px`;
+                label.style.textAlign = "left";
+                label.style.transform = "translate(0, -100%)";
+
+                cursorX += widths[index] + labelGapPx;
+              });
+            };
+
+            /*
+              v55:
+              - se houver positivos e negativos na mesma categoria, a legenda completa
+                fica acima da barra positiva, a 5px do topo;
+              - nessa situação, os negativos aparecem do último para o primeiro
+                e depois entram os positivos.
+              Exemplo: 50% 33,3% 16,7%.
+            */
+            if (positiveLabelItems.length && negativeLabelItems.length) {
+              placeCenteredRow(
+                negativeLabelItems.slice().reverse().concat(positiveLabelItems),
+                positiveTop
+              );
+            } else {
+              placeCenteredRow(positiveLabelItems, positiveTop);
+              placeCenteredRow(negativeLabelItems.slice().reverse(), negativeTop);
+            }
+          }
+
           return;
         }
 
@@ -4187,12 +4509,10 @@
             const barHeight = Number(anchor.getAttribute("height")) || 0;
 
             if (isHorizontalBar) {
-              /*
-                v39: no histograma horizontal, os valores ficam relativos ao eixo zero.
-                Positivos à esquerda do eixo; negativos à direita do eixo.
-                Aqui zeroY contém o eixo X do histograma horizontal.
-              */
-              centerX = Number.isFinite(zeroY) ? zeroY : (isNegative ? barX + barWidth : barX);
+              const isStacked = anchor.dataset.stacked === "1";
+              centerX = isStacked
+                ? (isNegative ? barX : barX + barWidth)
+                : (Number.isFinite(zeroY) ? zeroY : (isNegative ? barX + barWidth : barX));
               anchorY = barY + barHeight / 2;
               spanViewbox = barHeight;
             } else {
@@ -4506,6 +4826,287 @@
         };
       }
 
+      getNormalizedChartMode(chartMode) {
+        const mode = String(chartMode || "normal").trim().toLowerCase();
+
+        if (["stacked", "mixed"].includes(mode)) {
+          return mode;
+        }
+
+        return "normal";
+      }
+
+      computeHistogramLayout(chartType, chartData, chartStyle = null, seriesColors = null, chartMode = "normal") {
+        const mode = this.getNormalizedChartMode(chartMode);
+
+        if (chartType === "hbar") {
+          return mode === "normal"
+            ? this.computeHorizontalBarChartLayout(chartData, chartStyle, seriesColors)
+            : this.computeHorizontalStackedBarChartLayout(chartData, chartStyle, seriesColors, mode);
+        }
+
+        return mode === "normal"
+          ? this.computeBarChartLayout(chartData, chartStyle, seriesColors)
+          : this.computeVerticalStackedBarChartLayout(chartData, chartStyle, seriesColors, mode);
+      }
+
+      getChartStackRange(chartData, mode = "stacked") {
+        const payload = this.normalizeChartPayload(chartData);
+        const items = Array.isArray(payload?.Items) ? payload.Items : [];
+        let min = 0;
+        let max = 0;
+
+        items.forEach(item => {
+          const values = Array.isArray(item?.values) ? item.values : [];
+
+          if (mode === "mixed") {
+            const positive = values.reduce((sum, cell) => {
+              const value = this.toChartNumericValue(cell?.value);
+              return value > 0 ? sum + value : sum;
+            }, 0);
+            const negative = values.reduce((sum, cell) => {
+              const value = this.toChartNumericValue(cell?.value);
+              return value < 0 ? sum + value : sum;
+            }, 0);
+
+            max = Math.max(max, positive);
+            min = Math.min(min, negative);
+            return;
+          }
+
+          let current = 0;
+          values.forEach(cell => {
+            current += this.toChartNumericValue(cell?.value);
+            max = Math.max(max, current);
+            min = Math.min(min, current);
+          });
+        });
+
+        if (max === 0 && min === 0) {
+          max = 1;
+        }
+
+        return { min, max };
+      }
+
+      getChartStackPercentLabel(cell, item, mode = "stacked") {
+        const value = this.toChartNumericValue(cell?.value);
+        const values = Array.isArray(item?.values) ? item.values : [];
+        const total = values.reduce((sum, currentCell) => {
+          return sum + Math.abs(this.toChartNumericValue(currentCell?.value));
+        }, 0);
+
+        if (!total || !Number.isFinite(total)) {
+          return "";
+        }
+
+        const percent = Math.abs(value) * 100 / total;
+        const rounded = Math.round(percent * 10) / 10;
+        const text = Number.isInteger(rounded)
+          ? String(rounded)
+          : String(rounded).replace(".", ",");
+
+        return text + "%";
+      }
+
+      mapChartStackValue(value, min, max, startPx, endPx) {
+        const range = max - min || 1;
+        const ratio = (value - min) / range;
+
+        return startPx + ratio * (endPx - startPx);
+      }
+
+      computeVerticalStackedBarChartLayout(chartData, chartStyle = null, seriesColors = null, chartMode = "stacked") {
+        const mode = this.getNormalizedChartMode(chartMode);
+        const payload = this.normalizeChartPayload(chartData);
+        const categoryLabels = this.getChartCategoryLabels(chartData);
+        const categoryCount = Math.max(categoryLabels.length, payload?.Items?.length || 0, 1);
+        const seriesCount = this.getChartSeriesCount(chartData);
+        const barSeriesColors = Array.isArray(seriesColors) && seriesColors.length
+          ? seriesColors
+          : this.getDefaultChartSeriesColors();
+        const plotLeft = 14;
+        const plotRight = 208;
+        const plotWidth = plotRight - plotLeft;
+        const groupGap = 12;
+        const plotTop = 8;
+        const categoryAnchorY = this.getChartCategoryLabelY();
+        const plotBottomLimit = this.getChartPlotBottomLimit();
+        const stackRange = this.getChartStackRange(chartData, mode);
+        const minValue = stackRange.min;
+        const maxValue = stackRange.max;
+        const zeroY = this.mapChartStackValue(0, minValue, maxValue, plotBottomLimit, plotTop);
+        const availableWidth = plotWidth - groupGap * (categoryCount + 1);
+        const groupWidth = availableWidth / categoryCount;
+        const barWidth = Math.max(3, groupWidth * 0.72);
+        const bars = [];
+        const valueLabels = [];
+
+        for (let categoryIndex = 0; categoryIndex < categoryCount; categoryIndex++) {
+          const groupX = plotLeft + groupGap + categoryIndex * (groupWidth + groupGap);
+          const item = payload?.Items?.[categoryIndex] || { values: [] };
+          const x = groupX + (groupWidth - barWidth) / 2;
+          let cumulative = 0;
+          let positiveBase = 0;
+          let negativeBase = 0;
+
+          for (let seriesIndex = 0; seriesIndex < seriesCount; seriesIndex++) {
+            const cell = item.values?.[seriesIndex] || { value: 0 };
+            const value = this.toChartNumericValue(cell.value);
+            let startValue = 0;
+            let endValue = 0;
+
+            if (mode === "mixed") {
+              if (value >= 0) {
+                startValue = positiveBase;
+                endValue = positiveBase + value;
+                positiveBase = endValue;
+              } else {
+                startValue = negativeBase;
+                endValue = negativeBase + value;
+                negativeBase = endValue;
+              }
+            } else {
+              startValue = cumulative;
+              endValue = cumulative + value;
+              cumulative = endValue;
+            }
+
+            const y1 = this.mapChartStackValue(startValue, minValue, maxValue, plotBottomLimit, plotTop);
+            const y2 = this.mapChartStackValue(endValue, minValue, maxValue, plotBottomLimit, plotTop);
+            const y = Math.min(y1, y2);
+            const height = Math.max(1, Math.abs(y2 - y1));
+            const negativeAttr = value < 0 ? ' data-negative="1"' : "";
+            const stackedAttr = ' data-stacked="1"';
+
+            bars.push(
+              `<rect class="wordex-chart-bar" data-series-index="${seriesIndex}"${negativeAttr}${stackedAttr} x="${x}" y="${y}" width="${barWidth}" height="${height}" fill="${barSeriesColors[seriesIndex % barSeriesColors.length]}"><title>${this.escapeHtml(this.formatChartNumericTooltip(value))}</title></rect>`
+            );
+            valueLabels.push(this.getChartStackPercentLabel(cell, item, mode));
+          }
+        }
+
+        const categoryLabelSpecs = categoryLabels.map((label, index) => {
+          if (!label) {
+            return null;
+          }
+
+          const groupX = plotLeft + groupGap + index * (groupWidth + groupGap);
+          const x = groupX + groupWidth / 2;
+
+          return { label, x, y: categoryAnchorY };
+        }).filter(Boolean);
+
+        return {
+          bars,
+          valueLabels,
+          categoryLabelSpecs,
+          plotLeft,
+          plotRight,
+          plotTop,
+          plotBottomLimit,
+          axisY: zeroY,
+          groupWidth
+        };
+      }
+
+      computeHorizontalStackedBarChartLayout(chartData, chartStyle = null, seriesColors = null, chartMode = "stacked") {
+        const mode = this.getNormalizedChartMode(chartMode);
+        const payload = this.normalizeChartPayload(chartData);
+        const categoryLabels = this.getChartCategoryLabels(chartData);
+        const categoryCount = Math.max(categoryLabels.length, payload?.Items?.length || 0, 1);
+        const seriesCount = this.getChartSeriesCount(chartData);
+        const barSeriesColors = Array.isArray(seriesColors) && seriesColors.length
+          ? seriesColors
+          : this.getDefaultChartSeriesColors();
+        const plotLeft = 42;
+        const plotRight = 208;
+        const plotWidth = plotRight - plotLeft;
+        const plotTop = 8;
+        const plotBottomLimit = this.getChartPlotBottomLimit();
+        const availableHeight = plotBottomLimit - plotTop;
+        const groupGap = 5;
+        const stackRange = this.getChartStackRange(chartData, mode);
+        const minValue = stackRange.min;
+        const maxValue = stackRange.max;
+        const zeroX = this.mapChartStackValue(0, minValue, maxValue, plotLeft, plotRight);
+        const availableGroupHeight = availableHeight - groupGap * (categoryCount + 1);
+        const groupHeight = availableGroupHeight / categoryCount;
+        const barHeight = Math.max(3, groupHeight * 0.56);
+        const bars = [];
+        const valueLabels = [];
+
+        for (let categoryIndex = 0; categoryIndex < categoryCount; categoryIndex++) {
+          const groupY = plotTop + groupGap + categoryIndex * (groupHeight + groupGap);
+          const item = payload?.Items?.[categoryIndex] || { values: [] };
+          const y = groupY + (groupHeight - barHeight) / 2;
+          let cumulative = 0;
+          let positiveBase = 0;
+          let negativeBase = 0;
+
+          for (let seriesIndex = 0; seriesIndex < seriesCount; seriesIndex++) {
+            const cell = item.values?.[seriesIndex] || { value: 0 };
+            const value = this.toChartNumericValue(cell.value);
+            let startValue = 0;
+            let endValue = 0;
+
+            if (mode === "mixed") {
+              if (value >= 0) {
+                startValue = positiveBase;
+                endValue = positiveBase + value;
+                positiveBase = endValue;
+              } else {
+                startValue = negativeBase;
+                endValue = negativeBase + value;
+                negativeBase = endValue;
+              }
+            } else {
+              startValue = cumulative;
+              endValue = cumulative + value;
+              cumulative = endValue;
+            }
+
+            const x1 = this.mapChartStackValue(startValue, minValue, maxValue, plotLeft, plotRight);
+            const x2 = this.mapChartStackValue(endValue, minValue, maxValue, plotLeft, plotRight);
+            const x = Math.min(x1, x2);
+            const width = Math.max(1, Math.abs(x2 - x1));
+            const negativeAttr = value < 0 ? ' data-negative="1"' : "";
+            const stackedAttr = ' data-horizontal="1" data-stacked="1"';
+
+            bars.push(
+              `<rect class="wordex-chart-bar" ${stackedAttr} data-series-index="${seriesIndex}"${negativeAttr} x="${x}" y="${y}" width="${width}" height="${barHeight}" fill="${barSeriesColors[seriesIndex % barSeriesColors.length]}"><title>${this.escapeHtml(this.formatChartNumericTooltip(value))}</title></rect>`
+            );
+            valueLabels.push(this.getChartStackPercentLabel(cell, item, mode));
+          }
+        }
+
+        const categoryLabelSpecs = categoryLabels.map((label, index) => {
+          if (!label) {
+            return null;
+          }
+
+          const groupY = plotTop + groupGap + index * (groupHeight + groupGap);
+          const y = groupY + groupHeight / 2;
+
+          return { label, x: plotLeft - 3, y, horizontal: true };
+        }).filter(Boolean);
+
+        return {
+          bars,
+          valueLabels,
+          categoryLabelSpecs,
+          plotLeft,
+          plotRight,
+          plotTop,
+          plotBottomLimit,
+          axisY: zeroX,
+          axisX: zeroX,
+          groupWidth: groupHeight
+        };
+      }
+
+
+
       computeLineChartLayout(chartData, chartStyle = null, seriesColors = null) {
         const payload = this.normalizeChartPayload(chartData);
         const categoryLabels = this.getChartCategoryLabels(chartData);
@@ -4636,8 +5237,8 @@
         }
 
         const labelStyle = this.buildChartOverlayLabelStyle(chartStyle);
-        const items = categoryLabelSpecs.map(({ label, x, y }) => {
-          return `<span class="wordex-chart-category-label" data-viewbox-x="${x}" data-viewbox-y="${y}" style="${labelStyle}">${this.escapeHtml(label)}</span>`;
+        const items = categoryLabelSpecs.map(({ label, x, y, horizontal }) => {
+          return `<span class="wordex-chart-category-label" data-viewbox-x="${x}" data-viewbox-y="${y}"${horizontal ? ' data-horizontal="1"' : ""} style="${labelStyle}">${this.escapeHtml(label)}</span>`;
         }).join("");
 
         return `<div class="wordex-chart-category-labels" role="presentation">${items}</div>`;
@@ -4717,7 +5318,8 @@
       }
 
       syncChartToolbarControls() {
-        const typeSelect = document.getElementById("chartInsertType");
+        const horizontalCheckbox = document.getElementById("chartHorizontal");
+        const modeSelect = document.getElementById("chartMode");
         const chartBox = this.getLiveSelectedObject();
 
         if (!chartBox?.matches?.(".wordex-chart-box")) {
@@ -4726,8 +5328,11 @@
 
         const chartType = String(chartBox.dataset.chartType || "bar").trim().toLowerCase();
 
-        if (typeSelect && ["bar", "hbar"].includes(chartType)) {
-          typeSelect.value = chartType;
+        if (horizontalCheckbox) {
+          horizontalCheckbox.checked = chartType === "hbar";
+        }
+        if (modeSelect) {
+          modeSelect.value = chartBox.dataset.chartMode || "normal";
         }
 
         const style = this.getChartTextStyle(chartBox);
@@ -5183,19 +5788,18 @@
         return textbox;
       }
 
-      generateChartPlaceholderHtml(sourceName, chartType, chartData = null, chartStyle = null, seriesColors = null) {
+      generateChartPlaceholderHtml(sourceName, chartType, chartData = null, chartStyle = null, seriesColors = null, chartMode = "normal") {
         let previewSvg = chartData
-          ? this.generateChartSvgFromData(chartType, chartData, chartStyle, seriesColors)
+          ? this.generateChartSvgFromData(chartType, chartData, chartStyle, seriesColors, chartMode)
           : this.generateChartSvg(chartType, chartStyle);
         let legendHtml = "";
         let valueLabelsHtml = "";
         let categoryLabelsHtml = "";
 
         if (chartData && (chartType === "bar" || chartType === "hbar")) {
-          const layout = chartType === "hbar"
-            ? this.computeHorizontalBarChartLayout(chartData, chartStyle, seriesColors)
-            : this.computeBarChartLayout(chartData, chartStyle, seriesColors);
+          const layout = this.computeHistogramLayout(chartType, chartData, chartStyle, seriesColors, chartMode);
           const seriesCount = this.getChartSeriesCount(chartData);
+
           valueLabelsHtml = this.buildChartBarValueLabelsPanelHtml(
             layout.valueLabels,
             chartStyle,
@@ -5412,6 +6016,7 @@
 
         const sourceName = String(chartBox.dataset.sourceName || "").trim();
         const chartType = chartBox.dataset.chartType || "bar";
+        const chartMode = chartBox.dataset.chartMode || "normal";
         const chartData = this.getChartBoxResolvedData(chartBox);
         const chartStyle = this.getChartTextStyle(chartBox);
         const seriesCount = Math.max(this.getChartSeriesCount(chartData), 1);
@@ -5423,7 +6028,8 @@
           chartType,
           chartData,
           chartStyle,
-          seriesColors
+          seriesColors,
+          chartMode
         );
 
         if (script) {
@@ -5833,12 +6439,12 @@
         return ticks;
       }
 
-      generateChartSvgFromData(chartType, chartData, chartStyle = null, seriesColors = null) {
+      generateChartSvgFromData(chartType, chartData, chartStyle = null, seriesColors = null, chartMode = "normal") {
         if (chartType === "hbar") {
-          const layout = this.computeHorizontalBarChartLayout(chartData, chartStyle, seriesColors);
+          const layout = this.computeHistogramLayout(chartType, chartData, chartStyle, seriesColors, chartMode);
 
           return `
-            <svg viewBox="0 0 220 100" preserveAspectRatio="xMidYMid meet">
+            <svg viewBox="0 0 220 100" preserveAspectRatio="none">
               ${layout.bars.join("")}
               <line x1="${layout.axisX}" y1="${layout.plotTop}" x2="${layout.axisX}" y2="${layout.plotBottomLimit}" stroke="#777" stroke-width="1"></line>
               <line x1="${layout.plotLeft}" y1="${layout.plotBottomLimit}" x2="${layout.plotRight}" y2="${layout.plotBottomLimit}" stroke="#aaa" stroke-width="1"></line>
@@ -5846,7 +6452,7 @@
           `;
         }
 
-        const layout = this.computeBarChartLayout(chartData, chartStyle, seriesColors);
+        const layout = this.computeHistogramLayout(chartType, chartData, chartStyle, seriesColors, chartMode);
 
         return `
           <svg viewBox="0 0 220 100" preserveAspectRatio="xMidYMid meet">
@@ -5874,6 +6480,7 @@
 
         const payload = this.resolveChartPayload(chartBox, scopes);
         const chartType = chartBox.dataset.chartType || "bar";
+        const chartMode = chartBox.dataset.chartMode || "normal";
         const chartStyle = this.getChartTextStyle(chartBox);
         const seriesCount = Math.max(this.getChartSeriesCount(payload), 1);
         const seriesColors = this.readChartSeriesColors(chartBox, seriesCount);
@@ -5883,7 +6490,8 @@
           chartType,
           payload,
           chartStyle,
-          seriesColors
+          seriesColors,
+          chartMode
         );
 
         if (payload) {
@@ -9196,10 +9804,6 @@
         const liveObject = this.getLiveSelectedObject();
         const isTable = !!(liveObject && this.isWordexTableObject(liveObject));
         const isChart = !!(liveObject && liveObject.matches(".wordex-chart-box"));
-        const isBarChart = !!(
-          isChart &&
-          String(liveObject.dataset.chartType || "bar").trim().toLowerCase() === "bar"
-        );
         const isNonTextObject = !!(
           liveObject &&
           liveObject.matches(".dynamic-image-box, .wordex-table")
@@ -9211,7 +9815,7 @@
         return {
           text: !!(activeTextbox || (paragraph && !isNonTextObject) || isChart),
           align: !!(liveObject || activeTextbox || paragraph),
-          "chart-bar": isBarChart,
+          "chart-bar": isChart,
           table: isTable,
           "table-row": this.hasSelectedTableRowForToolbar(),
           margin: !!marginTarget,
