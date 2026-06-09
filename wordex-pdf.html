@@ -464,6 +464,18 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
         });
       }
 
+      function shouldKeepOverflowVisibleInCapture(node) {
+        if (!node || !node.classList) {
+          return false;
+        }
+
+        return node.classList.contains("paragraph") ||
+          node.classList.contains("paragraph-block") ||
+          node.classList.contains("object-block") ||
+          node.classList.contains("wordex-table") ||
+          node.classList.contains("body-flow");
+      }
+
       function isCanvasUsableCapture(canvas) {
         if (!canvas || !canvas.width || !canvas.height) {
           return false;
@@ -600,6 +612,11 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
               node.style.visibility = "visible";
 
               if (node.classList && node.classList.contains("pagex-watermark")) {
+                node.style.overflow = "visible";
+                return;
+              }
+
+              if (shouldKeepOverflowVisibleInCapture(node)) {
                 node.style.overflow = "visible";
                 return;
               }
@@ -1019,9 +1036,13 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
           node.style.transform = "none";
         });
 
-        clone.querySelectorAll(".pagex-header, .pagex-body, .pagex-footer, .header-template, .footer-template, .body-flow, .wordex-textbox").forEach(function (node) {
+        clone.querySelectorAll(".pagex-header, .pagex-body, .pagex-footer, .header-template, .footer-template, .wordex-textbox").forEach(function (node) {
           node.style.overflow = "hidden";
           node.style.scrollbarWidth = "none";
+        });
+
+        clone.querySelectorAll(".paragraph, .paragraph-block, .object-block, .wordex-table, .body-flow").forEach(function (node) {
+          node.style.overflow = "visible";
         });
 
         return clone;

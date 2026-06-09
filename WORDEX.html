@@ -8328,6 +8328,146 @@
         });
       }
 
+      measureTableContentHeight(table) {
+        const rows = Array.from(table?.rows || []);
+
+        if (rows.length === 0) {
+          return 0;
+        }
+
+        /*
+          O CSS do relatório paginado impõe min-height: 7mm nas células.
+          Na geração fora do DOM, usamos um piso conservador para não subestimar
+          a altura real depois que os dados expandem a tabela.
+        */
+        const reportCellMinPx = Math.ceil((7 * 96) / 25.4);
+        let total = 0;
+
+        rows.forEach(row => {
+          const rowHeight = Number.parseFloat(row.style.height) ||
+            Number.parseFloat(row.cells[0]?.style.height) ||
+            18;
+
+          total += Math.max(18, reportCellMinPx, Math.ceil(rowHeight));
+        });
+
+        return total + 2;
+      }
+
+      measureObjectContentHeight(object) {
+        if (!object) {
+          return 0;
+        }
+
+        if (this.isWordexTableObject(object)) {
+          return this.measureTableContentHeight(object);
+        }
+
+        const styledHeight = Number.parseFloat(object.style.height);
+
+        if (Number.isFinite(styledHeight) && styledHeight > 0) {
+          return Math.ceil(styledHeight);
+        }
+
+        return Math.ceil(object.offsetHeight || object.getBoundingClientRect().height || 0);
+      }
+
+      getObjectBottomInGeneratedContainer(object, container) {
+        if (!object || !container) {
+          return 0;
+        }
+
+        if (
+          this.usesFreeAbsolutePosition(container) &&
+          object.style.position === "absolute" &&
+          container.isConnected
+        ) {
+          const containerRect = container.getBoundingClientRect();
+          const objectRect = object.getBoundingClientRect();
+
+          if (containerRect.height > 0 && objectRect.height > 0) {
+            return Math.max(0, Math.round(objectRect.bottom - containerRect.top + 8));
+          }
+        }
+
+        const top = Number.parseInt(object.dataset.blockY, 10) ||
+          Number.parseInt(object.style.top, 10) ||
+          Number.parseInt(object.style.marginTop, 10) ||
+          0;
+
+        return top + this.measureObjectContentHeight(object) + 8;
+      }
+
+      updateGeneratedFreeContainerBounds(container) {
+        if (!container) {
+          return;
+        }
+
+        if (container.matches(".paragraph") && this.paragraphHasMainObject(container)) {
+          const mainObjects = container.querySelectorAll(WordexEditor.mainObjectSelector);
+
+          if (mainObjects.length === 1) {
+            this.fitGeneratedParagraphBlockToMainObject(mainObjects[0]);
+            return;
+          }
+        }
+
+        let maxBottom = 0;
+
+        container.querySelectorAll(WordexEditor.objectSelector).forEach(object => {
+          maxBottom = Math.max(
+            maxBottom,
+            this.getObjectBottomInGeneratedContainer(object, container)
+          );
+        });
+
+        if (maxBottom <= 0) {
+          return;
+        }
+
+        const baseline = container.classList.contains("object-block") ? 24 : 18;
+        container.style.minHeight = Math.max(baseline, maxBottom) + "px";
+      }
+
+      fitGeneratedParagraphBlockToMainObject(object) {
+        if (!object?.matches?.(WordexEditor.mainObjectSelector)) {
+          return;
+        }
+
+        const paragraph = object.closest(".paragraph");
+
+        if (!paragraph || !this.paragraphHasMainObject(paragraph)) {
+          return;
+        }
+
+        const blockY = Number.parseInt(object.dataset.blockY, 10) ||
+          Number.parseInt(object.style.top, 10) ||
+          0;
+        const objectHeight = this.measureObjectContentHeight(object);
+        const padding = 4;
+        const neededHeight = blockY + objectHeight + padding;
+
+        paragraph.style.minHeight = Math.max(18, neededHeight) + "px";
+      }
+
+      syncGeneratedFreeContainerBounds(container) {
+        if (!container) {
+          return;
+        }
+
+        container.querySelectorAll(".paragraph").forEach(paragraph => {
+          if (this.usesFreeAbsolutePosition(paragraph)) {
+            this.updateGeneratedFreeContainerBounds(paragraph);
+          }
+        });
+
+        container.querySelectorAll(".object-block").forEach(block => {
+          if (this.usesFreeAbsolutePosition(block)) {
+            this.updateGeneratedFreeContainerBounds(block);
+          }
+        });
+      }
+
       getObjectBottomInFreeContainer(object, container) {
         if (!object || !container) {
           return 0;
@@ -14792,6 +14932,7 @@
         }
 
         this.layoutGeneratedReportCharts(clone);
+        this.syncGeneratedFreeContainerBounds(clone);
 
         this.cleanGeneratedDocumentNode(clone);
         this.markGeneratedPaginationAtoms(clone);
