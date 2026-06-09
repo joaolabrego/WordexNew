@@ -1382,6 +1382,9 @@
 <button aria-label="Mover linha livre para baixo" class="compact" data-icon="↓" onclick="wordex.moveFreeTableRowDown()" title="Mover linha Free para baixo"></button>
 <button aria-label="Mesclar seleção" class="compact" data-icon="⇄" onclick="wordex.mergeSelectedTableComponents()" title="Mesclar linhas, colunas ou células selecionadas"></button>
 <button aria-label="Restaurar footers colunizados" class="compact" data-icon="↺" onclick="wordex.resetStructuralFootersLayout()" title="Restaurar GroupFooter e TableFooter colunizados (desfaz mesclagens)"></button>
+<span class="toolbar-title">Colunas</span>
+<button aria-label="Inserir coluna" class="compact" data-icon="+" onclick="wordex.insertTableColumn()" title="Inserir coluna em todas as linhas"></button>
+<button aria-label="Excluir coluna" class="compact" data-icon="−" onclick="wordex.deleteTableColumn()" title="Excluir coluna em todas as linhas (mínimo 1 coluna)"></button>
 </div>
 <div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="margin">
 <span class="toolbar-title">Margem</span>
@@ -1406,7 +1409,6 @@
 <select class="wordex-json-picker wordex-toolbar-hidden" data-wordex-toolbar-context="json-macros" disabled="" id="jsonMacroField" onchange="wordex.onJsonMacroFieldChange()" title="Campo macro do JSON" aria-label="Campo macro">
 <option value="">Campo</option>
 </select>
-<button aria-label="Inserir macro" class="compact wordex-toolbar-hidden" data-icon="↵" data-wordex-toolbar-context="json-macros" disabled="" id="jsonMacroInsertBtn" onclick="wordex.insertSelectedJsonMacro()" title="Inserir macro do campo selecionado no cursor"></button>
 <button aria-label="Marca d'água" data-icon="◌" onclick="wordex.configureReportWatermark(event)" title="Marca d'água: escolher imagem (Ctrl+click remove)"></button>
 </div>
 <div class="toolbar-group">
@@ -1558,6 +1560,7 @@
         this.reportImageDataUrlCache = {};
         this.savedWordexFileHandle = null;
         this.jsonMacroKindFilter = null;
+        this.suppressJsonMacroAutoInsert = false;
         this.staticImageAsset = {
           imageSrc: "",
           imageName: ""
@@ -3455,7 +3458,6 @@
       syncJsonMacroPickerForImageContext(context) {
         const collectionSelect = document.getElementById("jsonCollection");
         const fieldSelect = document.getElementById("jsonMacroField");
-        const insertButton = document.getElementById("jsonMacroInsertBtn");
         const collectionName = context?.collectionName || "ROOT";
         const hasData = !!this.getReportDataRootRecord();
 
@@ -3484,10 +3486,6 @@
           } else {
             fieldSelect.innerHTML = '<option value="">Campo</option>';
           }
-        }
-
-        if (insertButton) {
-          insertButton.disabled = !hasData;
         }
       }
 
@@ -3574,7 +3572,6 @@
       syncJsonMacroPickerForParagraphContext() {
         const collectionSelect = document.getElementById("jsonCollection");
         const fieldSelect = document.getElementById("jsonMacroField");
-        const insertButton = document.getElementById("jsonMacroInsertBtn");
         const hasData = !!this.getReportDataRootRecord();
 
         this.jsonMacroKindFilter = null;
@@ -3602,10 +3599,6 @@
           } else {
             fieldSelect.innerHTML = '<option value="">Campo</option>';
           }
-        }
-
-        if (insertButton) {
-          insertButton.disabled = !hasData;
         }
       }
 
@@ -10740,6 +10733,289 @@
         return true;
       }
 
+      createEmptyTableCell() {
+        const td = document.createElement("td");
+        td.contentEditable = "true";
+        td.innerHTML = "<br>";
+        return td;
+      }
+
+      getActiveTableForColumnEdit() {
+        const table = this.selectedObject?.matches?.(".wordex-table")
+          ? this.selectedObject
+          : this.getSelectedTableContextWithoutAlert()?.table;
+
+        if (!table) {
+          alert("Selecione uma tabela.");
+          return null;
+        }
+
+        return table;
+      }
+
+      resolveTableColumnEditIndex(table, mode = "insert") {
+        const totalCols = this.getTableColumnCount(table);
+        const columnIndices = this.getSelectedTableColumnIndices();
+
+        if (columnIndices.length > 0) {
+          if (mode === "insert") {
+            return Math.min(totalCols, Math.max(...columnIndices) + 1);
+          }
+
+          return columnIndices[0];
+        }
+
+        if (this.selectedTableMode === "column" && Number.isInteger(this.selectedTableColumnIndex)) {
+          return mode === "insert"
+            ? this.selectedTableColumnIndex + 1
+            : this.selectedTableColumnIndex;
+        }
+
+        const context = this.getSelectedTableContextWithoutAlert();
+
+        if (context?.table === table && Number.isInteger(context.columnIndex)) {
+          return mode === "insert" ? context.columnIndex + 1 : context.columnIndex;
+        }
+
+        if (mode === "insert") {
+          return totalCols;
+        }
+
+        return Math.max(0, totalCols - 1);
+      }
+
+      prepareTableRowForColumnEdit(table, row) {
+        if (!table || !row || row.dataset.wordexDecolumnized !== "1") {
+          return;
+        }
+
+        const cols = this.getTableColumnCount(table);
+        this.recolumnizeTableRow(table, row, cols);
+      }
+
+      insertLogicalColumnInRow(row, logicalIndex) {
+        const insertAt = Math.max(0, logicalIndex);
+        let logical = 0;
+
+        for (const cell of Array.from(row.cells)) {
+          const span = Number(cell.colSpan) || 1;
+          const cellStart = logical;
+          const cellEnd = logical + span - 1;
+
+          if (insertAt < cellStart) {
+            row.insertBefore(this.createEmptyTableCell(), cell);
+            return true;
+          }
+
+          if (insertAt > cellEnd) {
+            logical += span;
+            continue;
+          }
+
+          const offset = insertAt - cellStart;
+
+          if (offset === 0) {
+            row.insertBefore(this.createEmptyTableCell(), cell);
+            return true;
+          }
+
+          const leftSpan = offset;
+          const rightSpan = span - offset;
+          const newCell = this.createEmptyTableCell();
+          cell.colSpan = leftSpan;
+          cell.insertAdjacentElement("afterend", newCell);
+
+          if (rightSpan > 1) {
+            const rightCell = this.createEmptyTableCell();
+            rightCell.colSpan = rightSpan;
+            newCell.insertAdjacentElement("afterend", rightCell);
+          }
+
+          return true;
+        }
+
+        row.appendChild(this.createEmptyTableCell());
+        return true;
+      }
+
+      deleteLogicalColumnInRow(row, logicalIndex) {
+        let logical = 0;
+
+        for (const cell of Array.from(row.cells)) {
+          const span = Number(cell.colSpan) || 1;
+          const cellStart = logical;
+
+          if (logicalIndex < cellStart || logicalIndex >= cellStart + span) {
+            logical += span;
+            continue;
+          }
+
+          if (span === 1) {
+            cell.remove();
+            return true;
+          }
+
+          const offset = logicalIndex - cellStart;
+
+          if (offset === 0 || offset === span - 1) {
+            cell.colSpan = span - 1;
+            return true;
+          }
+
+          const leftSpan = offset;
+          const rightSpan = span - offset - 1;
+          cell.colSpan = leftSpan;
+
+          if (rightSpan > 0) {
+            const rightCell = this.createEmptyTableCell();
+            rightCell.colSpan = rightSpan;
+            cell.insertAdjacentElement("afterend", rightCell);
+          }
+
+          return true;
+        }
+
+        return false;
+      }
+
+      insertColumnInTableRow(table, row, insertAt) {
+        const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+
+        if (
+          row.dataset.wordexDecolumnized === "1" &&
+          row.cells.length === 1 &&
+          insertAt >= (Number(row.cells[0].colSpan) || 1)
+        ) {
+          const cell = row.cells[0];
+          cell.colSpan = (Number(cell.colSpan) || 1) + 1;
+          row.dataset.wordexOriginalColumnCount = String(cell.colSpan);
+          this.updateTableRowTypeLabel(row);
+          return;
+        }
+
+        this.prepareTableRowForColumnEdit(table, row);
+        this.insertLogicalColumnInRow(row, insertAt);
+
+        if (!this.shouldDecolumnizeTableRow(table, row, rowType)) {
+          row.dataset.wordexManualColumns = "1";
+        }
+      }
+
+      deleteColumnInTableRow(table, row, deleteAt) {
+        const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+
+        if (row.dataset.wordexDecolumnized === "1" && row.cells.length === 1) {
+          const cell = row.cells[0];
+          const span = Number(cell.colSpan) || 1;
+
+          if (span > 1) {
+            cell.colSpan = span - 1;
+            row.dataset.wordexOriginalColumnCount = String(cell.colSpan);
+            this.updateTableRowTypeLabel(row);
+            return true;
+          }
+
+          this.prepareTableRowForColumnEdit(table, row);
+        } else {
+          this.prepareTableRowForColumnEdit(table, row);
+        }
+
+        if (!this.deleteLogicalColumnInRow(row, deleteAt)) {
+          return false;
+        }
+
+        if (!this.shouldDecolumnizeTableRow(table, row, rowType)) {
+          row.dataset.wordexManualColumns = "1";
+        }
+
+        return true;
+      }
+
+      finalizeTableRowsAfterColumnEdit(table) {
+        const cols = this.getTableColumnCount(table);
+
+        Array.from(table.rows).forEach(row => {
+          const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+
+          if (this.shouldDecolumnizeTableRow(table, row, rowType)) {
+            this.decolumnizeTableRow(table, row, rowType, cols);
+            return;
+          }
+
+          this.updateTableRowTypeLabel(row);
+        });
+      }
+
+      insertTableColumn() {
+        const table = this.getActiveTableForColumnEdit();
+
+        if (!table) {
+          return;
+        }
+
+        const insertAt = this.resolveTableColumnEditIndex(table, "insert");
+
+        Array.from(table.rows).forEach(row => {
+          this.insertColumnInTableRow(table, row, insertAt);
+        });
+
+        this.finalizeTableRowsAfterColumnEdit(table);
+        this.normalizeTableRowsAfterMerge(table);
+        this.syncObjectAfterChange(table);
+
+        const anchorRow = table.rows[0] || table.rows[1];
+        const anchorCell = anchorRow
+          ? this.getTableCellAtLogicalColumn(anchorRow, insertAt)?.cell
+          : null;
+
+        this.selectTableComponent(table, anchorCell, "column", {
+          columnIndices: [insertAt]
+        });
+        this.saveUndoStateIfChanged();
+      }
+
+      deleteTableColumn() {
+        const table = this.getActiveTableForColumnEdit();
+
+        if (!table) {
+          return;
+        }
+
+        if (this.getTableColumnCount(table) <= 1) {
+          alert("A tabela precisa manter ao menos uma coluna.");
+          return;
+        }
+
+        const deleteAt = this.resolveTableColumnEditIndex(table, "delete");
+        let deletedAny = false;
+
+        Array.from(table.rows).forEach(row => {
+          if (this.deleteColumnInTableRow(table, row, deleteAt)) {
+            deletedAny = true;
+          }
+        });
+
+        if (!deletedAny) {
+          alert("Não foi possível excluir a coluna selecionada.");
+          return;
+        }
+
+        this.finalizeTableRowsAfterColumnEdit(table);
+        this.normalizeTableRowsAfterMerge(table);
+        this.syncObjectAfterChange(table);
+
+        const nextColumnIndex = Math.min(deleteAt, this.getTableColumnCount(table) - 1);
+        const anchorRow = table.rows[0] || table.rows[1];
+        const anchorCell = anchorRow
+          ? this.getTableCellAtLogicalColumn(anchorRow, nextColumnIndex)?.cell
+          : null;
+
+        this.selectTableComponent(table, anchorCell, "column", {
+          columnIndices: [nextColumnIndex]
+        });
+        this.saveUndoStateIfChanged();
+      }
+
       appendMergedCellContent(targetCell, sourceCell) {
         if (!targetCell || !sourceCell || this.isCellHtmlEmpty(sourceCell.innerHTML)) {
           return;
@@ -15822,7 +16098,6 @@
 
         const collectionSelect = document.getElementById("jsonCollection");
         const fieldSelect = document.getElementById("jsonMacroField");
-        const insertButton = document.getElementById("jsonMacroInsertBtn");
         const hasData = !!this.getReportDataRootRecord();
 
         if (!hasData) {
@@ -15847,10 +16122,6 @@
 
         collectionSelect.disabled = true;
         fieldSelect.disabled = false;
-
-        if (insertButton) {
-          insertButton.disabled = false;
-        }
 
         this.populateJsonMacroFieldSelect(nextCollection);
 
@@ -16161,14 +16432,15 @@
           fieldSelect.appendChild(option);
         });
 
+        this.suppressJsonMacroAutoInsert = true;
         fieldSelect.value = fields.includes(previousValue) ? previousValue : "";
+        this.suppressJsonMacroAutoInsert = false;
         this.updateJsonMacroPickerTitles();
       }
 
       updateJsonMacroToolbar(options = {}) {
         const collectionSelect = document.getElementById("jsonCollection");
         const fieldSelect = document.getElementById("jsonMacroField");
-        const insertButton = document.getElementById("jsonMacroInsertBtn");
 
         if (!collectionSelect || !fieldSelect) {
           return;
@@ -16201,10 +16473,6 @@
 
         collectionSelect.disabled = !hasData;
         fieldSelect.disabled = !hasData;
-
-        if (insertButton) {
-          insertButton.disabled = !hasData;
-        }
 
         if (!hasData) {
           collectionSelect.innerHTML = '<option value="">Coleção</option>';
@@ -16266,6 +16534,10 @@
       onJsonMacroFieldChange() {
         this.updateJsonMacroPickerTitles();
 
+        if (this.suppressJsonMacroAutoInsert) {
+          return;
+        }
+
         const macroField = this.getSelectedJsonMacroName();
 
         if (!macroField || !this.getReportDataRootRecord()) {
@@ -16312,7 +16584,10 @@
 
         if (this.selectedObject?.matches?.(".wordex-chart-box")) {
           this.applyMacroFieldToChartBox(this.selectedObject, macroField);
+          return;
         }
+
+        this.insertJsonMacroField(macroField);
       }
 
       getMacroInsertionContainer() {
@@ -16427,29 +16702,28 @@
         return this.insertMacroTextInEditableContainer(container, macroText);
       }
 
-      insertSelectedJsonMacro() {
-        const collectionName = this.getSelectedJsonCollectionName();
-        this.populateJsonMacroFieldSelect(collectionName, {
-          allowedKinds: WordexEditor.textMacroKinds
-        });
+      insertJsonMacroField(macroName) {
+        const normalized = this.normalizeMacroName(macroName);
 
-        const fieldSelect = document.getElementById("jsonMacroField");
-
-        if (!fieldSelect) {
+        if (!normalized) {
           return;
         }
 
-        const macroName = this.normalizeMacroName(fieldSelect.value);
-
-        if (!macroName) {
-          return;
-        }
-
-        const macroText = this.formatMacroName(macroName);
+        const macroText = this.formatMacroName(normalized);
         const inserted = this.insertMacroAtCaret(macroText);
 
         if (!inserted) {
           alert("Coloque o cursor num parágrafo ou numa célula de tabela para inserir a macro.");
+          return;
+        }
+
+        const fieldSelect = document.getElementById("jsonMacroField");
+
+        if (fieldSelect) {
+          this.suppressJsonMacroAutoInsert = true;
+          fieldSelect.value = "";
+          this.suppressJsonMacroAutoInsert = false;
+          this.updateJsonMacroPickerTitles();
         }
       }
 
