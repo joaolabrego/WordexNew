@@ -802,7 +802,8 @@
       color: #444;
     }
 
-    .wordex-chart-data-dialog-fields input {
+    .wordex-chart-data-dialog-fields input,
+    .wordex-chart-data-dialog-fields select {
       font: inherit;
       padding: 6px 8px;
       border: 1px solid #bbb;
@@ -1336,19 +1337,6 @@
 <button aria-label="Justificar" class="compact wordex-align-button align-justify" onclick="wordex.applyParagraphAlign('justify')" title="Justificar"></button>
 <button aria-label="Sem alinhamento" class="compact wordex-align-button align-none" onclick="wordex.applyParagraphAlign('none')" title="Sem alinhamento"></button>
 </div>
-<div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="table-row">
-<span class="toolbar-title">Linha</span>
-<select id="tableRowType" onchange="wordex.applySelectedTableRowType(this.value)">
-<option value="">Tipo da linha</option>
-<option value="TableHeader">TableHeader</option>
-<option value="ColumnHeader">ColumnHeader</option>
-<option value="GroupHeader">GroupHeader</option>
-<option value="Detail">Detail</option>
-<option value="GroupFooter">GroupFooter</option>
-<option value="TableFooter">TableFooter</option>
-</select>
-<button aria-label="Config" data-icon="⚙" onclick="wordex.configureSelectedTableRow()" title="Config"></button>
-</div>
 <div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="table">
 <span class="toolbar-title">Borda</span>
 <input id="borderColor" type="color" value="#000000"/>
@@ -1387,6 +1375,16 @@
 <button onclick="wordex.applyTableBorderPreset('all')"><span class="wordex-border-glyph all"></span>Todas</button>
 </div>
 </div>
+<span class="toolbar-title">Linhas</span>
+<button aria-label="Inserir linha livre" class="compact" data-icon="+" onclick="wordex.insertFreeTableRow()" title="Inserir linha Free"></button>
+<button aria-label="Excluir linha livre" class="compact" data-icon="−" onclick="wordex.deleteFreeTableRow()" title="Excluir linha Free"></button>
+<button aria-label="Mover linha livre para cima" class="compact" data-icon="↑" onclick="wordex.moveFreeTableRowUp()" title="Mover linha Free para cima"></button>
+<button aria-label="Mover linha livre para baixo" class="compact" data-icon="↓" onclick="wordex.moveFreeTableRowDown()" title="Mover linha Free para baixo"></button>
+<button aria-label="Mesclar seleção" class="compact" data-icon="⇄" onclick="wordex.mergeSelectedTableComponents()" title="Mesclar linhas, colunas ou células selecionadas"></button>
+<button aria-label="Restaurar footers colunizados" class="compact" data-icon="↺" onclick="wordex.resetStructuralFootersLayout()" title="Restaurar GroupFooter e TableFooter colunizados (desfaz mesclagens)"></button>
+<span class="toolbar-title">Colunas</span>
+<button aria-label="Inserir coluna" class="compact" data-icon="+" onclick="wordex.insertTableColumn()" title="Inserir coluna em todas as linhas"></button>
+<button aria-label="Excluir coluna" class="compact" data-icon="−" onclick="wordex.deleteTableColumn()" title="Excluir coluna em todas as linhas (mínimo 1 coluna)"></button>
 </div>
 <div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="margin">
 <span class="toolbar-title">Margem</span>
@@ -1411,7 +1409,6 @@
 <select class="wordex-json-picker wordex-toolbar-hidden" data-wordex-toolbar-context="json-macros" disabled="" id="jsonMacroField" onchange="wordex.onJsonMacroFieldChange()" title="Campo macro do JSON" aria-label="Campo macro">
 <option value="">Campo</option>
 </select>
-<button aria-label="Inserir macro" class="compact wordex-toolbar-hidden" data-icon="↵" data-wordex-toolbar-context="json-macros" disabled="" id="jsonMacroInsertBtn" onclick="wordex.insertSelectedJsonMacro()" title="Inserir macro do campo selecionado no cursor"></button>
 <button aria-label="Marca d'água" data-icon="◌" onclick="wordex.configureReportWatermark(event)" title="Marca d'água: escolher imagem (Ctrl+click remove)"></button>
 </div>
 <div class="toolbar-group">
@@ -1552,6 +1549,10 @@
         this.selectedTableMode = null;
         this.selectedTableRow = null;
         this.selectedTableColumnIndex = null;
+        this.selectedTableRowIndices = [];
+        this.selectedTableColumnIndices = [];
+        this.selectedTableCells = [];
+        this.tableSelectionAnchor = null;
         this.savedRange = null;
         this.macroPickerActiveTable = null;
         this.reportData = null;
@@ -1559,6 +1560,7 @@
         this.reportImageDataUrlCache = {};
         this.savedWordexFileHandle = null;
         this.jsonMacroKindFilter = null;
+        this.suppressJsonMacroAutoInsert = false;
         this.staticImageAsset = {
           imageSrc: "",
           imageName: ""
@@ -2469,6 +2471,10 @@
         this.selectedTableMode = null;
         this.selectedTableRow = null;
         this.selectedTableColumnIndex = null;
+        this.selectedTableRowIndices = [];
+        this.selectedTableColumnIndices = [];
+        this.selectedTableCells = [];
+        this.tableSelectionAnchor = null;
       }
 
       focusSelectedParagraphForTyping() {
@@ -2656,15 +2662,19 @@
         this.selectRegionOnly(region);
       }
 
-      selectParagraph(region, blockId) {
+      selectParagraph(region, blockId, options = {}) {
         this.selected.region = region;
         this.selectedParagraphId = blockId;
         this.selectedBlockId = blockId;
-        this.selectedObject = null;
-        this.selectedCell = null;
-        this.clearTableSelectionState();
-        this.macroPickerActiveTable = null;
-        this.releaseJsonMacroPickerFromImageContext();
+
+        if (!options.preserveTableSelection) {
+          this.selectedObject = null;
+          this.selectedCell = null;
+          this.clearTableSelectionState();
+          this.macroPickerActiveTable = null;
+          this.releaseJsonMacroPickerFromImageContext();
+        }
+
         this.renderSelection();
       }
 
@@ -3322,57 +3332,31 @@
         return this.normalizeMacroName(fieldSelect?.value || "");
       }
 
-      getTableParentDatasource(table) {
-        const value = String(table?.dataset?.wordexDatasource || "").trim();
-        return value || "ROOT";
+      getJsonMacroCollectionOptions() {
+        return this.getAllReportDatasources().map(item => ({
+          name: item.path,
+          label: item.label
+        }));
       }
 
-      getTableChildDatasource(table) {
-        return String(table?.dataset?.wordexChildren || "").trim();
-      }
+      getLockedTableCollectionOptions(collectionName) {
+        const normalized = String(collectionName || "ROOT").trim() || "ROOT";
+        const match = this.getJsonMacroCollectionOptions().find(item => item.name === normalized);
 
-      getEffectiveTableChildDatasource(table) {
-        const child = this.getTableChildDatasource(table);
-        const parent = this.getTableParentDatasource(table);
-        return child || parent;
-      }
-
-      isTableParentRowType(rowType) {
-        const value = this.normalizeTableRowType(rowType);
-        return value === "TableHeader" || value === "TableFooter";
-      }
-
-      isTableChildRowType(rowType) {
-        const value = this.normalizeTableRowType(rowType);
-        return this.isTablePerParentBandRowType(value) || this.isTablePerChildLoopRowType(value);
-      }
-
-      isTablePerParentBandRowType(rowType) {
-        const value = this.normalizeTableRowType(rowType);
-        return value === "ColumnHeader" || value === "GroupHeader";
-      }
-
-      isTablePerChildLoopRowType(rowType) {
-        const value = this.normalizeTableRowType(rowType);
-        return value === "Detail" || value === "GroupFooter";
+        return [{
+          name: normalized,
+          label: match?.label || normalized
+        }];
       }
 
       getTableRowMacroCollectionName(table, row) {
-        if (!table) {
-          return "ROOT";
+        const rowDatasource = this.getTableRowDatasource(row);
+
+        if (rowDatasource) {
+          return rowDatasource;
         }
 
-        const rowType = this.normalizeTableRowType(row?.dataset?.wordexRowType || "");
-
-        if (this.isTableParentRowType(rowType)) {
-          return this.getTableParentDatasource(table);
-        }
-
-        if (this.isTableChildRowType(rowType)) {
-          return this.getEffectiveTableChildDatasource(table);
-        }
-
-        return this.getTableParentDatasource(table);
+        return "ROOT";
       }
 
       getTableCollectionName(cell) {
@@ -3388,7 +3372,7 @@
           return this.getTableRowMacroCollectionName(table, row);
         }
 
-        return this.getTableParentDatasource(table);
+        return "ROOT";
       }
 
       getImageMacroContext(target = null) {
@@ -3474,14 +3458,13 @@
       syncJsonMacroPickerForImageContext(context) {
         const collectionSelect = document.getElementById("jsonCollection");
         const fieldSelect = document.getElementById("jsonMacroField");
-        const insertButton = document.getElementById("jsonMacroInsertBtn");
         const collectionName = context?.collectionName || "ROOT";
         const hasData = !!this.getReportDataRootRecord();
 
         if (collectionSelect) {
           if (hasData) {
             const collections = context.table
-              ? this.getTableMacroCollections(context.table)
+              ? this.getLockedTableCollectionOptions(collectionName)
               : this.getReportDataCollections();
 
             this.renderJsonCollectionSelect(collectionSelect, collections, collectionName);
@@ -3503,10 +3486,6 @@
           } else {
             fieldSelect.innerHTML = '<option value="">Campo</option>';
           }
-        }
-
-        if (insertButton) {
-          insertButton.disabled = !hasData;
         }
       }
 
@@ -3593,7 +3572,6 @@
       syncJsonMacroPickerForParagraphContext() {
         const collectionSelect = document.getElementById("jsonCollection");
         const fieldSelect = document.getElementById("jsonMacroField");
-        const insertButton = document.getElementById("jsonMacroInsertBtn");
         const hasData = !!this.getReportDataRootRecord();
 
         this.jsonMacroKindFilter = null;
@@ -3621,10 +3599,6 @@
           } else {
             fieldSelect.innerHTML = '<option value="">Campo</option>';
           }
-        }
-
-        if (insertButton) {
-          insertButton.disabled = !hasData;
         }
       }
 
@@ -5642,42 +5616,723 @@
       }
 
       insertTable() {
-        const rows = Number(prompt("Quantidade de linhas:", "3"));
-        const cols = Number(prompt("Quantidade de colunas:", "3"));
-
-        if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows < 1 || cols < 1) {
-          alert("Informe uma quantidade válida de linhas e colunas.");
+        if (!this.getReportDataRootRecord()) {
+          alert("Carregue um arquivo JSON antes de inserir a tabela.");
           return;
         }
 
-        const table = this.createTableElement(rows, cols, "left", "80mm");
+        this.openInsertTableDialog();
+      }
 
-        if (this.getReportDataRootRecord()) {
-          const parentDatasource = this.getSelectedJsonCollectionName() || "ROOT";
+      closeInsertTableDialog() {
+        if (this.insertTableDialogBackdrop?.parentNode) {
+          this.insertTableDialogBackdrop.parentNode.removeChild(this.insertTableDialogBackdrop);
+        }
 
-          if (parentDatasource && parentDatasource !== "ROOT") {
-            table.dataset.wordexDatasource = parentDatasource;
-          } else {
-            delete table.dataset.wordexDatasource;
+        this.insertTableDialogBackdrop = null;
+      }
+
+      getAllReportCollectionPaths() {
+        return this.getAllReportDatasources().filter(item => item.kind === "collection");
+      }
+
+      normalizeDatasourceKind(kind) {
+        const normalized = String(kind || "").trim().toLowerCase();
+
+        if (normalized === "collection" || normalized === "total" || normalized === "histogram") {
+          return normalized;
+        }
+
+        return null;
+      }
+
+      isReportDatasourceWrapper(value) {
+        return !!(
+          value &&
+          typeof value === "object" &&
+          !Array.isArray(value) &&
+          !this.isTypedFieldValue(value) &&
+          Array.isArray(value.Items)
+        );
+      }
+
+      getReportDatasourceWrapperKind(value) {
+        if (!this.isReportDatasourceWrapper(value)) {
+          return null;
+        }
+
+        return this.normalizeDatasourceKind(value.Kind) || "collection";
+      }
+
+      getReportDatasourceItems(value) {
+        if (Array.isArray(value)) {
+          return value;
+        }
+
+        if (this.isReportDatasourceWrapper(value)) {
+          return value.Items;
+        }
+
+        return [];
+      }
+
+      getFirstReportDatasourceRow(value) {
+        const items = this.getReportDatasourceItems(value);
+
+        return items.length > 0 ? items[0] : null;
+      }
+
+      classifyReportDatasourceKey(name, value) {
+        const wrapperKind = this.getReportDatasourceWrapperKind(value);
+
+        if (wrapperKind) {
+          return wrapperKind;
+        }
+
+        if (Array.isArray(value)) {
+          return "collection";
+        }
+
+        if (!value || typeof value !== "object" || this.isTypedFieldValue(value)) {
+          return null;
+        }
+
+        if (this.isHistogramDatasourceObject(name, value)) {
+          return "histogram";
+        }
+
+        if (this.isTotalCollectionName(name)) {
+          return "total";
+        }
+
+        if (this.isEmbeddedFkObject(value)) {
+          return null;
+        }
+
+        return null;
+      }
+
+      isHistogramDatasourceObject(name, value) {
+        if (!value || typeof value !== "object" || Array.isArray(value) || this.isTypedFieldValue(value)) {
+          return false;
+        }
+
+        if (this.isChartDataObject(value)) {
+          return true;
+        }
+
+        if (/Grafico$/i.test(String(name || ""))) {
+          return true;
+        }
+
+        const keys = Object.keys(value);
+
+        return keys.some(key => /_Value$/i.test(key)) && keys.some(key => /_Label$/i.test(key));
+      }
+
+      getAllReportDatasources() {
+        const root = this.getReportDataRootRecord();
+
+        if (!root) {
+          return [];
+        }
+
+        const results = [{ path: "ROOT", label: "ROOT [collection]", kind: "collection" }];
+        const seen = new Set(["ROOT"]);
+
+        const addDatasource = (path, label, kind) => {
+          if (!path || seen.has(path)) {
+            return;
           }
 
-          const childDatasource = prompt(
-            parentDatasource === "ROOT"
-              ? "ChildDatasource (coleção do ROOT; vazio = Parent):"
-              : "ChildDatasource (vazio = mesmo que Parent):",
-            ""
+          seen.add(path);
+          results.push({ path, label: `${label} [${kind}]`, kind });
+        };
+
+        const walk = (sample, prefix, labelPrefix) => {
+          if (!sample || typeof sample !== "object" || Array.isArray(sample)) {
+            return;
+          }
+
+          Object.keys(sample)
+            .filter(key => !key.startsWith("$"))
+            .sort((left, right) => left.localeCompare(right, "pt"))
+            .forEach(key => {
+              const value = sample[key];
+              const kind = this.classifyReportDatasourceKey(key, value);
+
+              if (!kind) {
+                return;
+              }
+
+              const path = prefix ? `${prefix}.${key}` : key;
+              const label = labelPrefix ? `${labelPrefix} › ${key}` : key;
+
+              addDatasource(path, label, kind);
+
+              if (kind === "collection") {
+                const firstRow = this.getFirstReportDatasourceRow(value);
+
+                if (firstRow) {
+                  walk(firstRow, path, label);
+                }
+              }
+            });
+        };
+
+        walk(root, "", "");
+        return results;
+      }
+
+      getDatasourceParentPath(path) {
+        const normalized = String(path || "ROOT").trim() || "ROOT";
+
+        if (normalized === "ROOT") {
+          return null;
+        }
+
+        const parts = normalized.split(".").filter(Boolean);
+
+        if (parts.length <= 1) {
+          return "ROOT";
+        }
+
+        return parts.slice(0, -1).join(".");
+      }
+
+      getSampleValueForDatasourceContext(path) {
+        const normalized = String(path || "ROOT").trim() || "ROOT";
+
+        if (!normalized || normalized === "ROOT") {
+          return this.getReportDataRootRecord();
+        }
+
+        return this.getSampleValueForCollection(normalized);
+      }
+
+      getReportDatasourcesInParent(parentPath, kind = null) {
+        const normalizedParent = parentPath == null ? "ROOT" : String(parentPath).trim() || "ROOT";
+        const sample = this.getSampleValueForDatasourceContext(normalizedParent);
+
+        if (!sample || typeof sample !== "object") {
+          return [];
+        }
+
+        const labelPrefix = normalizedParent === "ROOT" ? "" : normalizedParent.replace(/\./g, " › ");
+        const results = [];
+
+        Object.keys(sample)
+          .filter(key => !key.startsWith("$"))
+          .sort((left, right) => left.localeCompare(right, "pt"))
+          .forEach(key => {
+            const value = sample[key];
+            const itemKind = this.classifyReportDatasourceKey(key, value);
+
+            if (!itemKind || (kind && itemKind !== kind)) {
+              return;
+            }
+
+            const path = normalizedParent === "ROOT" ? key : `${normalizedParent}.${key}`;
+            const label = labelPrefix ? `${labelPrefix} › ${key}` : key;
+
+            results.push({ path, label: `${label} [${itemKind}]`, kind: itemKind });
+          });
+
+        return results;
+      }
+
+      getHeaderDatasourceOptionsForAncestor(detailPath, ancestorPath) {
+        const normalizedDetail = String(detailPath || "").trim();
+        const detailParent = this.getDatasourceParentPath(normalizedDetail) || "ROOT";
+        const excludeDetail = item => item.path !== normalizedDetail;
+        const options = this.getReportDatasourcesInParent(detailParent, "collection").filter(excludeDetail);
+        const ancestor = String(ancestorPath || "").trim();
+
+        if (!ancestor || ancestor === "ROOT" || options.some(item => item.path === ancestor)) {
+          return options;
+        }
+
+        const ancestorParent = this.getDatasourceParentPath(ancestor) || "ROOT";
+        const ancestorOptions = this.getReportDatasourcesInParent(ancestorParent, "collection");
+        const ancestorOption = ancestorOptions.find(item => item.path === ancestor);
+
+        if (!ancestorOption || ancestorOption.path === normalizedDetail) {
+          return options;
+        }
+
+        return [ancestorOption, ...options.filter(item => item.path !== ancestor)];
+      }
+
+      getFooterDatasourceOptionsForAncestor(ancestorPath) {
+        const ancestor = String(ancestorPath || "ROOT").trim() || "ROOT";
+
+        return this.getReportDatasourcesInParent(ancestor, "total");
+      }
+
+      getCollectionAncestorChain(detailPath) {
+        const normalized = String(detailPath || "ROOT").trim() || "ROOT";
+
+        if (normalized === "ROOT") {
+          return ["ROOT"];
+        }
+
+        const parts = normalized.split(".").filter(Boolean);
+        const ancestors = [];
+
+        for (let index = parts.length - 1; index >= 1; index--) {
+          ancestors.push(parts.slice(0, index).join("."));
+        }
+
+        ancestors.push("ROOT");
+        return ancestors;
+      }
+
+      setTableRowDatasource(row, datasource) {
+        if (!row) {
+          return;
+        }
+
+        const value = String(datasource || "").trim();
+
+        if (value) {
+          row.dataset.wordexDatasource = value;
+        } else {
+          delete row.dataset.wordexDatasource;
+        }
+
+        this.updateTableRowTypeLabel(row);
+      }
+
+      renderCollectionPathOptions(collections, selectedValue = "", includeEmpty = false) {
+        const options = [];
+
+        if (includeEmpty) {
+          options.push(`<option value="">${this.escapeHtml("(não renderizar)")}</option>`);
+        }
+
+        collections.forEach(item => {
+          const selected = item.path === selectedValue ? " selected" : "";
+          options.push(
+            `<option value="${this.escapeHtml(item.path)}"${selected}>${this.escapeHtml(item.label)}</option>`
+          );
+        });
+
+        return options.join("");
+      }
+
+      openInsertTableDialog() {
+        const datasources = this.getAllReportDatasources().filter(item => item.kind === "collection");
+
+        if (!datasources.length) {
+          alert("Nenhuma coleção encontrada no JSON.");
+          return;
+        }
+
+        this.closeInsertTableDialog();
+
+        const defaultDetailPath = datasources.find(item => item.path !== "ROOT")?.path || "ROOT";
+        const backdrop = document.createElement("div");
+        backdrop.className = "wordex-chart-data-dialog-backdrop";
+        backdrop.innerHTML = `
+          <div class="wordex-chart-data-dialog" role="dialog" aria-modal="true" aria-labelledby="wordex-insert-table-title">
+            <h2 id="wordex-insert-table-title">Inserir Tabela</h2>
+            <div class="wordex-chart-data-dialog-fields">
+              <label>Datasource do Detail
+                <select id="wordexInsertTableDetailDatasource">
+                  ${this.renderCollectionPathOptions(datasources, defaultDetailPath)}
+                </select>
+              </label>
+            </div>
+            <div id="wordexInsertTableHeaderFields" class="wordex-chart-data-dialog-fields"></div>
+            <div id="wordexInsertTableFooterFields" class="wordex-chart-data-dialog-fields"></div>
+            <div class="wordex-chart-data-dialog-actions">
+              <button type="button" id="wordexInsertTableCancel">Cancelar</button>
+              <button type="button" class="primary" id="wordexInsertTableConfirm">Confirmar</button>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(backdrop);
+        this.insertTableDialogBackdrop = backdrop;
+
+        const detailSelect = backdrop.querySelector("#wordexInsertTableDetailDatasource");
+        const headerFields = backdrop.querySelector("#wordexInsertTableHeaderFields");
+        const footerFields = backdrop.querySelector("#wordexInsertTableFooterFields");
+
+        const readSelectedValues = attributeName => {
+          const values = {};
+
+          backdrop.querySelectorAll(`[${attributeName}]`).forEach(select => {
+            const key = select.getAttribute(attributeName) || "";
+
+            if (key) {
+              values[key] = String(select.value || "").trim();
+            }
+          });
+
+          return values;
+        };
+
+        const renderGroupFields = () => {
+          const detailPath = String(detailSelect?.value || "ROOT").trim() || "ROOT";
+          const ancestors = this.getCollectionAncestorChain(detailPath);
+          const headerAncestors = ancestors.filter(ancestor => ancestor !== "ROOT").slice().reverse();
+          const previousHeaders = readSelectedValues("data-wordex-header-ancestor");
+          const previousFooters = readSelectedValues("data-wordex-footer-ancestor");
+
+          headerFields.innerHTML = headerAncestors.map(ancestor => {
+            const options = this.getHeaderDatasourceOptionsForAncestor(detailPath, ancestor);
+            const defaultHeader = options.some(item => item.path === ancestor)
+              ? ancestor
+              : (previousHeaders[ancestor] || options[0]?.path || ancestor);
+
+            return `
+              <label>Grupo ${this.escapeHtml(ancestor)} (collection)
+                <select data-wordex-header-ancestor="${this.escapeHtml(ancestor)}">
+                  ${this.renderCollectionPathOptions(options, defaultHeader)}
+                </select>
+              </label>
+            `;
+          }).join("");
+
+          footerFields.innerHTML = ancestors.map(ancestor => {
+            const options = this.getFooterDatasourceOptionsForAncestor(ancestor);
+            const defaultFooter = previousFooters[ancestor] || "";
+
+            const footerLabel = ancestor === "ROOT"
+              ? "TableFooter (total)"
+              : `Footer de ${this.escapeHtml(ancestor)} (total)`;
+
+            return `
+              <label>${footerLabel}
+                <select data-wordex-footer-ancestor="${this.escapeHtml(ancestor)}">
+                  ${this.renderCollectionPathOptions(options, defaultFooter, true)}
+                </select>
+              </label>
+            `;
+          }).join("");
+        };
+
+        renderGroupFields();
+        detailSelect?.addEventListener("change", renderGroupFields);
+        headerFields?.addEventListener("change", event => {
+          if (event.target?.matches?.("[data-wordex-header-ancestor]")) {
+            renderGroupFields();
+          }
+        });
+
+        backdrop.querySelector("#wordexInsertTableCancel")?.addEventListener("click", () => {
+          this.closeInsertTableDialog();
+        });
+
+        backdrop.addEventListener("click", event => {
+          if (event.target === backdrop) {
+            this.closeInsertTableDialog();
+          }
+        });
+
+        backdrop.querySelector("#wordexInsertTableConfirm")?.addEventListener("click", () => {
+          const detailDatasource = String(detailSelect?.value || "ROOT").trim() || "ROOT";
+          const headerDatasources = readSelectedValues("data-wordex-header-ancestor");
+          const footerDatasources = readSelectedValues("data-wordex-footer-ancestor");
+
+          const table = this.buildTableFromDatasourceSpec(
+            detailDatasource,
+            footerDatasources,
+            headerDatasources
           );
 
-          if (childDatasource === null) {
+          if (!table) {
             return;
           }
 
-          if (!this.applyTableChildDatasource(table, parentDatasource, childDatasource)) {
+          this.closeInsertTableDialog();
+          this.insertNodeAtCurrentInsertionPoint(table);
+        });
+      }
+
+      collectDetailTableColumnFields(detailPath) {
+        const sample = this.getSampleValueForCollection(detailPath);
+
+        if (!sample || typeof sample !== "object" || Array.isArray(sample)) {
+          return [];
+        }
+
+        return Object.keys(sample)
+          .filter(key => !key.startsWith("$"))
+          .sort((left, right) => left.localeCompare(right, "pt"))
+          .filter(key => {
+            const value = sample[key];
+
+            if (this.classifyReportDatasourceKey(key, value)) {
+              return false;
+            }
+
+            if (Array.isArray(value)) {
+              return false;
+            }
+
+            if (this.isEmbeddedFkObject(value)) {
+              return false;
+            }
+
+            return this.isScalarReportField(value);
+          })
+          .map(name => ({ name }));
+      }
+
+      ensureTableRowCellCount(row, columnCount) {
+        const cols = Math.max(1, Number(columnCount) || 1);
+
+        while (row.cells.length < cols) {
+          const td = document.createElement("td");
+          td.contentEditable = "true";
+          td.innerHTML = "<br>";
+          row.appendChild(td);
+        }
+
+        while (row.cells.length > cols) {
+          row.deleteCell(row.cells.length - 1);
+        }
+      }
+
+      getTableRowLogicalColumnSpan(row) {
+        return Array.from(row?.cells || []).reduce((total, cell) => {
+          return total + (Number(cell.colSpan) || 1);
+        }, 0);
+      }
+
+      ensureTableRowLogicalColumnCount(table, row, expectedColumns = null) {
+        if (!table || !row) {
+          return;
+        }
+
+        const expected = Math.max(
+          1,
+          Number(expectedColumns) || this.getTableColumnCount(table)
+        );
+        let logical = this.getTableRowLogicalColumnSpan(row);
+
+        while (logical < expected) {
+          const td = document.createElement("td");
+          td.contentEditable = "true";
+          td.innerHTML = "<br>";
+          row.appendChild(td);
+          logical += 1;
+        }
+
+        if (logical !== expected) {
+          row.dataset.wordexManualColumns = "1";
+        }
+      }
+
+      normalizeTableRowsAfterMerge(table) {
+        if (!table) {
+          return;
+        }
+
+        const expected = this.getTableColumnCount(table);
+
+        Array.from(table.rows).forEach(row => {
+          this.ensureTableRowLogicalColumnCount(table, row, expected);
+        });
+      }
+
+      populateDetailColumnTitlesRow(row, fields) {
+        this.ensureTableRowCellCount(row, Math.max(1, fields.length));
+
+        fields.forEach((field, index) => {
+          const cell = row.cells[index];
+
+          if (!cell) {
             return;
+          }
+
+          cell.innerHTML = this.escapeHtml(field.name);
+        });
+      }
+
+      populateDetailDataRow(row, fields) {
+        this.ensureTableRowCellCount(row, Math.max(1, fields.length));
+
+        fields.forEach((field, index) => {
+          const cell = row.cells[index];
+
+          if (!cell) {
+            return;
+          }
+
+          cell.innerHTML = this.escapeHtml(this.formatMacroName(field.name));
+        });
+      }
+
+      collectTotalFieldsFromFooterDatasource(footerDatasource) {
+        const path = String(footerDatasource || "").trim();
+
+        if (!path) {
+          return [];
+        }
+
+        const parentPath = this.getDatasourceParentPath(path) || "ROOT";
+        const collectionName = path.split(".").filter(Boolean).pop() || "";
+        const parentSample = this.getSampleValueForDatasourceContext(parentPath);
+        const wrapper = this.resolveDatasourceValue(parentSample, collectionName, parentSample);
+        const firstRow = this.getFirstReportDatasourceRow(wrapper);
+
+        if (!firstRow || typeof firstRow !== "object") {
+          return [];
+        }
+
+        return Object.keys(firstRow)
+          .filter(key => !key.startsWith("$"))
+          .filter(key => /(Sum|Count|Min|Max|Avg)$/i.test(key))
+          .sort((left, right) => left.localeCompare(right, "pt"))
+          .map(name => ({ name }));
+      }
+
+      matchTotalMacroForDetailField(detailFieldName, totalFields) {
+        const base = String(detailFieldName || "").trim();
+
+        if (!base) {
+          return null;
+        }
+
+        const names = (totalFields || []).map(field => field.name);
+        const exactSum = names.find(name => name === `${base}Sum`);
+
+        if (exactSum) {
+          return exactSum;
+        }
+
+        return names.find(name => name.startsWith(base)) || null;
+      }
+
+      populateGroupFooterRow(row, footerDatasource, detailFields, label = "TOTAL CLIENTE:") {
+        const cols = Math.max(1, detailFields.length);
+        const totalFields = this.collectTotalFieldsFromFooterDatasource(footerDatasource);
+
+        this.ensureTableRowCellCount(row, cols);
+        row.cells[0].innerHTML = this.escapeHtml(label);
+
+        for (let index = 1; index < cols; index++) {
+          const detailField = detailFields[index];
+          const totalMacro = this.matchTotalMacroForDetailField(detailField?.name, totalFields);
+          const cell = row.cells[index];
+
+          if (!cell) {
+            continue;
+          }
+
+          cell.innerHTML = totalMacro
+            ? this.escapeHtml(this.formatMacroName(totalMacro))
+            : "<br>";
+        }
+      }
+
+      populateTableFooterRow(row, footerDatasource, detailFields, label = "TOTAL GERAL:") {
+        const cols = Math.max(1, detailFields?.length || 1);
+        const totalFields = this.collectTotalFieldsFromFooterDatasource(footerDatasource);
+
+        this.ensureTableRowCellCount(row, cols);
+        row.cells[0].innerHTML = this.escapeHtml(label);
+
+        for (let index = 1; index < cols; index++) {
+          const detailField = detailFields[index];
+          const totalMacro = this.matchTotalMacroForDetailField(detailField?.name, totalFields);
+          const cell = row.cells[index];
+
+          if (!cell) {
+            continue;
+          }
+
+          cell.innerHTML = totalMacro
+            ? this.escapeHtml(this.formatMacroName(totalMacro))
+            : "<br>";
+        }
+      }
+
+      buildTableFromDatasourceSpec(detailDatasource, footerDatasources = {}, headerDatasources = {}) {
+        const detailPath = String(detailDatasource || "ROOT").trim() || "ROOT";
+        const ancestors = this.getCollectionAncestorChain(detailPath);
+        const headerAncestors = ancestors.filter(ancestor => ancestor !== "ROOT").slice().reverse();
+        const groupFooterAncestors = ancestors.filter(ancestor => ancestor !== "ROOT");
+        const detailFields = this.collectDetailTableColumnFields(detailPath);
+        const cols = Math.max(1, detailFields.length || 3);
+        const leadingFreeCount = headerAncestors.length > 0 ? 1 : 0;
+        const middleRowCount = leadingFreeCount + headerAncestors.length + 1 + groupFooterAncestors.length;
+        const table = this.createTableElement(middleRowCount + 2, cols, "left", "80mm");
+
+        delete table.dataset.wordexDatasource;
+        delete table.dataset.wordexChildren;
+
+        const middleRows = Array.from(table.rows).slice(1, -1);
+        let rowIndex = 0;
+
+        if (leadingFreeCount > 0) {
+          const titlesRow = middleRows[rowIndex++];
+
+          if (titlesRow) {
+            const titlesInsertIndex = Array.from(table.rows).indexOf(titlesRow);
+            const titlesDatasource = this.resolveFreeRowDatasourceForInsert(
+              table,
+              titlesInsertIndex,
+              table.rows[0]
+            );
+
+            titlesRow.dataset.wordexRowType = "Free";
+            this.setTableRowDatasource(titlesRow, titlesDatasource);
+            this.populateDetailColumnTitlesRow(titlesRow, detailFields);
+            this.recolumnizeTableRow(table, titlesRow, cols);
           }
         }
 
-        this.insertNodeAtCurrentInsertionPoint(table);
+        headerAncestors.forEach(ancestorPath => {
+          const row = middleRows[rowIndex++];
+
+          if (!row) {
+            return;
+          }
+
+          row.dataset.wordexRowType = "GroupHeader";
+          this.setTableRowDatasource(
+            row,
+            headerDatasources[ancestorPath] || ancestorPath
+          );
+          this.normalizeTableRowColumnsForType(table, row, "GroupHeader");
+        });
+
+        const detailRow = middleRows[rowIndex++];
+
+        if (detailRow) {
+          detailRow.dataset.wordexRowType = "Detail";
+          this.setTableRowDatasource(detailRow, detailPath);
+          this.populateDetailDataRow(detailRow, detailFields);
+          this.recolumnizeTableRow(table, detailRow, cols);
+        }
+
+        groupFooterAncestors.forEach(ancestorPath => {
+          const row = middleRows[rowIndex++];
+
+          if (!row) {
+            return;
+          }
+
+          row.dataset.wordexRowType = "GroupFooter";
+          const footerDatasource = footerDatasources[ancestorPath] || "";
+          this.setTableRowDatasource(row, footerDatasource);
+          this.recolumnizeTableRow(table, row, cols);
+          this.populateGroupFooterRow(row, footerDatasource, detailFields);
+        });
+
+        this.setTableRowDatasource(table.rows[0], "ROOT");
+        const tableFooterRow = table.rows[table.rows.length - 1];
+        const tableFooterDatasource = footerDatasources.ROOT || "";
+        this.setTableRowDatasource(tableFooterRow, tableFooterDatasource);
+        this.recolumnizeTableRow(table, tableFooterRow, cols);
+        this.populateTableFooterRow(tableFooterRow, tableFooterDatasource, detailFields);
+
+        Array.from(table.rows).forEach(row => this.updateTableRowTypeLabel(row));
+        return table;
       }
 
       createDynamicImageElement(fieldName, align, width, height) {
@@ -6540,12 +7195,13 @@
         }
 
         rows[0].dataset.wordexRowType = "TableHeader";
+        this.setTableRowDatasource(rows[0], "ROOT");
         this.normalizeTableRowColumnsForType(table, rows[0], "TableHeader");
 
         if (rows.length > 1) {
           const footerRow = rows[rows.length - 1];
           footerRow.dataset.wordexRowType = "TableFooter";
-          this.normalizeTableRowColumnsForType(table, footerRow, "TableFooter");
+          this.recolumnizeTableRowToDetailColumns(table, footerRow);
         }
 
         rows.forEach(row => this.updateTableRowTypeLabel(row));
@@ -7142,13 +7798,18 @@
           const currentCell = context.cell;
           const currentWidth = currentCell.getBoundingClientRect().width;
           const newWidth = Math.max(24, Math.round(currentWidth + deltaWidth));
+          const columnIndices = this.getSelectedTableColumnIndices().length
+            ? this.getSelectedTableColumnIndices()
+            : [context.columnIndex];
 
           Array.from(context.table.rows).forEach(row => {
-            const cell = row.cells[context.columnIndex];
+            columnIndices.forEach(columnIndex => {
+              const slot = this.getTableCellAtLogicalColumn(row, columnIndex);
 
-            if (cell) {
-              cell.style.width = newWidth + "px";
-            }
+              if (slot?.cell) {
+                slot.cell.style.width = newWidth + "px";
+              }
+            });
           });
 
           this.syncAndSelectTableComponent(context, "column");
@@ -7241,11 +7902,28 @@
         let rect = null;
 
         if (mode === "row") {
-          rect = context.row.getBoundingClientRect();
+          const rowElements = this.getSelectedTableRowIndices().length
+            ? this.getSelectedTableRowIndices()
+                .map(rowIndex => context.table.rows[rowIndex])
+                .filter(Boolean)
+            : [context.row];
+
+          rect = this.getUnionRectFromElements(rowElements);
         } else if (mode === "column") {
-          const cells = Array.from(context.table.rows)
-            .map(row => row.cells[context.columnIndex])
-            .filter(Boolean);
+          const columnIndices = this.getSelectedTableColumnIndices().length
+            ? this.getSelectedTableColumnIndices()
+            : [context.columnIndex];
+          const cells = [];
+
+          Array.from(context.table.rows).forEach(row => {
+            columnIndices.forEach(columnIndex => {
+              const slot = this.getTableCellAtLogicalColumn(row, columnIndex);
+
+              if (slot?.cell) {
+                cells.push(slot.cell);
+              }
+            });
+          });
 
           rect = this.getUnionRectFromElements(cells);
         }
@@ -8117,45 +8795,6 @@
         const align = this.askAlignment(table.dataset.align || "left");
         if (!align) return;
 
-        const currentRows = table.rows.length;
-        const currentCols = this.getTableColumnCount(table);
-
-        const rows = Number(prompt("Quantidade de linhas:", String(currentRows)));
-        const cols = Number(prompt("Quantidade de colunas:", String(currentCols)));
-
-        if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows < 1 || cols < 1) {
-          alert("Informe uma quantidade válida de linhas e colunas.");
-          return;
-        }
-
-        this.resizeTableStructure(table, rows, cols);
-
-        if (this.getReportDataRootRecord()) {
-          const parentDatasource = this.getSelectedJsonCollectionName() || "ROOT";
-
-          if (parentDatasource && parentDatasource !== "ROOT") {
-            table.dataset.wordexDatasource = parentDatasource;
-          } else {
-            delete table.dataset.wordexDatasource;
-          }
-
-          const childDefault = table.dataset.wordexChildren || "";
-          const childPrompt = parentDatasource === "ROOT"
-            ? "ChildDatasource (coleção do ROOT; vazio = Parent):"
-            : (childDefault
-              ? `ChildDatasource (vazio = ${parentDatasource !== "ROOT" ? parentDatasource : "Parent"}):`
-              : "ChildDatasource (vazio = mesmo que Parent):");
-          const childDatasource = prompt(childPrompt, childDefault);
-
-          if (childDatasource === null) {
-            return;
-          }
-
-          if (!this.applyTableChildDatasource(table, parentDatasource, childDatasource)) {
-            return;
-          }
-        }
-
         this.applyAlignment(table, align);
         this.limitObjectWidthToParagraph(table);
         this.syncObjectAfterChange(table);
@@ -8679,13 +9318,32 @@
         if (!context) return null;
 
         if (mode === "cell") {
-          callback(context.cell);
+          this.getSelectedTableCells().forEach(callback);
         } else if (mode === "row") {
-          Array.from(context.row.cells).forEach(callback);
+          const rowIndices = this.getSelectedTableRowIndices().length
+            ? this.getSelectedTableRowIndices()
+            : [this.getTableRowIndex(context.table, context.row)];
+
+          rowIndices.forEach(rowIndex => {
+            const row = context.table.rows[rowIndex];
+
+            if (row) {
+              Array.from(row.cells).forEach(callback);
+            }
+          });
         } else if (mode === "column") {
+          const columnIndices = this.getSelectedTableColumnIndices().length
+            ? this.getSelectedTableColumnIndices()
+            : [context.columnIndex];
+
           Array.from(context.table.rows).forEach(row => {
-            const cell = row.cells[context.columnIndex];
-            if (cell) callback(cell);
+            columnIndices.forEach(columnIndex => {
+              const slot = this.getTableCellAtLogicalColumn(row, columnIndex);
+
+              if (slot?.cell) {
+                callback(slot.cell);
+              }
+            });
           });
         } else if (mode === "table") {
           callback(context.table);
@@ -9263,6 +9921,17 @@
 
             event.wordexTableClickHandled = true;
 
+            if (event.shiftKey) {
+              event.preventDefault();
+
+              if (stopPropagationOnCellModifier || stopPropagationOnCell) {
+                event.stopPropagation();
+              }
+
+              this.handleTableShiftSelection(table, cell);
+              return true;
+            }
+
             if (this.isPrimaryModifierPressed(event)) {
               event.preventDefault();
 
@@ -9271,10 +9940,10 @@
               }
 
               this.cycleTableComponentSelection(cell);
-            } else {
-              this.selectTableCell(cell);
+              return true;
             }
 
+            this.enterTableCellEditMode(cell);
             return true;
           }
         }
@@ -9319,7 +9988,13 @@
           if (cycleCell) {
             this.cycleTableComponentSelection(cycleCell);
           } else {
-            this.selectTableComponent(object, null, "table");
+            const fallbackCell = object.rows?.[1]?.cells?.[0] || object.rows?.[0]?.cells?.[0] || null;
+
+            if (fallbackCell) {
+              this.cycleTableComponentSelection(fallbackCell);
+            } else {
+              this.selectObject(object);
+            }
           }
         } else {
           if (isPrimaryModifier) {
@@ -9336,14 +10011,85 @@
         return true;
       }
 
-      selectTableCell(cell) {
-        if (!cell) return;
+      clearTableComponentSelectionState() {
+        this.selectedTableMode = null;
+        this.selectedTableRow = null;
+        this.selectedTableColumnIndex = null;
+        this.selectedTableRowIndices = [];
+        this.selectedTableColumnIndices = [];
+        this.selectedTableCells = [];
+        this.tableSelectionAnchor = null;
+      }
+
+      isTableComponentSelectionActive(table) {
+        return !!(
+          table &&
+          this.selectedObject === table &&
+          this.selectedTableMode &&
+          (
+            this.selectedTableMode === "table" ||
+            this.selectedTableMode === "row" ||
+            this.selectedTableMode === "column" ||
+            (this.selectedTableMode === "cell" && this.getSelectedTableCells().length > 0)
+          )
+        );
+      }
+
+      enterTableCellEditMode(cell) {
+        if (!cell) {
+          return;
+        }
 
         const table = cell.closest(".wordex-table");
 
-        if (!table) return;
+        if (!table) {
+          return;
+        }
 
-        this.selectTableComponent(table, cell, "cell");
+        this.selectedObject = null;
+        this.clearTableComponentSelectionState();
+        this.selectedCell = cell;
+        this.macroPickerActiveTable = table;
+        delete table.dataset.wordexSelectionMode;
+
+        const paragraph = table.closest(".paragraph");
+        const region = table.closest(".region");
+
+        if (region) {
+          this.selected.region = region.dataset.region;
+        }
+
+        if (paragraph) {
+          this.selectedParagraphId = paragraph.dataset.blockId;
+          this.selectedBlockId = paragraph.dataset.blockId;
+        }
+
+        this.renderSelection();
+      }
+
+      selectTableCell(cell) {
+        this.enterTableCellEditMode(cell);
+      }
+
+      handleTableShiftSelection(table, cell) {
+        if (!table || !cell) {
+          return;
+        }
+
+        const hasCellSelection =
+          this.selectedObject === table &&
+          this.selectedTableMode === "cell" &&
+          this.getSelectedTableCells().length > 0;
+        const canExtend =
+          hasCellSelection &&
+          !!this.resolveTableSelectionAnchor(table, cell, "cell");
+
+        if (canExtend) {
+          this.extendTableSelectionFromCell(cell);
+          return;
+        }
+
+        this.selectTableComponent(table, cell, "cell", { cells: [cell] });
       }
 
       getCellForTableComponentCycle(table, target) {
@@ -9373,42 +10119,321 @@
 
         if (!table) return;
 
-        const currentMode =
-          this.selectedObject === table
-            ? (this.selectedTableMode || table.dataset.wordexSelectionMode || "cell")
-            : (table.dataset.wordexSelectionMode || "cell");
+        const isTableActive = this.selectedObject === table;
+        const currentMode = isTableActive
+          ? (this.selectedTableMode || table.dataset.wordexSelectionMode || "table")
+          : null;
 
         let nextMode = "table";
 
-        if (currentMode === "table") {
+        if (!isTableActive || !currentMode || currentMode === "cell") {
+          nextMode = "table";
+        } else if (currentMode === "table") {
           nextMode = "row";
         } else if (currentMode === "row") {
           nextMode = "column";
         } else if (currentMode === "column") {
-          nextMode = "cell";
-        } else if (currentMode === "cell") {
-          nextMode = "table";
-        } else {
-          /*
-            Modo indefinido: primeiro Ctrl+clique sobe para tabela.
-          */
           nextMode = "table";
         }
 
         this.selectTableComponent(table, cell, nextMode);
       }
 
-      selectTableComponent(table, cell, mode) {
+      getTableRowIndex(table, row) {
+        return Array.from(table?.rows || []).indexOf(row);
+      }
+
+      getCellLogicalColumnIndex(row, cell) {
+        let logical = 0;
+
+        for (const current of Array.from(row?.cells || [])) {
+          if (current === cell) {
+            return logical;
+          }
+
+          logical += Number(current.colSpan) || 1;
+        }
+
+        return -1;
+      }
+
+      getTableCellAtLogicalColumn(row, logicalCol) {
+        let logical = 0;
+
+        for (const cell of Array.from(row?.cells || [])) {
+          const span = Number(cell.colSpan) || 1;
+
+          if (logicalCol >= logical && logicalCol < logical + span) {
+            return { cell, logicalStart: logical, span };
+          }
+
+          logical += span;
+        }
+
+        return null;
+      }
+
+      normalizeContiguousIndices(indices = []) {
+        return [...new Set(indices.filter(index => Number.isInteger(index) && index >= 0))].sort(
+          (left, right) => left - right
+        );
+      }
+
+      areContiguousIndices(indices = []) {
+        const normalized = this.normalizeContiguousIndices(indices);
+
+        if (normalized.length <= 1) {
+          return normalized.length === 1;
+        }
+
+        for (let index = 1; index < normalized.length; index++) {
+          if (normalized[index] !== normalized[index - 1] + 1) {
+            return false;
+          }
+        }
+
+        return true;
+      }
+
+      getSelectedTableRowIndices() {
+        if (this.selectedTableRowIndices?.length) {
+          return this.normalizeContiguousIndices(this.selectedTableRowIndices);
+        }
+
+        if (this.selectedTableRow && this.selectedObject?.rows) {
+          const rowIndex = this.getTableRowIndex(this.selectedObject, this.selectedTableRow);
+
+          return rowIndex >= 0 ? [rowIndex] : [];
+        }
+
+        return [];
+      }
+
+      getSelectedTableColumnIndices() {
+        if (this.selectedTableColumnIndices?.length) {
+          return this.normalizeContiguousIndices(this.selectedTableColumnIndices);
+        }
+
+        if (Number.isInteger(this.selectedTableColumnIndex)) {
+          return [this.selectedTableColumnIndex];
+        }
+
+        return [];
+      }
+
+      getSelectedTableCells() {
+        if (this.selectedTableCells?.length) {
+          return this.selectedTableCells.filter(cell => cell?.isConnected);
+        }
+
+        if (this.selectedCell?.isConnected) {
+          return [this.selectedCell];
+        }
+
+        return [];
+      }
+
+      isStructuralTableRowForMerge(row) {
+        const rowType = this.normalizeTableRowType(row?.dataset?.wordexRowType || "");
+
+        return rowType === "TableHeader" || rowType === "Detail";
+      }
+
+      isCellMergeRowEligible(row) {
+        return !this.isStructuralTableRowForMerge(row);
+      }
+
+      getTableSelectionAnchorFromCell(table, cell, mode) {
+        const row = cell?.parentElement;
+
+        if (!row || !table) {
+          return null;
+        }
+
+        return {
+          mode,
+          rowIndex: this.getTableRowIndex(table, row),
+          logicalCol: this.getCellLogicalColumnIndex(row, cell),
+          cell
+        };
+      }
+
+      resolveTableSelectionAnchor(table, cell, mode) {
+        if (
+          this.tableSelectionAnchor &&
+          this.tableSelectionAnchor.mode === mode &&
+          Number.isInteger(this.tableSelectionAnchor.rowIndex) &&
+          Number.isInteger(this.tableSelectionAnchor.logicalCol)
+        ) {
+          return this.tableSelectionAnchor;
+        }
+
+        if (mode === "row") {
+          const rowIndices = this.getSelectedTableRowIndices();
+
+          if (rowIndices.length) {
+            const anchorRow = table.rows[rowIndices[0]];
+            const anchorCell = anchorRow?.cells?.[0] || cell;
+
+            return this.getTableSelectionAnchorFromCell(table, anchorCell, mode);
+          }
+        }
+
+        if (mode === "column") {
+          const columnIndices = this.getSelectedTableColumnIndices();
+
+          if (columnIndices.length) {
+            const logicalCol = columnIndices[0];
+            const anchorRow = cell.parentElement || table.rows[0];
+            const slot = this.getTableCellAtLogicalColumn(anchorRow, logicalCol);
+
+            return {
+              mode,
+              rowIndex: this.getTableRowIndex(table, anchorRow),
+              logicalCol,
+              cell: slot?.cell || cell
+            };
+          }
+        }
+
+        if (mode === "cell") {
+          const cells = this.getSelectedTableCells();
+
+          if (cells.length) {
+            return this.getTableSelectionAnchorFromCell(table, cells[0], mode);
+          }
+        }
+
+        return this.getTableSelectionAnchorFromCell(table, this.selectedCell || cell, mode);
+      }
+
+      extendTableSelectionFromCell(cell) {
+        const table = cell?.closest?.(".wordex-table");
+
+        if (!table || !cell) {
+          return;
+        }
+
+        const mode = (!this.selectedTableMode || this.selectedTableMode === "table")
+          ? "row"
+          : this.selectedTableMode;
+
+        if (this.selectedObject !== table) {
+          this.selectTableComponent(table, cell, mode);
+          return;
+        }
+
+        const row = cell.parentElement;
+        const rowIndex = this.getTableRowIndex(table, row);
+        const logicalCol = this.getCellLogicalColumnIndex(row, cell);
+        const anchor = this.resolveTableSelectionAnchor(table, cell, mode);
+
+        if (mode === "row") {
+          const from = Math.min(anchor.rowIndex, rowIndex);
+          const to = Math.max(anchor.rowIndex, rowIndex);
+          const rowIndices = [];
+
+          for (let index = from; index <= to; index++) {
+            rowIndices.push(index);
+          }
+
+          this.selectTableComponent(table, cell, "row", {
+            rowIndices,
+            setAnchor: false
+          });
+          return;
+        }
+
+        if (mode === "column") {
+          const from = Math.min(anchor.logicalCol, logicalCol);
+          const to = Math.max(anchor.logicalCol, logicalCol);
+          const columnIndices = [];
+
+          for (let index = from; index <= to; index++) {
+            columnIndices.push(index);
+          }
+
+          this.selectTableComponent(table, cell, "column", {
+            columnIndices,
+            setAnchor: false
+          });
+          return;
+        }
+
+        const fromRow = Math.min(anchor.rowIndex, rowIndex);
+        const toRow = Math.max(anchor.rowIndex, rowIndex);
+        const fromCol = Math.min(anchor.logicalCol, logicalCol);
+        const toCol = Math.max(anchor.logicalCol, logicalCol);
+        const cells = [];
+
+        for (let currentRowIndex = fromRow; currentRowIndex <= toRow; currentRowIndex++) {
+          const currentRow = table.rows[currentRowIndex];
+
+          if (!currentRow) {
+            continue;
+          }
+
+          for (let currentCol = fromCol; currentCol <= toCol; currentCol++) {
+            const slot = this.getTableCellAtLogicalColumn(currentRow, currentCol);
+
+            if (slot?.cell && !cells.includes(slot.cell)) {
+              cells.push(slot.cell);
+            }
+          }
+        }
+
+        this.selectTableComponent(table, cell, "cell", {
+          cells,
+          setAnchor: false
+        });
+      }
+
+      selectTableComponent(table, cell, mode, options = {}) {
         if (!table) return;
+
+        const normalizedMode = mode || "table";
+        const row = cell?.parentElement || null;
+        const rowIndex = row ? this.getTableRowIndex(table, row) : -1;
+        const logicalCol = row && cell ? this.getCellLogicalColumnIndex(row, cell) : null;
 
         this.selectedObject = table;
         this.selectedCell = cell || this.selectedCell;
-        this.selectedTableMode = mode || "table";
+        this.selectedTableMode = normalizedMode;
         table.dataset.wordexSelectionMode = this.selectedTableMode;
-        this.selectedTableRow = cell ? cell.parentElement : null;
-        this.selectedTableColumnIndex = cell && cell.parentElement
-          ? Array.from(cell.parentElement.cells).indexOf(cell)
-          : null;
+        this.selectedTableRow = row;
+        this.selectedTableColumnIndex = logicalCol;
+
+        if (normalizedMode === "row" && rowIndex >= 0) {
+          this.selectedTableRowIndices = this.normalizeContiguousIndices(
+            options.rowIndices || [rowIndex]
+          );
+          this.selectedTableColumnIndices = [];
+          this.selectedTableCells = [];
+        } else if (normalizedMode === "column" && Number.isInteger(logicalCol)) {
+          this.selectedTableColumnIndices = this.normalizeContiguousIndices(
+            options.columnIndices || [logicalCol]
+          );
+          this.selectedTableRowIndices = [];
+          this.selectedTableCells = [];
+        } else if (normalizedMode === "cell" && cell) {
+          this.selectedTableCells = (options.cells || [cell]).filter(Boolean);
+          this.selectedTableRowIndices = [];
+          this.selectedTableColumnIndices = [];
+        } else if (normalizedMode === "table") {
+          this.selectedTableRowIndices = [];
+          this.selectedTableColumnIndices = [];
+          this.selectedTableCells = [];
+        }
+
+        if (options.setAnchor !== false && cell && normalizedMode !== "table") {
+          this.tableSelectionAnchor = this.getTableSelectionAnchorFromCell(
+            table,
+            cell,
+            normalizedMode
+          );
+        } else if (normalizedMode === "table") {
+          this.tableSelectionAnchor = null;
+        }
 
         if (this.selectedTableMode !== "cell") {
           const selection = window.getSelection();
@@ -9462,30 +10487,28 @@
         return String(row?.dataset?.wordexDatasource || "").trim();
       }
 
-      isTableRowEnabled(row) {
-        return row?.dataset?.wordexEnabled !== "false";
-      }
-
-      setTableRowEnabled(row, enabled) {
-        if (!row) return;
-
-        if (enabled === false) {
-          row.dataset.wordexEnabled = "false";
-        } else {
-          delete row.dataset.wordexEnabled;
-        }
-
-        this.updateTableRowTypeLabel(row);
-      }
-
       getTableRowTypeLabel(row) {
         if (!row) return "";
 
-        const parts = [];
         const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+        const datasource = this.getTableRowDatasource(row);
+
+        if (rowType === "TableHeader") {
+          return "TableHeader | ROOT";
+        }
+
+        if (rowType === "TableFooter") {
+          return datasource ? `TableFooter | ${datasource}` : "TableFooter";
+        }
+
+        if (rowType === "Free") {
+          return datasource ? `Free | ${datasource}` : "Free";
+        }
+
+        const parts = [];
 
         if (rowType) parts.push(rowType);
-        if (!this.isTableRowEnabled(row)) parts.push("Enabled=false");
+        if (datasource) parts.push(datasource);
 
         return parts.join(" | ");
       }
@@ -9512,8 +10535,861 @@
           Qualquer linha GroupHeader vira uma célula única
           com colspan total.
         */
+        if (row?.dataset?.wordexManualColumns === "1") {
+          return false;
+        }
+
         rowType = this.normalizeTableRowType(rowType);
-        return rowType === "GroupHeader" || rowType === "TableHeader" || rowType === "TableFooter";
+        return rowType === "GroupHeader" || rowType === "TableHeader";
+      }
+
+      isFreeTableRow(row) {
+        return this.normalizeTableRowType(row?.dataset?.wordexRowType || "") === "Free";
+      }
+
+      canMergeColumnsInTableRowType(rowType) {
+        return ["TableHeader", "TableFooter", "GroupHeader", "GroupFooter", "Free"].includes(
+          this.normalizeTableRowType(rowType || "")
+        );
+      }
+
+      getTableDetailRowIndex(table) {
+        return Array.from(table?.rows || []).findIndex(row => {
+          return this.normalizeTableRowType(row.dataset.wordexRowType || "") === "Detail";
+        });
+      }
+
+      getTableDetailRow(table) {
+        const rowIndex = this.getTableDetailRowIndex(table);
+
+        return rowIndex >= 0 ? table.rows[rowIndex] : null;
+      }
+
+      getTableDetailColumnCount(table) {
+        const detailRow = this.getTableDetailRow(table);
+
+        if (!detailRow) {
+          return this.getTableColumnCount(table);
+        }
+
+        return Math.max(
+          1,
+          this.getTableRowLogicalColumnSpan(detailRow) || this.getTableColumnCount(table)
+        );
+      }
+
+      getTableDetailFieldsFromTable(table) {
+        const detailRow = this.getTableDetailRow(table);
+
+        if (!detailRow) {
+          return [];
+        }
+
+        return Array.from(detailRow.cells).map((cell, index) => {
+          const html = String(cell.innerHTML || "");
+          const macroMatch = html.match(/\{\{\s*([^{}]+?)\s*\}\}/);
+          const macroPath = macroMatch ? macroMatch[1].trim() : "";
+          const name = macroPath
+            ? macroPath.split(".").filter(Boolean).pop() || macroPath
+            : String(cell.textContent || "").trim() || `Coluna${index + 1}`;
+
+          return { name };
+        });
+      }
+
+      recolumnizeTableRowToDetailColumns(table, row) {
+        if (!table || !row) {
+          return;
+        }
+
+        const cols = this.getTableDetailColumnCount(table);
+        this.recolumnizeTableRow(table, row, cols);
+        this.ensureTableRowLogicalColumnCount(table, row, cols);
+      }
+
+      resolveFreeRowDatasourceForInsert(table, insertRowIndex, previousRow) {
+        const detailRowIndex = this.getTableDetailRowIndex(table);
+        const previousDatasource = this.getTableRowDatasource(previousRow) || "ROOT";
+
+        if (detailRowIndex < 0 || insertRowIndex <= detailRowIndex) {
+          return previousDatasource;
+        }
+
+        return this.getDatasourceParentPath(previousDatasource) || "ROOT";
+      }
+
+      resolveFreeRowDatasourceAtPosition(table, rowIndex) {
+        const previousRow = table?.rows?.[rowIndex - 1];
+
+        if (!previousRow) {
+          return "ROOT";
+        }
+
+        return this.resolveFreeRowDatasourceForInsert(table, rowIndex, previousRow);
+      }
+
+      moveFreeTableRow(step) {
+        const context = this.getSelectedTableContext();
+
+        if (!context) {
+          return;
+        }
+
+        if (!this.isFreeTableRow(context.row)) {
+          alert("Selecione uma linha Free para mover.");
+          return;
+        }
+
+        const table = context.table;
+        const rows = Array.from(table.rows);
+        const rowIndex = rows.indexOf(context.row);
+        const newIndex = rowIndex + step;
+
+        if (newIndex <= 0 || newIndex >= rows.length - 1) {
+          alert("A linha Free não pode ultrapassar o TableHeader nem o TableFooter.");
+          return;
+        }
+
+        const movingRow = context.row;
+        const columnIndex = Math.max(0, context.columnIndex);
+
+        if (step < 0) {
+          table.insertBefore(movingRow, table.rows[newIndex]);
+        } else {
+          const afterReference = table.rows[newIndex + 1] || null;
+          table.insertBefore(movingRow, afterReference);
+        }
+
+        const updatedIndex = Array.from(table.rows).indexOf(movingRow);
+        this.setTableRowDatasource(
+          movingRow,
+          this.resolveFreeRowDatasourceAtPosition(table, updatedIndex)
+        );
+
+        const selectedCell = movingRow.cells[columnIndex] || movingRow.cells[0] || null;
+        this.syncObjectAfterChange(table);
+        this.selectTableComponent(table, selectedCell, "row");
+        this.saveUndoStateIfChanged();
+      }
+
+      moveFreeTableRowUp() {
+        this.moveFreeTableRow(-1);
+      }
+
+      moveFreeTableRowDown() {
+        this.moveFreeTableRow(1);
+      }
+
+      canInsertFreeTableRowAt(table, insertRowIndex) {
+        const rowCount = table?.rows?.length || 0;
+
+        if (rowCount < 3) {
+          return false;
+        }
+
+        return insertRowIndex > 0 && insertRowIndex < rowCount - 1;
+      }
+
+      splitOrderedMiddleRows(orderedMiddleRows = []) {
+        const leadingFree = [];
+        const structural = [];
+        const trailingFree = [];
+        let phase = "leading";
+
+        orderedMiddleRows.forEach(entry => {
+          if (entry.rowType === "Free") {
+            if (phase === "leading") {
+              leadingFree.push(entry);
+            } else {
+              phase = "trailing";
+              trailingFree.push(entry);
+            }
+
+            return;
+          }
+
+          if (["GroupHeader", "Detail", "GroupFooter"].includes(entry.rowType)) {
+            phase = "structural";
+            structural.push(entry);
+          }
+        });
+
+        return { leadingFree, structural, trailingFree };
+      }
+
+      prepareTableRowForColumnMerge(table, row) {
+        if (!table || !row) {
+          return false;
+        }
+
+        if (row.dataset.wordexDecolumnized === "1") {
+          const cols = this.getTableColumnCount(table);
+          this.recolumnizeTableRow(table, row, cols);
+          delete row.dataset.wordexDecolumnized;
+          delete row.dataset.wordexOriginalColumnCount;
+          row.dataset.wordexManualColumns = "1";
+        }
+
+        return true;
+      }
+
+      createEmptyTableCell() {
+        const td = document.createElement("td");
+        td.contentEditable = "true";
+        td.innerHTML = "<br>";
+        return td;
+      }
+
+      getActiveTableForColumnEdit() {
+        const table = this.selectedObject?.matches?.(".wordex-table")
+          ? this.selectedObject
+          : this.getSelectedTableContextWithoutAlert()?.table;
+
+        if (!table) {
+          alert("Selecione uma tabela.");
+          return null;
+        }
+
+        return table;
+      }
+
+      resolveTableColumnEditIndex(table, mode = "insert") {
+        const totalCols = this.getTableColumnCount(table);
+        const columnIndices = this.getSelectedTableColumnIndices();
+
+        if (columnIndices.length > 0) {
+          if (mode === "insert") {
+            return Math.min(totalCols, Math.max(...columnIndices) + 1);
+          }
+
+          return columnIndices[0];
+        }
+
+        if (this.selectedTableMode === "column" && Number.isInteger(this.selectedTableColumnIndex)) {
+          return mode === "insert"
+            ? this.selectedTableColumnIndex + 1
+            : this.selectedTableColumnIndex;
+        }
+
+        const context = this.getSelectedTableContextWithoutAlert();
+
+        if (context?.table === table && Number.isInteger(context.columnIndex)) {
+          return mode === "insert" ? context.columnIndex + 1 : context.columnIndex;
+        }
+
+        if (mode === "insert") {
+          return totalCols;
+        }
+
+        return Math.max(0, totalCols - 1);
+      }
+
+      prepareTableRowForColumnEdit(table, row) {
+        if (!table || !row || row.dataset.wordexDecolumnized !== "1") {
+          return;
+        }
+
+        const cols = this.getTableColumnCount(table);
+        this.recolumnizeTableRow(table, row, cols);
+      }
+
+      insertLogicalColumnInRow(row, logicalIndex) {
+        const insertAt = Math.max(0, logicalIndex);
+        let logical = 0;
+
+        for (const cell of Array.from(row.cells)) {
+          const span = Number(cell.colSpan) || 1;
+          const cellStart = logical;
+          const cellEnd = logical + span - 1;
+
+          if (insertAt < cellStart) {
+            row.insertBefore(this.createEmptyTableCell(), cell);
+            return true;
+          }
+
+          if (insertAt > cellEnd) {
+            logical += span;
+            continue;
+          }
+
+          const offset = insertAt - cellStart;
+
+          if (offset === 0) {
+            row.insertBefore(this.createEmptyTableCell(), cell);
+            return true;
+          }
+
+          const leftSpan = offset;
+          const rightSpan = span - offset;
+          const newCell = this.createEmptyTableCell();
+          cell.colSpan = leftSpan;
+          cell.insertAdjacentElement("afterend", newCell);
+
+          if (rightSpan > 1) {
+            const rightCell = this.createEmptyTableCell();
+            rightCell.colSpan = rightSpan;
+            newCell.insertAdjacentElement("afterend", rightCell);
+          }
+
+          return true;
+        }
+
+        row.appendChild(this.createEmptyTableCell());
+        return true;
+      }
+
+      deleteLogicalColumnInRow(row, logicalIndex) {
+        let logical = 0;
+
+        for (const cell of Array.from(row.cells)) {
+          const span = Number(cell.colSpan) || 1;
+          const cellStart = logical;
+
+          if (logicalIndex < cellStart || logicalIndex >= cellStart + span) {
+            logical += span;
+            continue;
+          }
+
+          if (span === 1) {
+            cell.remove();
+            return true;
+          }
+
+          const offset = logicalIndex - cellStart;
+
+          if (offset === 0 || offset === span - 1) {
+            cell.colSpan = span - 1;
+            return true;
+          }
+
+          const leftSpan = offset;
+          const rightSpan = span - offset - 1;
+          cell.colSpan = leftSpan;
+
+          if (rightSpan > 0) {
+            const rightCell = this.createEmptyTableCell();
+            rightCell.colSpan = rightSpan;
+            cell.insertAdjacentElement("afterend", rightCell);
+          }
+
+          return true;
+        }
+
+        return false;
+      }
+
+      insertColumnInTableRow(table, row, insertAt) {
+        const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+
+        if (
+          row.dataset.wordexDecolumnized === "1" &&
+          row.cells.length === 1 &&
+          insertAt >= (Number(row.cells[0].colSpan) || 1)
+        ) {
+          const cell = row.cells[0];
+          cell.colSpan = (Number(cell.colSpan) || 1) + 1;
+          row.dataset.wordexOriginalColumnCount = String(cell.colSpan);
+          this.updateTableRowTypeLabel(row);
+          return;
+        }
+
+        this.prepareTableRowForColumnEdit(table, row);
+        this.insertLogicalColumnInRow(row, insertAt);
+
+        if (!this.shouldDecolumnizeTableRow(table, row, rowType)) {
+          row.dataset.wordexManualColumns = "1";
+        }
+      }
+
+      deleteColumnInTableRow(table, row, deleteAt) {
+        const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+
+        if (row.dataset.wordexDecolumnized === "1" && row.cells.length === 1) {
+          const cell = row.cells[0];
+          const span = Number(cell.colSpan) || 1;
+
+          if (span > 1) {
+            cell.colSpan = span - 1;
+            row.dataset.wordexOriginalColumnCount = String(cell.colSpan);
+            this.updateTableRowTypeLabel(row);
+            return true;
+          }
+
+          this.prepareTableRowForColumnEdit(table, row);
+        } else {
+          this.prepareTableRowForColumnEdit(table, row);
+        }
+
+        if (!this.deleteLogicalColumnInRow(row, deleteAt)) {
+          return false;
+        }
+
+        if (!this.shouldDecolumnizeTableRow(table, row, rowType)) {
+          row.dataset.wordexManualColumns = "1";
+        }
+
+        return true;
+      }
+
+      finalizeTableRowsAfterColumnEdit(table) {
+        const cols = this.getTableColumnCount(table);
+
+        Array.from(table.rows).forEach(row => {
+          const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+
+          if (this.shouldDecolumnizeTableRow(table, row, rowType)) {
+            this.decolumnizeTableRow(table, row, rowType, cols);
+            return;
+          }
+
+          this.updateTableRowTypeLabel(row);
+        });
+      }
+
+      insertTableColumn() {
+        const table = this.getActiveTableForColumnEdit();
+
+        if (!table) {
+          return;
+        }
+
+        const insertAt = this.resolveTableColumnEditIndex(table, "insert");
+
+        Array.from(table.rows).forEach(row => {
+          this.insertColumnInTableRow(table, row, insertAt);
+        });
+
+        this.finalizeTableRowsAfterColumnEdit(table);
+        this.normalizeTableRowsAfterMerge(table);
+        this.syncObjectAfterChange(table);
+
+        const anchorRow = table.rows[0] || table.rows[1];
+        const anchorCell = anchorRow
+          ? this.getTableCellAtLogicalColumn(anchorRow, insertAt)?.cell
+          : null;
+
+        this.selectTableComponent(table, anchorCell, "column", {
+          columnIndices: [insertAt]
+        });
+        this.saveUndoStateIfChanged();
+      }
+
+      deleteTableColumn() {
+        const table = this.getActiveTableForColumnEdit();
+
+        if (!table) {
+          return;
+        }
+
+        if (this.getTableColumnCount(table) <= 1) {
+          alert("A tabela precisa manter ao menos uma coluna.");
+          return;
+        }
+
+        const deleteAt = this.resolveTableColumnEditIndex(table, "delete");
+        let deletedAny = false;
+
+        Array.from(table.rows).forEach(row => {
+          if (this.deleteColumnInTableRow(table, row, deleteAt)) {
+            deletedAny = true;
+          }
+        });
+
+        if (!deletedAny) {
+          alert("Não foi possível excluir a coluna selecionada.");
+          return;
+        }
+
+        this.finalizeTableRowsAfterColumnEdit(table);
+        this.normalizeTableRowsAfterMerge(table);
+        this.syncObjectAfterChange(table);
+
+        const nextColumnIndex = Math.min(deleteAt, this.getTableColumnCount(table) - 1);
+        const anchorRow = table.rows[0] || table.rows[1];
+        const anchorCell = anchorRow
+          ? this.getTableCellAtLogicalColumn(anchorRow, nextColumnIndex)?.cell
+          : null;
+
+        this.selectTableComponent(table, anchorCell, "column", {
+          columnIndices: [nextColumnIndex]
+        });
+        this.saveUndoStateIfChanged();
+      }
+
+      appendMergedCellContent(targetCell, sourceCell) {
+        if (!targetCell || !sourceCell || this.isCellHtmlEmpty(sourceCell.innerHTML)) {
+          return;
+        }
+
+        if (!this.isCellHtmlEmpty(targetCell.innerHTML)) {
+          targetCell.insertAdjacentHTML("beforeend", "<br>");
+        }
+
+        targetCell.insertAdjacentHTML("beforeend", sourceCell.innerHTML);
+      }
+
+      mergeHorizontalLogicalColumnsInRow(row, startLogicalCol, endLogicalCol) {
+        if (!row || startLogicalCol > endLogicalCol) {
+          return false;
+        }
+
+        const cellsToMerge = [];
+        let logical = 0;
+
+        Array.from(row.cells).forEach(cell => {
+          const span = Number(cell.colSpan) || 1;
+          const cellStart = logical;
+          const cellEnd = logical + span - 1;
+
+          if (cellEnd >= startLogicalCol && cellStart <= endLogicalCol) {
+            cellsToMerge.push(cell);
+          }
+
+          logical += span;
+        });
+
+        if (cellsToMerge.length < 2) {
+          return false;
+        }
+
+        const startCell = cellsToMerge[0];
+
+        cellsToMerge.slice(1).forEach(nextCell => {
+          this.appendMergedCellContent(startCell, nextCell);
+          nextCell.remove();
+        });
+
+        startCell.colSpan = endLogicalCol - startLogicalCol + 1;
+        row.dataset.wordexManualColumns = "1";
+        return true;
+      }
+
+      mergeTableRowsIntoTopRow(topRow, bottomRow) {
+        const topCells = Array.from(topRow?.cells || []);
+        const bottomCells = Array.from(bottomRow?.cells || []);
+
+        if (topCells.length !== bottomCells.length) {
+          return false;
+        }
+
+        topCells.forEach((topCell, index) => {
+          const bottomCell = bottomCells[index];
+
+          if (!bottomCell) {
+            return;
+          }
+
+          this.appendMergedCellContent(topCell, bottomCell);
+          topCell.rowSpan = (Number(topCell.rowSpan) || 1) + (Number(bottomCell.rowSpan) || 1);
+        });
+
+        bottomRow.remove();
+        topRow.dataset.wordexManualColumns = "1";
+        return true;
+      }
+
+      mergeRectangularTableCells(table, cells) {
+        const uniqueCells = [...new Set((cells || []).filter(cell => cell?.isConnected))];
+
+        if (uniqueCells.length < 2) {
+          return false;
+        }
+
+        const positions = uniqueCells.map(cell => {
+          const row = cell.parentElement;
+
+          return {
+            cell,
+            row,
+            rowIndex: this.getTableRowIndex(table, row),
+            logicalCol: this.getCellLogicalColumnIndex(row, cell),
+            rowSpan: Number(cell.rowSpan) || 1,
+            colSpan: Number(cell.colSpan) || 1
+          };
+        });
+
+        if (positions.some(position => position.rowSpan !== 1 || position.colSpan !== 1)) {
+          return false;
+        }
+
+        const minRow = Math.min(...positions.map(position => position.rowIndex));
+        const maxRow = Math.max(...positions.map(position => position.rowIndex));
+        const minCol = Math.min(...positions.map(position => position.logicalCol));
+        const maxCol = Math.max(...positions.map(position => position.logicalCol));
+        const rectCells = [];
+
+        for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex++) {
+          const row = table.rows[rowIndex];
+
+          if (!row || !this.isCellMergeRowEligible(row)) {
+            return false;
+          }
+
+          for (let logicalCol = minCol; logicalCol <= maxCol; logicalCol++) {
+            const slot = this.getTableCellAtLogicalColumn(row, logicalCol);
+
+            if (!slot?.cell) {
+              return false;
+            }
+
+            if (!rectCells.includes(slot.cell)) {
+              rectCells.push(slot.cell);
+            }
+          }
+        }
+
+        if (rectCells.length !== uniqueCells.length) {
+          return false;
+        }
+
+        const anchor = this.getTableCellAtLogicalColumn(table.rows[minRow], minCol)?.cell;
+
+        if (!anchor) {
+          return false;
+        }
+
+        for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex++) {
+          const row = table.rows[rowIndex];
+
+          for (let logicalCol = maxCol; logicalCol >= minCol; logicalCol--) {
+            const slot = this.getTableCellAtLogicalColumn(row, logicalCol);
+
+            if (!slot?.cell || slot.cell === anchor) {
+              continue;
+            }
+
+            this.appendMergedCellContent(anchor, slot.cell);
+            slot.cell.remove();
+          }
+        }
+
+        anchor.colSpan = maxCol - minCol + 1;
+        anchor.rowSpan = maxRow - minRow + 1;
+        table.rows[minRow].dataset.wordexManualColumns = "1";
+        return true;
+      }
+
+      mergeSelectedTableComponents() {
+        const table = this.selectedObject?.matches?.(".wordex-table")
+          ? this.selectedObject
+          : this.getSelectedTableContext()?.table;
+
+        if (!table) {
+          alert("Selecione uma tabela.");
+          return;
+        }
+
+        const mode = this.selectedTableMode || "cell";
+
+        if (mode === "row") {
+          this.mergeSelectedTableRows(table);
+          return;
+        }
+
+        if (mode === "column") {
+          this.mergeSelectedTableColumns(table);
+          return;
+        }
+
+        if (mode === "cell") {
+          this.mergeSelectedTableCells(table);
+          return;
+        }
+
+        alert("Selecione linhas, colunas ou células para mesclar.");
+      }
+
+      mergeSelectedTableRows(table) {
+        const rowIndices = this.getSelectedTableRowIndices();
+
+        if (rowIndices.length < 2 || !this.areContiguousIndices(rowIndices)) {
+          alert("Selecione ao menos duas linhas contíguas.");
+          return;
+        }
+
+        for (const rowIndex of rowIndices) {
+          const row = table.rows[rowIndex];
+
+          if (!row || !this.isFreeTableRow(row) || this.isStructuralTableRowForMerge(row)) {
+            alert("Só é possível mesclar linhas Free contíguas (não estruturais).");
+            return;
+          }
+        }
+
+        const topIndex = rowIndices[0];
+        let topRow = table.rows[topIndex];
+
+        for (let index = rowIndices.length - 1; index >= 1; index--) {
+          const bottomRow = table.rows[rowIndices[index]];
+
+          if (!bottomRow || !this.mergeTableRowsIntoTopRow(topRow, bottomRow)) {
+            alert("Não foi possível mesclar as linhas selecionadas.");
+            return;
+          }
+        }
+
+        this.updateTableRowTypeLabel(topRow);
+        this.normalizeTableRowsAfterMerge(table);
+        this.syncObjectAfterChange(table);
+        this.selectTableComponent(table, topRow.cells[0] || null, "row", {
+          rowIndices: [topIndex]
+        });
+        this.saveUndoStateIfChanged();
+      }
+
+      mergeSelectedTableColumns(table) {
+        const columnIndices = this.getSelectedTableColumnIndices();
+
+        if (columnIndices.length < 2 || !this.areContiguousIndices(columnIndices)) {
+          alert("Selecione ao menos duas colunas contíguas.");
+          return;
+        }
+
+        const startLogicalCol = columnIndices[0];
+        const endLogicalCol = columnIndices[columnIndices.length - 1];
+        let mergedAny = false;
+
+        Array.from(table.rows).forEach(row => {
+          this.prepareTableRowForColumnMerge(table, row);
+
+          if (this.mergeHorizontalLogicalColumnsInRow(row, startLogicalCol, endLogicalCol)) {
+            mergedAny = true;
+            this.updateTableRowTypeLabel(row);
+          }
+        });
+
+        if (!mergedAny) {
+          alert("Não foi possível mesclar as colunas selecionadas.");
+          return;
+        }
+
+        const anchorRow = table.rows[0] || table.rows[1];
+        const anchorCell = anchorRow
+          ? this.getTableCellAtLogicalColumn(anchorRow, startLogicalCol)?.cell
+          : null;
+
+        this.normalizeTableRowsAfterMerge(table);
+        this.syncObjectAfterChange(table);
+        this.selectTableComponent(table, anchorCell, "column", {
+          columnIndices: [startLogicalCol]
+        });
+        this.saveUndoStateIfChanged();
+      }
+
+      mergeSelectedTableCells(table) {
+        const cells = this.getSelectedTableCells();
+
+        if (cells.length < 2) {
+          alert("Selecione ao menos duas células contíguas.");
+          return;
+        }
+
+        const positions = cells.map(cell => ({
+          cell,
+          rowIndex: this.getTableRowIndex(table, cell.parentElement),
+          logicalCol: this.getCellLogicalColumnIndex(cell.parentElement, cell)
+        }));
+
+        for (const position of positions) {
+          const row = position.cell.parentElement;
+
+          if (!row || !this.isCellMergeRowEligible(row)) {
+            alert("Não é possível mesclar células em TableHeader ou Detail.");
+            return;
+          }
+        }
+
+        const minRow = Math.min(...positions.map(position => position.rowIndex));
+        const minCol = Math.min(...positions.map(position => position.logicalCol));
+
+        if (!this.mergeRectangularTableCells(table, cells)) {
+          alert("Selecione um bloco retangular contíguo de células.");
+          return;
+        }
+
+        const anchorCell = this.getTableCellAtLogicalColumn(table.rows[minRow], minCol)?.cell ||
+          cells[0];
+
+        this.normalizeTableRowsAfterMerge(table);
+        this.syncObjectAfterChange(table);
+        this.selectTableComponent(table, anchorCell, "cell", {
+          cells: [anchorCell]
+        });
+        this.saveUndoStateIfChanged();
+      }
+
+      insertFreeTableRow() {
+        const context = this.getSelectedTableContext();
+
+        if (!context) {
+          return;
+        }
+
+        const table = context.table;
+        const rows = Array.from(table.rows);
+        const rowIndex = rows.indexOf(context.row);
+
+        if (rowIndex <= 0 || rowIndex >= rows.length - 1) {
+          alert("Selecione uma linha entre o TableHeader e o TableFooter.");
+          return;
+        }
+
+        const insertIndex = rowIndex + 1;
+
+        if (!this.canInsertFreeTableRowAt(table, insertIndex)) {
+          alert("Linhas Free só podem ficar entre o TableHeader e o TableFooter.");
+          return;
+        }
+
+        const cols = this.getTableDetailColumnCount(table);
+        const newRow = table.insertRow(insertIndex);
+        const freeDatasource = this.resolveFreeRowDatasourceForInsert(
+          table,
+          insertIndex,
+          context.row
+        );
+
+        for (let column = 0; column < cols; column++) {
+          const td = document.createElement("td");
+          td.contentEditable = "true";
+          td.innerHTML = "<br>";
+          newRow.appendChild(td);
+        }
+
+        newRow.dataset.wordexRowType = "Free";
+        this.setTableRowDatasource(newRow, freeDatasource);
+        this.recolumnizeTableRowToDetailColumns(table, newRow);
+        this.syncObjectAfterChange(table);
+        this.selectTableComponent(table, context.cell, "row");
+        this.saveUndoStateIfChanged();
+      }
+
+      deleteFreeTableRow() {
+        const context = this.getSelectedTableContext();
+
+        if (!context) {
+          return;
+        }
+
+        if (!this.isFreeTableRow(context.row)) {
+          alert("Só é possível excluir linhas Free.");
+          return;
+        }
+
+        const table = context.table;
+        const rows = Array.from(table.rows);
+        const rowIndex = rows.indexOf(context.row);
+
+        if (rowIndex <= 0 || rowIndex >= rows.length - 1) {
+          alert("Esta linha não pode ser excluída.");
+          return;
+        }
+
+        table.deleteRow(rowIndex);
+        this.ensureTableBoundaryRowTypes(table);
+        this.syncObjectAfterChange(table);
+        this.selectObject(table);
+        this.saveUndoStateIfChanged();
       }
 
       isCellHtmlEmpty(html) {
@@ -9596,208 +11472,61 @@
           return;
         }
 
-        this.recolumnizeTableRow(table, row);
+        this.recolumnizeTableRowToDetailColumns(table, row);
       }
 
-      getSelectedTableRowContext() {
-        const context = this.getSelectedTableContext();
+      resetStructuralFootersLayout() {
+        const table = this.selectedObject?.matches?.(".wordex-table")
+          ? this.selectedObject
+          : this.getSelectedTableContext()?.table;
 
-        if (!context) return null;
-
-        return {
-          table: context.table,
-          row: context.row,
-          cell: context.cell,
-          rowIndex: Array.from(context.table.rows).indexOf(context.row)
-        };
-      }
-
-      getTableRowSection(table, rowIndex) {
-        const rows = Array.from(table?.rows || []);
-
-        if (rowIndex <= 0) {
-          return "tableHeader";
-        }
-
-        if (rowIndex >= rows.length - 1) {
-          return "tableFooter";
-        }
-
-        return "middle";
-      }
-
-      getAllowedTableRowTypesForRow(table, row) {
-        const rowIndex = Array.from(table.rows).indexOf(row);
-        const section = this.getTableRowSection(table, rowIndex);
-
-        if (section === "tableHeader") {
-          return ["TableHeader"];
-        }
-
-        if (section === "tableFooter") {
-          return ["TableFooter"];
-        }
-
-        return ["ColumnHeader", "GroupHeader", "Detail", "GroupFooter"];
-      }
-
-      parseTruthyText(value) {
-        return ["true", "1", "sim", "s", "yes", "y"].includes(String(value || "").trim().toLowerCase());
-      }
-
-      isValidBooleanText(value) {
-        return ["true", "false", "1", "0", "sim", "não", "nao", "s", "n", "yes", "no", "y"]
-          .includes(String(value || "").trim().toLowerCase());
-      }
-
-      finalizeSelectedTableRowChange(context) {
-        if (!context?.row) return;
-        this.updateTableRowTypeLabel(context.row);
-        this.syncAndSelectTableComponent(context, "row");
-        this.syncTableRowTypeToolbar();
-      }
-
-      applySelectedTableRowType(rowType) {
-        const rawValue = String(rowType ?? "").trim();
-
-        if (!rawValue) {
-          this.clearSelectedTableRowType();
+        if (!table) {
+          alert("Selecione uma tabela.");
           return;
         }
 
-        rowType = this.normalizeTableRowType(rawValue);
+        const detailFields = this.getTableDetailFieldsFromTable(table);
+        const cols = this.getTableDetailColumnCount(table);
+        let resetCount = 0;
 
-        const context = this.getSelectedTableRowContext();
+        Array.from(table.rows).forEach(row => {
+          const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
 
-        if (!context) return;
-
-        const rowIndex = Array.from(context.table.rows).indexOf(context.row);
-        const section = this.getTableRowSection(context.table, rowIndex);
-
-        if (section === "tableHeader" && rowType !== "TableHeader") {
-          alert("A primeira linha da tabela é sempre TableHeader.");
-          this.syncTableRowTypeToolbar();
-          return;
-        }
-
-        if (section === "tableFooter" && rowType !== "TableFooter") {
-          alert("A última linha da tabela é sempre TableFooter.");
-          this.syncTableRowTypeToolbar();
-          return;
-        }
-
-        if (section === "middle" && (rowType === "TableHeader" || rowType === "TableFooter")) {
-          alert("TableHeader e TableFooter ficam fixos na primeira e na última linha.");
-          this.syncTableRowTypeToolbar();
-          return;
-        }
-
-        const allowed = this.getAllowedTableRowTypesForRow(context.table, context.row);
-
-        if (!allowed.includes(rowType)) {
-          alert("Tipo de linha inválido para esta posição.");
-
-          this.syncTableRowTypeToolbar();
-          return;
-        }
-
-        context.row.dataset.wordexRowType = rowType;
-
-        this.normalizeTableRowColumnsForType(context.table, context.row, rowType);
-        this.finalizeSelectedTableRowChange(context);
-      }
-
-      clearSelectedTableRowType() {
-        const context = this.getSelectedTableRowContext();
-
-        if (!context) return;
-
-        const rowIndex = Array.from(context.table.rows).indexOf(context.row);
-        const section = this.getTableRowSection(context.table, rowIndex);
-
-        if (section === "tableHeader" || section === "tableFooter") {
-          alert("A primeira linha é sempre TableHeader e a última sempre TableFooter.");
-          this.syncTableRowTypeToolbar();
-          return;
-        }
-
-        delete context.row.dataset.wordexRowType;
-
-        this.normalizeTableRowColumnsForType(context.table, context.row, "");
-        this.finalizeSelectedTableRowChange(context);
-      }
-
-      configureSelectedTableRow() {
-        const context = this.getSelectedTableRowContext();
-
-        if (!context) return;
-
-        const enabledText = prompt(
-          "Enabled da linha? Use true ou false:",
-          this.isTableRowEnabled(context.row) ? "true" : "false"
-        );
-
-        if (enabledText === null) return;
-
-        if (!this.isValidBooleanText(enabledText)) {
-          alert("Enabled inválido. Use true ou false.");
-          return;
-        }
-
-        const isEnabled = this.parseTruthyText(enabledText);
-
-        this.setTableRowEnabled(context.row, isEnabled);
-        this.finalizeSelectedTableRowChange(context);
-      }
-
-      syncTableRowTypeToolbar() {
-        const select = document.getElementById("tableRowType");
-
-        if (!select) return;
-
-        const context = this.getSelectedTableRowContextWithoutAlert();
-
-        select.disabled = !context;
-
-        Array.from(select.options).forEach(option => {
-          if (!option.value) {
-            option.disabled = false;
+          if (rowType !== "GroupFooter" && rowType !== "TableFooter") {
             return;
           }
 
-          option.disabled = context
-            ? !this.getAllowedTableRowTypesForRow(context.table, context.row).includes(option.value)
-            : false;
+          delete row.dataset.wordexManualColumns;
+          delete row.dataset.wordexDecolumnized;
+          delete row.dataset.wordexOriginalColumnCount;
+
+          this.recolumnizeTableRow(table, row, cols);
+
+          const footerDatasource = this.getTableRowDatasource(row);
+
+          if (rowType === "GroupFooter") {
+            this.populateGroupFooterRow(row, footerDatasource, detailFields);
+          } else {
+            this.populateTableFooterRow(row, footerDatasource, detailFields);
+          }
+
+          this.updateTableRowTypeLabel(row);
+          resetCount += 1;
         });
 
-        const currentRowType = context?.row
-          ? this.normalizeTableRowType(context.row.dataset.wordexRowType || "")
-          : "";
-
-        if (context?.row && currentRowType !== (context.row.dataset.wordexRowType || "")) {
-          context.row.dataset.wordexRowType = currentRowType;
+        if (!resetCount) {
+          alert("Não há footers estruturais nesta tabela.");
+          return;
         }
 
-        select.value = currentRowType || "";
-      }
+        const firstFooterRow = Array.from(table.rows).find(row => {
+          const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
+          return rowType === "GroupFooter" || rowType === "TableFooter";
+        });
 
-      hasSelectedTableRowForToolbar() {
-        const liveObject = this.getLiveSelectedObject();
-
-        if (!liveObject || !this.isWordexTableObject(liveObject)) {
-          return false;
-        }
-
-        const mode = this.selectedTableMode || "cell";
-
-        if (mode === "table") {
-          return false;
-        }
-
-        return !!(
-          this.getSelectedTableRowContextWithoutAlert() ||
-          (mode === "row" && this.isInDocument(this.selectedTableRow))
-        );
+        this.syncObjectAfterChange(table);
+        this.enterTableCellEditMode(firstFooterRow?.cells?.[0] || null);
+        this.saveUndoStateIfChanged();
       }
 
       getToolbarContextState() {
@@ -9817,7 +11546,6 @@
           align: !!(liveObject || activeTextbox || paragraph),
           "chart-bar": isChart,
           table: isTable,
-          "table-row": this.hasSelectedTableRowForToolbar(),
           margin: !!marginTarget,
           object: !!liveObject,
           "json-image": !!this.getReportDataRootRecord(),
@@ -9901,11 +11629,13 @@
           return null;
         }
 
+        const row = cell.parentElement;
+
         return {
           table,
           cell,
-          row: cell.parentElement,
-          columnIndex: Array.from(cell.parentElement.cells).indexOf(cell)
+          row,
+          columnIndex: this.getCellLogicalColumnIndex(row, cell)
         };
       }
 
@@ -9930,11 +11660,13 @@
           return null;
         }
 
+        const row = cell.parentElement;
+
         return {
           table,
           cell,
-          row: cell.parentElement,
-          columnIndex: Array.from(cell.parentElement.cells).indexOf(cell)
+          row,
+          columnIndex: this.getCellLogicalColumnIndex(row, cell)
         };
       }
 
@@ -9968,13 +11700,35 @@
         };
 
         if (mode === "row") {
-          Array.from(context.row.cells).forEach(applyToCell);
+          const rowIndices = this.getSelectedTableRowIndices().length
+            ? this.getSelectedTableRowIndices()
+            : [this.getTableRowIndex(context.table, context.row)];
+
+          rowIndices.forEach(rowIndex => {
+            const row = context.table.rows[rowIndex];
+
+            if (row) {
+              Array.from(row.cells).forEach(applyToCell);
+            }
+          });
         } else if (mode === "column") {
-          Array.from(context.table.rows).forEach(row => applyToCell(row.cells[context.columnIndex]));
+          const columnIndices = this.getSelectedTableColumnIndices().length
+            ? this.getSelectedTableColumnIndices()
+            : [context.columnIndex];
+
+          Array.from(context.table.rows).forEach(row => {
+            columnIndices.forEach(columnIndex => {
+              const slot = this.getTableCellAtLogicalColumn(row, columnIndex);
+
+              if (slot?.cell) {
+                applyToCell(slot.cell);
+              }
+            });
+          });
         } else if (mode === "table") {
           context.table.querySelectorAll("td").forEach(applyToCell);
         } else {
-          applyToCell(context.cell);
+          this.getSelectedTableCells().forEach(applyToCell);
         }
 
         this.syncAndSelectTableComponent(context, mode === "table" ? "table" : mode);
@@ -11868,12 +13622,18 @@
           const table = activeCell.closest(".wordex-table");
 
           this.selectedCell = activeCell;
-          this.selectedObject = table || this.selectedObject;
-          this.selectedTableMode = this.selectedTableMode || "cell";
           this.selectedTableRow = activeCell.parentElement;
           this.selectedTableColumnIndex = activeCell.parentElement
-            ? Array.from(activeCell.parentElement.cells).indexOf(activeCell)
+            ? this.getCellLogicalColumnIndex(activeCell.parentElement, activeCell)
             : null;
+
+          if (this.isTableComponentSelectionActive(table)) {
+            this.macroPickerActiveTable = table;
+          } else {
+            this.selectedObject = null;
+            this.clearTableComponentSelectionState();
+            this.macroPickerActiveTable = table;
+          }
         } else {
           this.selectedCell = null;
           this.selectedTableMode = null;
@@ -12180,8 +13940,17 @@
         paragraph.style.textAlign = block.style.textAlign;
         paragraph.style.minHeight = blockStyle.minHeight || "";
 
+        paragraph.addEventListener("mousedown", event => {
+          paragraph.dataset.wordexFocusFromTable = event.target.closest(".wordex-table")
+            ? "1"
+            : "";
+        }, true);
+
         paragraph.addEventListener("focus", () => {
-          this.selectParagraph(region, block.id);
+          const preserveTableSelection = paragraph.dataset.wordexFocusFromTable === "1";
+
+          delete paragraph.dataset.wordexFocusFromTable;
+          this.selectParagraph(region, block.id, { preserveTableSelection });
           this.placeCaretAtEndIfNoSelection(paragraph);
           this.saveSelectionIfInsideParagraph();
         });
@@ -12253,30 +14022,41 @@
           }
         }
 
-        if (
-          this.isInDocument(this.selectedCell) &&
-          this.selectedTableMode === "cell"
-        ) {
-          this.selectedCell.classList.add("selected-cell");
-        }
+        const table = this.selectedObject?.matches?.(".wordex-table")
+          ? this.selectedObject
+          : null;
 
-        if (this.selectedTableMode === "row" && this.isInDocument(this.selectedTableRow)) {
-          Array.from(this.selectedTableRow.cells).forEach(cell => {
-            cell.classList.add("selected-row-cell");
+        if (this.selectedTableMode === "cell") {
+          this.getSelectedTableCells().forEach(cell => {
+            if (this.isInDocument(cell)) {
+              cell.classList.add("selected-cell");
+            }
           });
         }
 
-        if (
-          this.selectedTableMode === "column" &&
-          this.selectedObject?.matches?.(".wordex-table") &&
-          Number.isInteger(this.selectedTableColumnIndex)
-        ) {
-          Array.from(this.selectedObject.rows).forEach(row => {
-            const cell = row.cells[this.selectedTableColumnIndex];
+        if (this.selectedTableMode === "row" && table) {
+          this.getSelectedTableRowIndices().forEach(rowIndex => {
+            const row = table.rows[rowIndex];
 
-            if (cell) {
-              cell.classList.add("selected-column-cell");
+            if (!row) {
+              return;
             }
+
+            Array.from(row.cells).forEach(cell => {
+              cell.classList.add("selected-row-cell");
+            });
+          });
+        }
+
+        if (this.selectedTableMode === "column" && table) {
+          this.getSelectedTableColumnIndices().forEach(columnIndex => {
+            Array.from(table.rows).forEach(row => {
+              const slot = this.getTableCellAtLogicalColumn(row, columnIndex);
+
+              if (slot?.cell) {
+                slot.cell.classList.add("selected-column-cell");
+              }
+            });
           });
         }
       }
@@ -12298,7 +14078,6 @@
 
         this.clearObjectSelectionMarks(this.documentElement);
         this.applyObjectSelectionMarks();
-        this.syncTableRowTypeToolbar();
         this.updateToolbarContext();
         this.updateJsonMacroToolbar();
         this.updateObjectResizeOverlay();
@@ -13148,7 +14927,7 @@
 
         const reportMap = this.buildTableReportMap(table, rows);
         const rootCollection = Array.isArray(rootData) ? rootData : this.normalizeRootCollection(rootData);
-        const expandedRows = this.renderTableReportMap(reportMap, rootCollection, rootScopes);
+        const expandedRows = this.renderTableReportMapByRowDatasource(reportMap, rootCollection, rootScopes);
 
         table.innerHTML = "";
         expandedRows.forEach(row => table.appendChild(row));
@@ -13161,11 +14940,8 @@
         }
 
         const map = {
-          parentDatasource: this.getTableParentDatasource(table),
-          childDatasource: this.getTableChildDatasource(table),
           tableHeader: null,
-          perParentRows: [],
-          perChildRows: [],
+          orderedMiddleRows: [],
           tableFooter: null
         };
 
@@ -13203,30 +14979,21 @@
             );
           }
 
-          if (!rowType) {
-            map.perChildRows.push(entry);
-            return;
+          if (!rowType || !["GroupHeader", "Detail", "GroupFooter", "Free"].includes(rowType)) {
+            throw new Error(
+              `Estrutura da tabela inválida na linha ${entry.index + 1}: use GroupHeader, Detail, GroupFooter ou Free.`
+            );
           }
 
-          if (this.isTablePerParentBandRowType(rowType)) {
-            map.perParentRows.push(entry);
-            return;
-          }
-
-          if (this.isTablePerChildLoopRowType(rowType)) {
-            map.perChildRows.push(entry);
-            return;
-          }
-
-          throw new Error(`Tipo de linha inválido na linha ${entry.index + 1}: ${rowType}`);
+          map.orderedMiddleRows.push(entry);
         });
 
         if (!map.tableHeader || !map.tableFooter) {
           throw new Error("A tabela precisa de TableHeader na primeira linha e TableFooter na última.");
         }
 
-        if (map.perParentRows.length === 0 && map.perChildRows.length === 0) {
-          throw new Error("A tabela precisa de ao menos uma linha entre TableHeader e TableFooter.");
+        if (!map.orderedMiddleRows.some(entry => entry.rowType === "Detail")) {
+          throw new Error("A tabela precisa de ao menos uma linha Detail.");
         }
 
         return map;
@@ -13244,144 +15011,292 @@
           row,
           index,
           rowType,
-          enabled: this.isTableRowEnabled(row)
+          datasource: this.getTableRowDatasource(row)
         };
       }
 
-      renderTableReportMap(reportMap, rootCollection, rootScopes) {
-        const parentItems = this.createInitialReportItems(
-          reportMap.parentDatasource,
-          rootCollection,
-          rootScopes
+      parseTableDatasourceBand(reportMap) {
+        const groupHeaders = [];
+        let detail = null;
+        const groupFooters = [];
+
+        (reportMap.orderedMiddleRows || []).forEach(entry => {
+          if (entry.rowType === "GroupHeader") {
+            groupHeaders.push(entry);
+            return;
+          }
+
+          if (entry.rowType === "Detail") {
+            detail = entry;
+            return;
+          }
+
+          if (entry.rowType === "GroupFooter") {
+            groupFooters.push(entry);
+          }
+        });
+
+        return { groupHeaders, detail, groupFooters };
+      }
+
+      resolveRowDatasourceItems(scopes, datasource, rootData) {
+        const path = String(datasource || "").trim();
+
+        if (!path || path === "ROOT") {
+          return this.normalizeRootCollection(rootData).map(item => ({ value: item }));
+        }
+
+        const parts = path.split(".").filter(Boolean);
+        const level = Math.max(0, (scopes?.length || 1) - 1);
+        const segment = parts[level];
+
+        if (!segment) {
+          return [];
+        }
+
+        const parentValue = level === 0
+          ? (scopes?.[0]?.$root ?? rootData)
+          : scopes?.[level]?.$item;
+
+        return this.resolveDatasourceItems(parentValue, segment, scopes?.[0]?.$root ?? rootData);
+      }
+
+      createRowDataScope(scopes, item, datasource, rootData) {
+        const path = String(datasource || "ROOT").trim() || "ROOT";
+        const parts = path === "ROOT" ? [] : path.split(".").filter(Boolean);
+        const level = Math.max(0, (scopes?.length || 1) - 1);
+        const collectionName = parts[level] || "ROOT";
+        const parentValue = level === 0 ? null : scopes?.[level]?.$item;
+        const parentCollectionName = level > 0 ? (parts[level - 1] || "") : "";
+
+        return this.createDataScope(
+          item?.value ?? item,
+          collectionName,
+          scopes?.[0]?.$root ?? rootData,
+          parentValue,
+          parentCollectionName
         );
-        const expandedRows = [];
-        const parentCollectionName = reportMap.parentDatasource === "ROOT"
-          ? "ROOT"
-          : this.getDatasourceCollectionName(reportMap.parentDatasource);
-        const childCollectionName = reportMap.childDatasource
-          ? this.getDatasourceCollectionName(reportMap.childDatasource)
-          : parentCollectionName;
+      }
 
-        parentItems.forEach(parentItem => {
-          const parentScope = this.createDataScope(
-            parentItem.value,
-            parentItem.collectionName || parentCollectionName,
-            parentItem.root,
-            null
-          );
+      renderNestedTableBand(band, scopes, rootData, level, output) {
+        if (level < band.groupHeaders.length) {
+          const groupHeader = band.groupHeaders[level];
+          const items = this.resolveRowDatasourceItems(scopes, groupHeader.datasource, rootData);
 
-          expandedRows.push(
-            ...this.renderTableBandRow(reportMap.tableHeader, parentScope, parentItem.root)
-          );
+          items.forEach(item => {
+            const scope = this.createRowDataScope(scopes, item, groupHeader.datasource, rootData);
+            const expandedScopes = scopes.concat(scope);
 
-          const childItems = this.createTableChildItems(
-            parentItem.value,
-            reportMap.parentDatasource,
-            reportMap.childDatasource,
-            parentItem.root
-          );
-          const childBandScope = this.createTableChildBandScope(
-            parentItem.value,
-            childItems,
-            childCollectionName,
-            parentItem.root,
-            parentCollectionName
-          );
+            output.push(...this.renderTableBandRow(groupHeader, scope, rootData));
+            this.renderNestedTableBand(band, expandedScopes, rootData, level + 1, output);
 
-          reportMap.perParentRows.forEach(entry => {
-            expandedRows.push(...this.renderTableBandRow(entry, childBandScope, parentItem.root));
+            const footerIndex = band.groupHeaders.length - 1 - level;
+            const groupFooter = band.groupFooters[footerIndex];
+
+            if (groupFooter) {
+              output.push(...this.renderTableBandRow(groupFooter, scope, rootData));
+            }
           });
 
-          childItems.forEach(childItem => {
-            const childScope = this.createDataScope(
-              childItem.value,
-              childCollectionName,
-              parentItem.root,
-              parentItem.value,
-              parentCollectionName
-            );
+          if (level === 0 && band.groupFooters.length > band.groupHeaders.length) {
+            const outerFooters = band.groupFooters.slice(band.groupHeaders.length);
 
-            reportMap.perChildRows.forEach(entry => {
-              expandedRows.push(...this.renderTableBandRow(entry, childScope, parentItem.root));
+            outerFooters.forEach(groupFooter => {
+              output.push(...this.renderTableBandRow(groupFooter, scopes[0], rootData));
             });
+          }
+
+          return;
+        }
+
+        if (!band.detail) {
+          return;
+        }
+
+        const detailItems = this.resolveRowDatasourceItems(scopes, band.detail.datasource, rootData);
+
+        detailItems.forEach(item => {
+          const scope = this.createRowDataScope(scopes, item, band.detail.datasource, rootData);
+          output.push(...this.renderTableBandRow(band.detail, scope, rootData));
+        });
+
+        if (band.groupHeaders.length === 0 && band.groupFooters.length > 0) {
+          band.groupFooters.forEach(groupFooter => {
+            output.push(...this.renderTableBandRow(groupFooter, scopes[0], rootData));
+          });
+        }
+      }
+
+      renderTableReportMapByRowDatasource(reportMap, rootCollection, rootScopes) {
+        const roots = this.normalizeRootCollection(rootCollection);
+        const { leadingFree, structural, trailingFree } = this.splitOrderedMiddleRows(
+          reportMap.orderedMiddleRows || []
+        );
+        const band = this.parseTableDatasourceBand({ orderedMiddleRows: structural });
+        const expandedRows = [];
+
+        roots.forEach(rootItem => {
+          const rootScope = this.createDataScope(rootItem, "ROOT", rootItem, null);
+
+          expandedRows.push(
+            ...this.renderTableBandRow(reportMap.tableHeader, rootScope, rootItem)
+          );
+
+          leadingFree.forEach(entry => {
+            expandedRows.push(...this.renderTableBandRow(entry, rootScope, rootItem));
+          });
+
+          const bandOutput = [];
+          this.renderNestedTableBand(band, [rootScope], rootItem, 0, bandOutput);
+          expandedRows.push(...bandOutput);
+
+          trailingFree.forEach(entry => {
+            expandedRows.push(...this.renderTableBandRow(entry, rootScope, rootItem));
           });
 
           expandedRows.push(
-            ...this.renderTableBandRow(reportMap.tableFooter, parentScope, parentItem.root)
+            ...this.renderTableBandRow(reportMap.tableFooter, rootScope, rootItem)
           );
         });
 
         return expandedRows;
       }
 
-      createTableChildItems(parentValue, parentDatasource, childDatasource, rootData) {
-        const parentDs = String(parentDatasource || "ROOT").trim() || "ROOT";
-        const childDs = String(childDatasource || "").trim();
-
-        if (!childDs || childDs === parentDs) {
-          return [{ value: parentValue }];
+      getScopeIdentityValue(scope, key) {
+        if (!scope || !key) {
+          return "";
         }
 
-        return this.resolveDatasourceItems(parentValue, childDs, rootData);
+        const direct = scope[key] ?? scope.$item?.[key];
+        return this.stringifyResolvedValue(this.unwrapTypedFieldValue(direct));
       }
 
-      createTableChildBandScope(parentValue, childItems, childCollectionName, rootData, parentCollectionName) {
-        const sampleValue = childItems.length > 0 ? childItems[0].value : parentValue;
+      matchTotalItemToScope(items, scope) {
+        const identityKeys = ["ClienteId", "ProdutoId", "CategoriaId", "Id"];
 
-        return this.createDataScope(
-          sampleValue,
-          childCollectionName,
-          rootData,
-          parentValue,
-          parentCollectionName
+        for (const key of identityKeys) {
+          const scopeValue = this.getScopeIdentityValue(scope, key);
+
+          if (!scopeValue) {
+            continue;
+          }
+
+          const match = (items || []).find(item => {
+            const row = item?.value ?? item;
+            return this.getScopeIdentityValue(row, key) === scopeValue;
+          });
+
+          if (match) {
+            return match?.value ?? match;
+          }
+        }
+
+        return null;
+      }
+
+      getTotalWrapperRow(wrapper, scope) {
+        const items = this.getReportDatasourceItems(wrapper);
+
+        if (!items.length) {
+          return null;
+        }
+
+        if (items.length === 1) {
+          return items[0]?.value ?? items[0];
+        }
+
+        const matched = this.matchTotalItemToScope(items, scope);
+
+        if (matched) {
+          return matched;
+        }
+
+        return items[0]?.value ?? items[0];
+      }
+
+      createFooterMacroScope(entry, scope, rootData) {
+        const datasource = String(entry?.datasource || "").trim();
+
+        if (!datasource) {
+          return null;
+        }
+
+        const current = scope?.$item ?? scope;
+        let wrapper = this.resolveDatasourceValue(current, datasource, rootData);
+
+        if (!wrapper) {
+          const collectionName = this.getDatasourceCollectionName(datasource);
+          wrapper = this.resolveDatasourceValue(current, collectionName, rootData);
+        }
+
+        if (!wrapper) {
+          return null;
+        }
+
+        const totalRow = this.getTotalWrapperRow(wrapper, scope);
+
+        if (!totalRow || typeof totalRow !== "object") {
+          return null;
+        }
+
+        const collectionName = this.getDatasourceCollectionName(datasource);
+        const footerScope = this.createDataScope(
+          totalRow,
+          collectionName,
+          scope?.$root ?? rootData,
+          scope?.$item ?? scope,
+          scope?.$collectionName || ""
         );
+
+        Object.keys(totalRow).forEach(key => {
+          if (!key.startsWith("$")) {
+            footerScope[key] = totalRow[key];
+          }
+        });
+
+        return footerScope;
+      }
+
+      buildMacroScopesForTableBandRow(entry, scope, rootData) {
+        const scopes = [scope];
+
+        if (entry?.rowType !== "GroupFooter" && entry?.rowType !== "TableFooter") {
+          return scopes;
+        }
+
+        const footerScope = this.createFooterMacroScope(entry, scope, rootData);
+
+        if (footerScope) {
+          scopes.unshift(footerScope);
+        }
+
+        return scopes;
       }
 
       renderTableBandRow(entry, scope, rootData) {
-        if (!entry?.enabled || !entry.row) {
+        if (!entry?.row) {
+          return [];
+        }
+
+        if (entry.rowType === "GroupFooter" && !entry.datasource) {
           return [];
         }
 
         const clone = entry.row.cloneNode(true);
+        const macroScopes = this.buildMacroScopesForTableBandRow(entry, scope, rootData);
 
-        this.expandTablesWithData(clone, rootData, [scope]);
-        this.resolveGeneratedContentMacros(clone, [scope]);
+        this.expandTablesWithData(clone, rootData, macroScopes);
+        this.resolveGeneratedContentMacros(clone, macroScopes);
 
         return [clone];
       }
 
-      createInitialReportItems(datasource, rootCollection, rootScopes) {
-        const tableDatasource = String(datasource || "ROOT").trim() || "ROOT";
-        const roots = this.normalizeRootCollection(rootCollection);
-        const items = [];
-
-        if (tableDatasource === "ROOT") {
-          roots.forEach(rootItem => {
-            items.push({
-              value: rootItem,
-              root: rootItem,
-              collectionName: "ROOT"
-            });
-          });
-
-          return items;
-        }
-
-        roots.forEach(rootItem => {
-          this.resolveDatasourceItems(rootItem, tableDatasource, rootItem).forEach(child => {
-            items.push({
-              value: child.value,
-              root: rootItem,
-              collectionName: this.getDatasourceCollectionName(tableDatasource)
-            });
-          });
-        });
-
-        return items;
-      }
-
       resolveDatasourceItems(currentValue, datasource, rootData) {
         const value = this.resolveDatasourceValue(currentValue, datasource, rootData);
+
+        if (this.isReportDatasourceWrapper(value)) {
+          return (value.Items || []).map(item => ({ value: item }));
+        }
 
         if (Array.isArray(value)) {
           return value.map(item => ({ value: item }));
@@ -13394,6 +15309,10 @@
 
           if (Array.isArray(value.items)) {
             return value.items.map(item => ({ value: item }));
+          }
+
+          if (Array.isArray(value.Items)) {
+            return value.Items.map(item => ({ value: item }));
           }
 
           return [{ value }];
@@ -13437,69 +15356,6 @@
         return clone;
       }
 
-      inferGroupCollectionNameFromRows(rows, currentValue) {
-        const arrays = this.getArrayProperties(currentValue);
-
-        if (arrays.length === 0) return null;
-
-        const groupRows = rows.filter(row => {
-          const rowType = this.normalizeTableRowType(row.dataset.wordexRowType || "");
-          return rowType === "GroupHeader" || rowType === "GroupFooter";
-        });
-
-        const macroPaths = groupRows.length > 0
-          ? groupRows.flatMap(row => this.collectMacroPaths(row))
-          : rows.flatMap(row => this.collectMacroPaths(row));
-
-        const explicit = this.findCollectionNameReferencedByMacros(arrays, macroPaths);
-        if (explicit) return explicit;
-
-        const nonTotal = arrays.find(item => !this.isTotalCollectionName(item.name));
-        return (nonTotal || arrays[0]).name;
-      }
-
-      inferGroupCollectionName(table, rootData) {
-        const arrays = this.getArrayProperties(rootData);
-
-        if (arrays.length === 0) return null;
-
-        const macroPaths = this.collectMacroPaths(table);
-
-        const explicit = this.findCollectionNameReferencedByMacros(arrays, macroPaths);
-        if (explicit) return explicit;
-
-        const nonTotal = arrays.find(item => !this.isTotalCollectionName(item.name));
-        return (nonTotal || arrays[0]).name;
-      }
-
-      inferRootDetailCollectionName(detailRows, rootData) {
-        const arrays = this.getArrayProperties(rootData);
-
-        if (arrays.length === 0) return null;
-
-        const macroPaths = detailRows.flatMap(row => this.collectMacroPaths(row));
-        const explicit = this.findCollectionNameReferencedByMacros(arrays, macroPaths);
-
-        if (explicit) return explicit;
-
-        const nonTotal = arrays.find(item => !this.isTotalCollectionName(item.name));
-        return (nonTotal || arrays[0]).name;
-      }
-
-      inferDetailCollectionName(detailRows, groupItem) {
-        const arrays = this.getArrayProperties(groupItem);
-
-        if (arrays.length === 0) return null;
-
-        const macroPaths = detailRows.flatMap(row => this.collectMacroPaths(row));
-        const explicit = this.findCollectionNameReferencedByMacros(arrays, macroPaths);
-
-        if (explicit) return explicit;
-
-        const nonTotal = arrays.find(item => !this.isTotalCollectionName(item.name));
-        return (nonTotal || arrays[0]).name;
-      }
-
       findCollectionNameReferencedByMacros(collections, macroPaths) {
         for (const item of collections) {
           if (macroPaths.some(path => path === item.name || path.startsWith(item.name + "."))) {
@@ -13514,8 +15370,21 @@
         if (!value || typeof value !== "object" || Array.isArray(value)) return [];
 
         return Object.keys(value)
-          .filter(key => Array.isArray(value[key]))
-          .map(key => ({ name: key, value: value[key] }));
+          .filter(key => !key.startsWith("$"))
+          .map(key => {
+            const propertyValue = value[key];
+
+            if (Array.isArray(propertyValue)) {
+              return { name: key, value: propertyValue };
+            }
+
+            if (this.isReportDatasourceWrapper(propertyValue)) {
+              return { name: key, value: propertyValue.Items };
+            }
+
+            return null;
+          })
+          .filter(Boolean);
       }
 
       isTotalCollectionName(name) {
@@ -13523,11 +15392,11 @@
       }
 
       getCollectionFromValue(value, collectionName) {
-        if (!value || !collectionName || !Array.isArray(value[collectionName])) {
+        if (!value || !collectionName) {
           return [];
         }
 
-        return value[collectionName];
+        return this.getReportDatasourceItems(value[collectionName]);
       }
 
       collectMacroPaths(element) {
@@ -13811,9 +15680,34 @@
       getValueByPath(source, parts) {
         let value = source;
         let previousPart = "";
+        const scopeRoot = source;
 
         for (const part of parts) {
           if (value === undefined || value === null) return undefined;
+
+          if (this.isReportDatasourceWrapper(value)) {
+            const wrapperKind = this.getReportDatasourceWrapperKind(value);
+
+            if (
+              wrapperKind === "total" ||
+              wrapperKind === "histogram" ||
+              this.isTotalCollectionName(previousPart)
+            ) {
+              const row = wrapperKind === "total"
+                ? this.getTotalWrapperRow(value, scopeRoot)
+                : value.Items?.[0];
+
+              if (!row || !Object.prototype.hasOwnProperty.call(row, part)) {
+                return undefined;
+              }
+
+              value = row[part];
+              previousPart = part;
+              continue;
+            }
+
+            return undefined;
+          }
 
           if (Array.isArray(value)) {
             if (/^\d+$/.test(part)) {
@@ -13832,7 +15726,13 @@
               template as referencia explicitamente, normalmente no GroupFooter.
             */
             if (this.isTotalCollectionName(previousPart)) {
-              value = value.length > 0 ? value[0]?.[part] : undefined;
+              const matched = this.matchTotalItemToScope(
+                value.map(item => ({ value: item })),
+                scopeRoot
+              );
+              const row = matched || (value.length > 0 ? value[0] : null);
+
+              value = row ? row[part] : undefined;
               previousPart = part;
               continue;
             }
@@ -14057,112 +15957,6 @@
         return collections;
       }
 
-      getAllowedTableChildCollectionNames(parentDatasource) {
-        const parent = String(parentDatasource || "ROOT").trim() || "ROOT";
-        const root = this.getReportDataRootRecord();
-
-        if (!root) {
-          return [];
-        }
-
-        if (parent === "ROOT") {
-          return this.getReportDataCollections()
-            .map(item => item.name)
-            .filter(name => name !== "ROOT");
-        }
-
-        const sample = this.getSampleValueForCollection(parent);
-
-        if (!sample) {
-          return [];
-        }
-
-        return this.getArrayProperties(sample)
-          .filter(item => !this.isTotalCollectionName(item.name))
-          .map(item => item.name);
-      }
-
-      normalizeTableChildDatasource(parentDatasource, childDatasource) {
-        const parent = String(parentDatasource || "ROOT").trim() || "ROOT";
-        const child = String(childDatasource || "").trim();
-
-        if (!child || child === parent) {
-          return "";
-        }
-
-        const allowedChildren = this.getAllowedTableChildCollectionNames(parent);
-
-        if (!allowedChildren.includes(child)) {
-          const hint = allowedChildren.length > 0
-            ? allowedChildren.join(", ")
-            : "nenhuma";
-
-          alert(
-            `ChildDatasource "${child}" não é válido para Parent ${parent}. ` +
-            `Opções permitidas: ${hint}.`
-          );
-          return null;
-        }
-
-        return child;
-      }
-
-      applyTableChildDatasource(table, parentDatasource, childDatasource) {
-        const normalizedChild = this.normalizeTableChildDatasource(
-          parentDatasource,
-          childDatasource
-        );
-
-        if (normalizedChild === null) {
-          return false;
-        }
-
-        if (normalizedChild) {
-          table.dataset.wordexChildren = normalizedChild;
-        } else {
-          delete table.dataset.wordexChildren;
-        }
-
-        return true;
-      }
-
-      getTableMacroCollections(table) {
-        if (!table?.matches?.(".wordex-table")) {
-          return this.getReportDataCollections();
-        }
-
-        const parent = this.getTableParentDatasource(table);
-
-        if (parent === "ROOT") {
-          return this.getReportDataCollections();
-        }
-
-        const allowedChildren = this.getAllowedTableChildCollectionNames(parent);
-        const collections = [];
-        const seen = new Set();
-
-        const pushCollection = (name, label = name) => {
-          const normalized = String(name || "").trim();
-
-          if (!normalized || seen.has(normalized)) {
-            return;
-          }
-
-          seen.add(normalized);
-          collections.push({ name: normalized, label: label || normalized });
-        };
-
-        pushCollection(parent, parent);
-
-        allowedChildren.forEach(childName => {
-          if (childName !== parent) {
-            pushCollection(childName, childName);
-          }
-        });
-
-        return collections;
-      }
-
       renderJsonCollectionSelect(collectionSelect, collections, preferredValue = "ROOT", options = {}) {
         if (!collectionSelect) {
           return "";
@@ -14304,7 +16098,6 @@
 
         const collectionSelect = document.getElementById("jsonCollection");
         const fieldSelect = document.getElementById("jsonMacroField");
-        const insertButton = document.getElementById("jsonMacroInsertBtn");
         const hasData = !!this.getReportDataRootRecord();
 
         if (!hasData) {
@@ -14318,22 +16111,17 @@
         const rowContext = this.getSelectedTableRowForMacroContext();
         const collectionName = rowContext?.row
           ? this.getTableRowMacroCollectionName(table, rowContext.row)
-          : this.getTableParentDatasource(table);
-        const collections = this.getTableMacroCollections(table);
-        const preferredCollection = String(collectionSelect.value || collectionName || "").trim();
+          : "ROOT";
+        const collections = this.getLockedTableCollectionOptions(collectionName);
         const nextCollection = this.renderJsonCollectionSelect(
           collectionSelect,
           collections,
-          preferredCollection || collectionName,
+          collectionName,
           { force: !!options.forceCollectionRebuild }
         );
 
-        collectionSelect.disabled = false;
+        collectionSelect.disabled = true;
         fieldSelect.disabled = false;
-
-        if (insertButton) {
-          insertButton.disabled = false;
-        }
 
         this.populateJsonMacroFieldSelect(nextCollection);
 
@@ -14362,14 +16150,22 @@
         const fieldSelect = document.getElementById("jsonMacroField");
 
         if (collectionSelect) {
-          const base = this.getReportDataRootRecord()
-            ? "Coleção do JSON"
-            : "Coleção do JSON (carregue o JSON com 📂)";
           const selectedCollection = String(collectionSelect.value || "").trim();
+          const table = this.getActiveTableForMacroContext();
 
-          collectionSelect.title = selectedCollection
-            ? `${base} — ${selectedCollection}`
-            : base;
+          if (table) {
+            collectionSelect.title = selectedCollection
+              ? `Coleção da linha da tabela (fixa) — ${selectedCollection}`
+              : "Coleção da linha da tabela (fixa)";
+          } else {
+            const base = this.getReportDataRootRecord()
+              ? "Coleção do JSON"
+              : "Coleção do JSON (carregue o JSON com 📂)";
+
+            collectionSelect.title = selectedCollection
+              ? `${base} — ${selectedCollection}`
+              : base;
+          }
         }
 
         if (fieldSelect) {
@@ -14431,10 +16227,41 @@
           return root;
         }
 
-        const directItems = root[normalized];
+        if (normalized.includes(".")) {
+          const parts = normalized.split(".").filter(Boolean);
+          let current = root;
 
-        if (Array.isArray(directItems) && directItems.length > 0) {
-          return directItems[0];
+          for (const part of parts) {
+            if (!current || typeof current !== "object") {
+              return null;
+            }
+
+            const items = current[part];
+            const firstRow = this.getFirstReportDatasourceRow(items);
+
+            if (!firstRow) {
+              return null;
+            }
+
+            current = firstRow;
+          }
+
+          return current;
+        }
+
+        const directItems = root[normalized];
+        const firstRow = this.getFirstReportDatasourceRow(directItems);
+
+        if (firstRow) {
+          return firstRow;
+        }
+
+        if (
+          directItems &&
+          typeof directItems === "object" &&
+          this.classifyReportDatasourceKey(normalized, directItems)
+        ) {
+          return directItems;
         }
 
         return this.findNestedCollectionSample(root, normalized);
@@ -14458,9 +16285,10 @@
             }
 
             const nestedItems = parentRecord[normalized];
+            const firstRow = this.getFirstReportDatasourceRow(nestedItems);
 
-            if (Array.isArray(nestedItems) && nestedItems.length > 0) {
-              return nestedItems[0];
+            if (firstRow) {
+              return firstRow;
             }
           }
         }
@@ -14604,14 +16432,15 @@
           fieldSelect.appendChild(option);
         });
 
+        this.suppressJsonMacroAutoInsert = true;
         fieldSelect.value = fields.includes(previousValue) ? previousValue : "";
+        this.suppressJsonMacroAutoInsert = false;
         this.updateJsonMacroPickerTitles();
       }
 
       updateJsonMacroToolbar(options = {}) {
         const collectionSelect = document.getElementById("jsonCollection");
         const fieldSelect = document.getElementById("jsonMacroField");
-        const insertButton = document.getElementById("jsonMacroInsertBtn");
 
         if (!collectionSelect || !fieldSelect) {
           return;
@@ -14645,10 +16474,6 @@
         collectionSelect.disabled = !hasData;
         fieldSelect.disabled = !hasData;
 
-        if (insertButton) {
-          insertButton.disabled = !hasData;
-        }
-
         if (!hasData) {
           collectionSelect.innerHTML = '<option value="">Coleção</option>';
           fieldSelect.innerHTML = '<option value="">Campo</option>';
@@ -14672,6 +16497,12 @@
       }
 
       onJsonCollectionChange() {
+        if (this.getActiveTableForMacroContext()) {
+          this.syncJsonMacroPickerForTableContext({ forceCollectionRebuild: true });
+          this.updateJsonMacroPickerTitles();
+          return;
+        }
+
         const collectionName = document.getElementById("jsonCollection")?.value;
 
         if (this.isParagraphMacroToolbarActive()) {
@@ -14702,6 +16533,10 @@
 
       onJsonMacroFieldChange() {
         this.updateJsonMacroPickerTitles();
+
+        if (this.suppressJsonMacroAutoInsert) {
+          return;
+        }
 
         const macroField = this.getSelectedJsonMacroName();
 
@@ -14749,7 +16584,10 @@
 
         if (this.selectedObject?.matches?.(".wordex-chart-box")) {
           this.applyMacroFieldToChartBox(this.selectedObject, macroField);
+          return;
         }
+
+        this.insertJsonMacroField(macroField);
       }
 
       getMacroInsertionContainer() {
@@ -14864,29 +16702,28 @@
         return this.insertMacroTextInEditableContainer(container, macroText);
       }
 
-      insertSelectedJsonMacro() {
-        const collectionName = this.getSelectedJsonCollectionName();
-        this.populateJsonMacroFieldSelect(collectionName, {
-          allowedKinds: WordexEditor.textMacroKinds
-        });
+      insertJsonMacroField(macroName) {
+        const normalized = this.normalizeMacroName(macroName);
 
-        const fieldSelect = document.getElementById("jsonMacroField");
-
-        if (!fieldSelect) {
+        if (!normalized) {
           return;
         }
 
-        const macroName = this.normalizeMacroName(fieldSelect.value);
-
-        if (!macroName) {
-          return;
-        }
-
-        const macroText = this.formatMacroName(macroName);
+        const macroText = this.formatMacroName(normalized);
         const inserted = this.insertMacroAtCaret(macroText);
 
         if (!inserted) {
           alert("Coloque o cursor num parágrafo ou numa célula de tabela para inserir a macro.");
+          return;
+        }
+
+        const fieldSelect = document.getElementById("jsonMacroField");
+
+        if (fieldSelect) {
+          this.suppressJsonMacroAutoInsert = true;
+          fieldSelect.value = "";
+          this.suppressJsonMacroAutoInsert = false;
+          this.updateJsonMacroPickerTitles();
         }
       }
 
