@@ -1,0 +1,110 @@
+Wordex — Integração via iframe
+==============================
+
+O Wordex roda no navegador (sem servidor). Para uso embutido em iframe,
+a API exposta é a função global ObterPDF(json), que recebe o JSON do
+relatório e devolve o PDF em data URI (base64 com prefixo).
+
+
+Requisitos
+----------
+
+- WORDEX.html na mesma pasta de wordex-paged.html e wordex-pdf.html
+- Mesma origem (mesmo domínio/porta) para chamar ObterPDF diretamente
+  no contentWindow do iframe
+- Imagens externas acessíveis ou embutidas em base64 no JSON
+
+
+ObterPDF(json)
+--------------
+
+Assinatura:
+
+  ObterPDF(json, options?)
+
+Parâmetros:
+
+  json     Objeto do relatório ou string JSON
+  options  Opcional. Ex.: { timeoutMs: 180000 }
+
+Retorno:
+
+  Promise<string> com data URI completa, por exemplo:
+  data:application/pdf;base64,JVBERi0xLjQK...
+
+A geração é assíncrona (paginação + captura das páginas) e pode levar
+alguns segundos.
+
+
+Uso no iframe (mesma origem)
+----------------------------
+
+HTML:
+
+  <iframe id="wordex-frame" src="WORDEX.html"></iframe>
+
+JavaScript:
+
+  const iframe = document.getElementById('wordex-frame');
+  await new Promise(r => iframe.addEventListener('load', r, { once: true }));
+
+  const dados = { /* JSON do relatório */ };
+  const dataUri = await iframe.contentWindow.ObterPDF(dados);
+
+  // Exemplos de uso do dataUri:
+  // - link de download
+  // - src de iframe/object para visualizar o PDF
+  // - enviar para API/backend
+
+JSON em string também é aceito:
+
+  const dataUri = await iframe.contentWindow.ObterPDF(JSON.stringify(dados));
+
+
+Uso via postMessage (origens diferentes)
+----------------------------------------
+
+Quando o pai e o iframe não compartilham a mesma origem, use postMessage.
+
+Pai envia:
+
+  iframe.contentWindow.postMessage({
+    type: 'wordex-obter-pdf',
+    id: 'req-1',
+    json: dadosDoRelatorio,
+    options: { timeoutMs: 180000 }   // opcional
+  }, '*');
+
+Pai escuta a resposta:
+
+  window.addEventListener('message', (event) => {
+    if (event.data?.type !== 'wordex-obter-pdf-result') return;
+    if (event.data.id !== 'req-1') return;
+
+    if (event.data.ok) {
+      const dataUri = event.data.dataUri;   // com prefixo data:
+      const fileName = event.data.fileName; // ex.: Relatorio.pdf
+      // event.data.base64 contém o mesmo valor de dataUri
+    } else {
+      console.error(event.data.error);
+    }
+  });
+
+
+Fluxo interno (referência)
+--------------------------
+
+1. Monta o HTML paginado a partir do JSON
+2. Pagina o relatório em iframe oculto
+3. Gera o PDF (jsPDF + html2canvas) em outro iframe oculto
+4. Retorna o data URI do PDF
+
+
+Observações
+-----------
+
+- Timeout padrão: 180 segundos (ajustável em options.timeoutMs)
+- Logos/imagens externas sem CORS podem ser omitidas no PDF; prefira
+  base64 no JSON quando possível
+- ObterPDF não é rota HTTP; para endpoint REST seria necessário um
+  serviço separado (ex.: Node + Puppeteer)

@@ -646,7 +646,7 @@
       flex-direction: column;
       position: relative;
       max-width: 100%;
-      border: 2px dashed #777;
+      border: 1px solid #000;
       background: #fafafa;
       color: #555;
       text-align: center;
@@ -1337,7 +1337,7 @@
 <button aria-label="Justificar" class="compact wordex-align-button align-justify" onclick="wordex.applyParagraphAlign('justify')" title="Justificar"></button>
 <button aria-label="Sem alinhamento" class="compact wordex-align-button align-none" onclick="wordex.applyParagraphAlign('none')" title="Sem alinhamento"></button>
 </div>
-<div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="table">
+<div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="border">
 <span class="toolbar-title">Borda</span>
 <input id="borderColor" type="color" value="#000000"/>
 <select class="small" id="borderWidth" title="Espessura da borda" aria-label="Espessura da borda">
@@ -1371,10 +1371,12 @@
 <button onclick="wordex.applyTableBorderPreset('bottom')"><span class="wordex-border-glyph bottom"></span>Inferior</button>
 <button onclick="wordex.applyTableBorderPreset('left')"><span class="wordex-border-glyph left"></span>Esquerda</button>
 <button onclick="wordex.applyTableBorderPreset('right')"><span class="wordex-border-glyph right"></span>Direita</button>
-<button onclick="wordex.applyTableBorderPreset('none')"><span class="wordex-border-glyph none"></span>Nenhuma</button>
+<button data-border-preset="none" onclick="wordex.applyTableBorderPreset('none')"><span class="wordex-border-glyph none"></span>Nenhuma</button>
 <button onclick="wordex.applyTableBorderPreset('all')"><span class="wordex-border-glyph all"></span>Todas</button>
 </div>
 </div>
+</div>
+<div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="table">
 <span class="toolbar-title">Linhas</span>
 <button aria-label="Inserir linha livre" class="compact" data-icon="+" onclick="wordex.insertFreeTableRow()" title="Inserir linha Free"></button>
 <button aria-label="Excluir linha livre" class="compact" data-icon="−" onclick="wordex.deleteFreeTableRow()" title="Excluir linha Free"></button>
@@ -4140,6 +4142,7 @@
           charts.forEach(chartBox => {
             this.layoutChartOverlaysNow(chartBox);
           });
+          this.syncGeneratedFreeContainerBounds(documentRoot);
         } finally {
           if (measureBox.parentNode) {
             measureBox.parentNode.removeChild(measureBox);
@@ -6424,6 +6427,7 @@
         }
 
         this.updateChartBoxPresentation(chartBox);
+        this.applyBorderStyle(chartBox, WordexEditor.getChartDefaultBorderSettings());
         this.applyAlignment(chartBox, align);
         return chartBox;
       }
@@ -6696,6 +6700,7 @@
         this.applyChartLegendPanelPosition(chartBox);
         this.bindChartBarSeriesInteraction(chartBox);
         this.scheduleChartOverlayLayout(chartBox);
+        this.ensureChartEssentialBorder(chartBox);
       }
 
       chartDataToDialogModel(chartData) {
@@ -8440,14 +8445,30 @@
           return;
         }
 
-        const blockY = Number.parseInt(object.dataset.blockY, 10) ||
-          Number.parseInt(object.style.top, 10) ||
-          0;
-        const objectHeight = this.measureObjectContentHeight(object);
+        const objectRect = object.getBoundingClientRect();
+        const paragraphRect = paragraph.getBoundingClientRect();
+        const objectHeight = Math.ceil(object.offsetHeight || objectRect.height || 0);
+
+        if (!objectHeight) {
+          return;
+        }
+
+        const storedY = Number.parseInt(object.dataset.blockY, 10);
+        const blockY = Number.isFinite(storedY)
+          ? Math.max(0, storedY)
+          : (paragraphRect.height > 0 && objectRect.height > 0
+            ? Math.max(0, Math.round(objectRect.top - paragraphRect.top))
+            : (Number.parseInt(object.style.top, 10) || 0));
         const padding = 4;
         const neededHeight = blockY + objectHeight + padding;
 
         paragraph.style.minHeight = Math.max(18, neededHeight) + "px";
+
+        const wrapper = paragraph.closest(".paragraph-block, .object-block");
+
+        if (wrapper) {
+          wrapper.style.minHeight = "";
+        }
       }
 
       syncGeneratedFreeContainerBounds(container) {
@@ -9210,6 +9231,50 @@
         };
       }
 
+      static getChartDefaultBorderSettings() {
+        return {
+          color: "#000000",
+          width: "1px",
+          style: "solid",
+          radius: "0"
+        };
+      }
+
+      isChartBorderElement(element) {
+        return !!element?.matches?.(".wordex-chart-box");
+      }
+
+      chartHasVisibleBorder(element) {
+        if (!element) {
+          return false;
+        }
+
+        const computed = window.getComputedStyle(element);
+        const widths = [
+          computed.borderTopWidth,
+          computed.borderRightWidth,
+          computed.borderBottomWidth,
+          computed.borderLeftWidth
+        ].map(value => parseFloat(value) || 0);
+
+        if (!widths.some(width => width > 0)) {
+          return false;
+        }
+
+        return ["top", "right", "bottom", "left"].some(edge => {
+          const style = computed[`border${edge.charAt(0).toUpperCase()}${edge.slice(1)}Style`];
+          return style && style !== "none" && style !== "hidden";
+        });
+      }
+
+      ensureChartEssentialBorder(element, settings = WordexEditor.getChartDefaultBorderSettings()) {
+        if (!this.isChartBorderElement(element) || this.chartHasVisibleBorder(element)) {
+          return;
+        }
+
+        this.applyBorderStyle(element, settings);
+      }
+
       normalizeBorderRadius(radius) {
         const value = String(radius ?? "0").trim();
 
@@ -9363,6 +9428,10 @@
           a escolha do usuário prevaleça visualmente e também no HTML salvo.
         */
         if (settings.width === "0" || settings.style === "none") {
+          if (this.isChartBorderElement(element)) {
+            return;
+          }
+
           this.clearBorderStyle(element);
           return;
         }
@@ -9403,6 +9472,10 @@
 
       clearBorderStyle(element) {
         if (!element) return;
+
+        if (this.isChartBorderElement(element)) {
+          return;
+        }
 
         /*
           Não basta remover a borda inline: vários elementos do editor têm uma
@@ -9647,6 +9720,10 @@
         const lineCss = this.getBorderLineCss(settings);
 
         if (preset === "none") {
+          if (this.isChartBorderElement(element)) {
+            return false;
+          }
+
           this.clearBorderStyle(element);
           return true;
         }
@@ -9967,6 +10044,11 @@
 
         if (!target) {
           alert("Selecione uma célula, tabela, objeto ou parágrafo para aplicar essa borda.");
+          return;
+        }
+
+        if (this.isChartBorderElement(target.element) && preset === "none") {
+          alert("Gráficos não podem ficar sem borda.");
           return;
         }
 
@@ -11685,6 +11767,7 @@
           text: !!(activeTextbox || (paragraph && !isNonTextObject) || isChart),
           align: !!(liveObject || activeTextbox || paragraph),
           "chart-bar": isChart,
+          border: !!this.getCurrentTableBorderContext() || !!this.getCurrentBoxBorderTarget(),
           table: isTable,
           margin: !!marginTarget,
           object: !!liveObject,
@@ -11703,11 +11786,25 @@
           element.classList.toggle("wordex-toolbar-hidden", !visible);
         });
 
-        if (!state.table) {
+        if (!state.border) {
           this.closeBorderDropdown?.();
         }
 
+        this.syncBorderMenuAvailability();
         this.syncChartToolbarControls();
+      }
+
+      syncBorderMenuAvailability() {
+        const target = this.getCurrentBoxBorderTarget();
+        const isChart = this.isChartBorderElement(target?.element);
+        const noneButton = document.querySelector('#wordexBorderMenu button[data-border-preset="none"]');
+
+        if (!noneButton) {
+          return;
+        }
+
+        noneButton.disabled = isChart;
+        noneButton.title = isChart ? "Gráficos não podem ficar sem borda" : "";
       }
 
       getSelectedTableRowContextWithoutAlert() {
@@ -14932,7 +15029,6 @@
         }
 
         this.layoutGeneratedReportCharts(clone);
-        this.syncGeneratedFreeContainerBounds(clone);
 
         this.cleanGeneratedDocumentNode(clone);
         this.markGeneratedPaginationAtoms(clone);
@@ -16912,10 +17008,208 @@
           .replaceAll('"', "&quot;")
           .replaceAll("'", "&#039;");
       }
+
+      normalizeReportJsonInput(json) {
+        if (json == null) {
+          throw new Error("JSON do relatório não informado.");
+        }
+
+        if (typeof json === "string") {
+          const text = json.trim();
+
+          if (!text) {
+            throw new Error("JSON do relatório está vazio.");
+          }
+
+          return JSON.parse(text);
+        }
+
+        return json;
+      }
+
+      createHiddenPipelineIframe(html) {
+        return new Promise((resolve, reject) => {
+          const iframe = document.createElement("iframe");
+          iframe.setAttribute("aria-hidden", "true");
+          iframe.setAttribute("tabindex", "-1");
+          iframe.style.cssText =
+            "position:fixed;left:-10000px;top:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none";
+
+          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          let settled = false;
+
+          const cleanup = () => {
+            URL.revokeObjectURL(url);
+
+            if (iframe.parentNode) {
+              iframe.parentNode.removeChild(iframe);
+            }
+          };
+
+          const finish = (handler) => {
+            if (settled) {
+              return;
+            }
+
+            settled = true;
+            handler();
+          };
+
+          iframe.addEventListener("load", () => {
+            finish(() => {
+              const win = iframe.contentWindow;
+
+              if (!win) {
+                cleanup();
+                reject(new Error("Não foi possível inicializar o iframe do relatório."));
+                return;
+              }
+
+              resolve({
+                iframe,
+                win,
+                cleanup
+              });
+            });
+          });
+
+          iframe.addEventListener("error", () => {
+            finish(() => {
+              cleanup();
+              reject(new Error("Falha ao carregar o iframe do relatório."));
+            });
+          });
+
+          document.body.appendChild(iframe);
+          iframe.src = url;
+        });
+      }
+
+      async waitForDocumentReadyFlag(win, className, timeoutMs) {
+        const deadline = Date.now() + (timeoutMs || 120000);
+
+        while (Date.now() < deadline) {
+          const body = win.document?.body;
+
+          if (body && body.classList.contains(className)) {
+            return;
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+
+        throw new Error("Tempo esgotado aguardando a etapa do relatório.");
+      }
+
+      async waitForPdfExportResult(win, timeoutMs) {
+        const deadline = Date.now() + (timeoutMs || 180000);
+
+        while (Date.now() < deadline) {
+          const result = win.wordexPdfExportResult;
+
+          if (result?.ok && (result.dataUri || result.base64)) {
+            return result;
+          }
+
+          if (result && result.ok === false) {
+            throw new Error(result.error || "Erro ao gerar PDF.");
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        throw new Error("Tempo esgotado aguardando a geração do PDF.");
+      }
+
+      async obterPdfFromJson(json, options = {}) {
+        const data = this.normalizeReportJsonInput(json);
+        const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 180000;
+
+        this.reportData = data;
+        await this.prefetchReportImageDataUrls(data);
+
+        const pagedHtml = this.buildGeneratedReportHtml(data);
+        const pagedFrame = await this.createHiddenPipelineIframe(pagedHtml);
+
+        try {
+          await this.waitForDocumentReadyFlag(pagedFrame.win, "wordex-pagex-ready", timeoutMs);
+
+          const buildPdfHtml = pagedFrame.win.wordexBuildPdfHtml;
+
+          if (typeof buildPdfHtml !== "function") {
+            throw new Error("Pipeline de PDF indisponível no relatório paginado.");
+          }
+
+          const pdfHtml = await buildPdfHtml.call(pagedFrame.win, { returnBase64: true });
+          pagedFrame.cleanup();
+
+          const pdfFrame = await this.createHiddenPipelineIframe(pdfHtml);
+
+          try {
+            const result = await this.waitForPdfExportResult(pdfFrame.win, timeoutMs);
+
+            if (result.dataUri) {
+              return result.dataUri;
+            }
+
+            return `data:application/pdf;base64,${result.base64}`;
+          } finally {
+            pdfFrame.cleanup();
+          }
+        } finally {
+          if (pagedFrame.iframe.parentNode) {
+            pagedFrame.cleanup();
+          }
+        }
+      }
     }
 
     const wordex = new WordexEditor("document");
     window.wordex = wordex;
+
+    window.ObterPDF = function ObterPDF(json, options) {
+      return wordex.obterPdfFromJson(json, options);
+    };
+
+    window.addEventListener("message", event => {
+      const payload = event.data;
+
+      if (!payload || payload.type !== "wordex-obter-pdf") {
+        return;
+      }
+
+      const reply = detail => {
+        if (!event.source || typeof event.source.postMessage !== "function") {
+          return;
+        }
+
+        event.source.postMessage(
+          {
+            type: "wordex-obter-pdf-result",
+            id: payload.id ?? null,
+            ...detail
+          },
+          event.origin || "*"
+        );
+      };
+
+      window.ObterPDF(payload.json, payload.options)
+        .then(dataUri => {
+          reply({
+            ok: true,
+            dataUri,
+            base64: dataUri,
+            fileName: wordex.getSuggestedReportPdfFileName()
+          });
+        })
+        .catch(error => {
+          reply({
+            ok: false,
+            error: error?.message || String(error)
+          });
+        });
+    });
   </script>
 </body>
 </html>

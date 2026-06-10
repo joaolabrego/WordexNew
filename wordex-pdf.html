@@ -1260,6 +1260,19 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
           pdf.addImage(imageData, "JPEG", 0, 0, metrics.widthPt, metrics.heightPt);
         }
 
+        if (config.returnBase64) {
+          var dataUri = pdf.output("datauristring");
+          var base64 = String(dataUri || "").replace(/^data:[^;]+;base64,/, "");
+          window.wordexPdfExportResult = {
+            ok: true,
+            dataUri: dataUri,
+            base64: base64,
+            fileName: pdfFileName
+          };
+          setStatus("PDF pronto.");
+          return;
+        }
+
         pdfBlob = pdf.output("blob");
         pdfDataUrl = URL.createObjectURL(pdfBlob);
         renderPdfViewer();
@@ -1275,10 +1288,19 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
         }
       }
 
+      function publishPdfExportError(error) {
+        var message = error && error.message ? error.message : String(error || "Erro ao gerar PDF.");
+        window.wordexPdfExportResult = {
+          ok: false,
+          error: message
+        };
+      }
+
       bindActions();
 
       generatePdfFromPagexPages().catch(function (error) {
         console.error("Wordex/jsPDF:", error);
+        publishPdfExportError(error);
         setStatus("Erro ao gerar PDF: " + error.message, true);
         if (emptyNode) emptyNode.textContent = "Erro ao gerar PDF: " + error.message;
       });
