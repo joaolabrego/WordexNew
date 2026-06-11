@@ -106,5 +106,8 @@ Observações
 - Timeout padrão: 180 segundos (ajustável em options.timeoutMs)
 - Logos/imagens externas sem CORS podem ser omitidas no PDF; prefira
   base64 no JSON quando possível
-- ObterPDF não é rota HTTP; para endpoint REST seria necessário um
-  serviço separado (ex.: Node + Puppeteer)
+- ObterPDF não é rota HTTP; para endpoint REST ou Windows Service,
+  use headless (Playwright/Puppeteer) chamando ObterPDF — ver
+  helpBACKEND.txt
+- Para PDF via Chrome print a partir de HTML paginado já salvo, ver
+  helpCHROME.txt e WordexChromePdf no C#

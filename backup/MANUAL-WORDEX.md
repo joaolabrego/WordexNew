@@ -25,7 +25,8 @@ O Wordex **não substitui** o Crudex. Em geral: o Crudex produz o sistema e os d
 | `wordex-paged.html` | Template de paginação (páginas A4, header/footer, marca d'água) |
 | `wordex-pdf.html` | Captura das páginas e geração do PDF |
 | `helpIFRAME.txt` | Integração via iframe (`ObterPDF`) |
-| `helpCHROME.txt` | PDF no backend (Chrome / Puppeteer) |
+| `helpCHROME.txt` | PDF no backend (Chrome / Puppeteer / `WordexChromePdf`) |
+| `helpBACKEND.txt` | Windows Service: template + JSON → PDF (headless, sem paginar em C#) |
 | `WORDEX.json`, `wordex-correto.json` | Exemplos de JSON de relatório |
 
 **Como abrir:** servir a pasta por **HTTP** (não confiar só em `file://` — imagens externas e PDF podem falhar por CORS).
@@ -77,11 +78,11 @@ Objetos (gráfico, tabela, imagem, textbox) ficam **dentro do HTML do parágrafo
 ### Página
 - Formato (A4, etc.) e orientação (retrato / paisagem)
 
-### Histograma (com gráfico selecionado)
+### Histograma (com gráfico selecionado — **Ctrl+clique** no gráfico)
 - **Horizontal** — barras horizontais
 - **Modo:** `normal` | `acumulado` | `misto`
-- **Dados do histograma** — editor de categorias, séries e valores
 - **Cor da série** — clique numa barra para escolher qual série colorir
+- **Coleção / Histograma** (seletores de JSON) — ligar o gráfico a um histograma do Crudex (ver §8)
 
 ### Texto / Alinhar / Borda / Margem
 - Formatação de texto, alinhamento de parágrafo ou objeto
@@ -92,7 +93,7 @@ Objetos (gráfico, tabela, imagem, textbox) ficam **dentro do HTML do parágrafo
 - **📂 Carregar JSON**
 - **🖼 Imagem local** — no objeto selecionado ou novo (Ctrl+clique limpa imagem)
 - **💧 Marca d'água** — imagem de fundo (Ctrl+clique remove)
-- Seletores de coleção/campo macro (com JSON carregado)
+- **Coleção / Campo macro** — macros de texto, imagem ou histograma (com JSON carregado; contexto depende do objeto selecionado)
 
 ### Template
 - **Montar template HTML** — gera relatório a partir do JSON
@@ -130,8 +131,14 @@ Na janela **paginada**: **Salvar HTML** e **Gerar PDF**.
 | Seleção em bloco de células | **Shift+clique** |
 | Arrastar tabela inteira | Modo seleção **tabela** + arrasto |
 
-### Gráfico — legenda
-Com o gráfico selecionado, a **legenda** (várias séries) pode ser **arrastada** dentro da área do gráfico.
+### Gráfico
+| Ação | Como |
+|------|------|
+| Selecionar (borda, resize, toolbar) | **Ctrl+clique** |
+| **Dados do histograma** (categorias, séries, valores) | **Duplo-clique** no gráfico |
+| Configurar tamanho/alinhamento | **Ctrl+duplo-clique** |
+| Cor da série | Com gráfico selecionado, clique numa barra |
+| Legenda arrastável | Com gráfico selecionado, arrastar a legenda dentro da área |
 
 ---
 
@@ -202,10 +209,44 @@ A fonte, tamanho e cor do histograma afetam **somente** o gráfico (rótulos, le
 
 **Se parágrafos já ficaram com fonte errada:** selecione cada bloco de texto, corrija a fonte na toolbar (com o **parágrafo** selecionado, não o gráfico), ou recrie os blocos.
 
-### Dados
-- Diálogo **Dados do histograma**: categorias (linhas), séries (colunas), valores.
-- Pode vir de JSON (`chartData` no objeto) ou edição manual no diálogo.
-- Com 2+ séries, aparece **painel de legenda** (arrastável).
+### Dados — passo a passo (não esquecer amanhã)
+
+1. **Duplo-clique** no histograma (ou **Ctrl+clique** para selecionar e depois duplo-clique).
+2. No diálogo:
+   - **Linhas** = categorias (Item 1, Item 2, …)
+   - **Colunas** = séries (Preço, Quantidade, …)
+   - **Células** = valores em texto formatado (`350,00`, `100`, …)
+   - **+ / − Linha** e **+ / − Coluna** para ajustar a grade
+3. **Confirmar** — grava e redesenha o gráfico.
+
+**Inserir histograma novo:** cursor no parágrafo → **📊 Histograma** (grupo Inserir). **Ctrl+duplo-clique** para tamanho e alinhamento.
+
+### Dados a partir do JSON (Crudex)
+
+Com JSON carregado (📂) e histograma selecionado (**Ctrl+clique**):
+
+| Onde está o gráfico | Seletor **Coleção** | Seletor **Histograma** |
+|---------------------|---------------------|-------------------------|
+| Parágrafo (fora de tabela) | `ROOT` ou histograma do ROOT (ex.: `TotaisProdutosGrafico`) | Com `ROOT`: escolher o campo histograma |
+| Célula de tabela (header, detail ou footer) | **Fixo** na coleção da linha (ex.: `Clientes`) | Histogramas da linha (ex.: `TotaisProdutosGrafico`) |
+
+Ao escolher o histograma, o Wordex **importa** os valores do JSON para o **mesmo grid** do ▥ (não fica um caminho separado). Depois pode abrir **▥** e editar — útil para **simulações**.
+
+- Trocar a macro no seletor **reimporta** do JSON (sobrescreve edições manuais anteriores).
+- No relatório/PDF, usa os dados do grid (inclui simulações salvas no template).
+- Histograma numa tabela importa a amostra da primeira linha; se editar o grid, o mesmo gráfico editado repete em todas as linhas.
+
+### Formato JSON do histograma (Crudex)
+
+Wrapper com `"Kind": "histogram"` e `Items`. Cada item traz:
+
+- Campo formatado: `"PreçoSum": { "Kind": "string", "Value": "350,00" }`
+- Legenda da série: `"PreçoSum_Label": { "Kind": "string", "Value": "Preço" }`
+
+Não é necessário campo numérico `*_Value` — o Wordex interpreta o texto formatado (`150,00`, `3`, etc.).
+
+### Legenda
+- Com **2+ séries**, aparece painel de legenda **arrastável** dentro do gráfico (§6).
 
 ---
 
@@ -221,7 +262,7 @@ A fonte, tamanho e cor do histograma afetam **somente** o gráfico (rótulos, le
 ## 10. Tabelas
 
 - Modos de seleção: célula, linha, coluna, tabela inteira (Ctrl+clique cicla).
-- Linhas estruturais (cabeçalho, grupo, rodapé) e linhas **Free** — ver toolbar **Linhas** / **Colunas**.
+- Linhas estruturais (cabeçalho, grupo, rodapé) e linhas **Free** — toolbar **Tabela**: **Ctrl+clique** numa célula cicla até **linha** ou **coluna**; **+** / **−** inserem ou exclui a linha ou coluna selecionada; as setas movem a **linha** (↑↓) ou a **coluna** (←→), conforme o modo de seleção.
 - Mesclagem de linhas/colunas/células; botão para restaurar footers colunizados.
 - No relatório gerado: células e fundos transparentes onde necessário para a **marca d'água** aparecer por cima.
 
@@ -242,29 +283,64 @@ A fonte, tamanho e cor do histograma afetam **somente** o gráfico (rótulos, le
 
 ## 12. JSON de relatório
 
-1. **Carregar** JSON de exemplo ou produção (📂).
+1. **Carregar** JSON de exemplo ou produção (📂). Exemplo: `crudex.json`, `wordex-correto.json`.
 2. Macros `{{NomeCampo}}` no template são resolvidas na montagem.
-3. Imagens: preferir **base64** no JSON para PDF confiável; URLs externas exigem HTTP acessível ao gerador.
-4. **Montar template HTML** aplica os dados e abre o fluxo paginado.
+3. **Kind** nos wrappers Crudex: `"collection"`, `"total"`, `"histogram"` (gráficos `*Grafico`).
+4. Campos escalares: `"string"` (varchar), `"number"`, `"datetime"`, `"boolean"`, `"image"`. No Crudex oficial com API, `text` = varchar(max) e `string` = varchar(n); no Wordex/VBA exportamos **`string`**. JSON antigo com `"Kind": "text"` ainda é aceito no editor.
+5. Histogramas ligados no editor viram dados no grid do gráfico (§8); no PDF usam o que está salvo no template.
+6. Imagens: preferir **base64** no JSON para PDF confiável; URLs externas exigem HTTP acessível ao gerador.
+7. **Montar template HTML** aplica os dados e abre o fluxo paginado.
 
 ---
 
 ## 13. Geração de PDF
 
+**Regra:** o PDF sai sempre do **HTML paginado** (`.pagex-page`), não do template/editor.
+
+| Origem | Vai para PDF? |
+|--------|----------------|
+| Janela paginada após "Montar template HTML" (`wordex-paged.html`, Salvar HTML) | Sim |
+| `WORDEX.html` (editor, `#wordexDocument`, `.body-flow`) | Não |
+| HTML montado antes da paginação (sem `.pagex-page`) | Não |
+
+No backend C# (`WordexChromePdf`), `RequirePaginatedHtml` vem `true` por padrão e rejeita arquivos que não sejam paginados.
+
 ### Pelo editor (fluxo manual)
-1. Montar HTML a partir do JSON.
-2. Na toolbar paginada: **Gerar PDF**.
+1. **Montar template HTML** a partir do JSON (abre a janela paginada).
+2. Na toolbar paginada: **Gerar PDF** (ou **Salvar HTML** e converter no servidor).
 
 ### Pela API (iframe / integração)
 ```javascript
 const dataUri = await iframe.contentWindow.ObterPDF(json);
 // retorna: data:application/pdf;base64,...
 ```
+O `ObterPDF` monta e pagina internamente antes de capturar — o usuário não precisa salvar o HTML.
 
-Detalhes: `helpIFRAME.txt` (mesma origem) e `postMessage` para origens diferentes.
+### Backend (Windows Service / servidor)
 
-### Backend
-Preferir Puppeteer com `printBackground: true`. Ver `helpCHROME.txt`.
+**Não pagine em C#.** A paginação usa DOM e JavaScript (`wordex-paged.html`). Com template + JSON, o caminho é headless + `ObterPDF(json)` — o mesmo pipeline do iframe, no servidor.
+
+```text
+DataSet → JSON (C#) ─┐
+                     ├→ HTTP + WORDEX.html → ObterPDF(json) → PDF
+Template (WORDEX.html salvo) ─┘
+```
+
+Detalhes completos: **`helpBACKEND.txt`**.
+
+| Variante | Como | Quando |
+|----------|------|--------|
+| **A — ObterPDF** | Playwright/Puppeteer chama `ObterPDF(json)` | Mais simples; um passo |
+| **B — Chrome print** | Headless pagina → HTML `.pagex-page` → `WordexChromePdf` | Qualidade de impressão Chromium |
+
+Publicar na pasta do serviço: `WORDEX.html` (💾 Salvar template HTML), `wordex-paged.html`, `wordex-pdf.html`. Servir por HTTP.
+
+```csharp
+// Variante B — só se já tiver HTML paginado salvo (janela paginada)
+crudex.GerarPdfDeArquivoHtml(@"D:\saida\relatorio-paginado.html", @"D:\saida\relatorio.pdf");
+```
+
+Ver também `helpCHROME.txt` (Chrome CLI / Puppeteer).
 
 ---
 
@@ -294,6 +370,8 @@ Placeholders `@@...@@` nos templates embutidos. Config em `#wordex-pagex-config`
 | Paginação | Usar altura **real** dos blocos; evitar inflar `min-height` só para paginar |
 | PDF | `printBackground: true`; overflow visível em objetos na captura |
 | Marca d'água | Fundos de tabela transparentes no paginado/PDF |
+| Histograma + JSON | Importa para o grid ▥; edição manual = simulação persistida no template |
+| Picker de histograma | Fora de tabela: ROOT + histogramas; em célula: coleção da linha fixa |
 | Testes | Servir por HTTP; `file://` limita imagens e PDF |
 
 ---
@@ -307,10 +385,12 @@ O editor mantém pilha de **undo** após mudanças estruturais (`saveUndoStateIf
 ## 17. O que ainda pode entrar neste manual
 
 - [x] Tipografia do gráfico isolada do parágrafo (§8)
+- [x] Passo a passo: selecionar histograma, ▥ Dados, JSON → grid, simulações (§8)
 - [ ] Passo a passo com capturas (parágrafo + gráfico + textboxes)
 - [ ] Estrutura completa do JSON (`reportData`) com exemplos campo a campo
 - [ ] Tabelas: linha a linha dos tipos de row (`Header`, `Group`, `Detail`, `Free`, …)
 - [ ] Integração Crudex → Wordex (quando o fluxo estiver fechado)
+- [x] Backend: template + JSON → PDF sem paginar em C# (`helpBACKEND.txt`)
 - [ ] Troubleshooting PDF (imagem faltando, corte, página em branco)
 
 ---

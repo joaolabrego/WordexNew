@@ -61,9 +61,31 @@ Na prática: se o backend já é Node.js, use Puppeteer. Se o backend é
 Visão geral do fluxo com Wordex
 --------------------------------
 
+Guia dedicado ao Windows Service (template + JSON, headless, ObterPDF):
+  helpBACKEND.txt
+
+IMPORTANTE — qual HTML converter para PDF
+  Use SOMENTE o HTML paginado (saída de "Montar template HTML" + paginação):
+    - cada página é um elemento .pagex-page (A4)
+    - body pode ter class wordex-generated-report
+    - após paginação: atributo wordex-pagex-ready
+
+  NÃO converta para PDF:
+    - WORDEX.html (editor / template / barra de ferramentas)
+    - o documento interno wordexDocument (#wordexDocument)
+    - HTML gerado por buildGeneratedReportHtml ANTES da paginação
+      (sem .pagex-page)
+
+  No C# (Wordex.Json), WordexChromePdf valida isso por padrão
+  (RequirePaginatedHtml = true). Para desativar: só em testes.
+
 1. Obter o HTML paginado do relatório
-   - Montar HTML no Wordex (botão "Montar HTML") e salvar o .html, ou
-   - Gerar o HTML por API/script a partir do JSON (mesma lógica do editor)
+   - Opção recomendada no serviço: headless + ObterPDF(json) sobre
+     WORDEX.html salvo (ver helpBACKEND.txt — não pagine em C#), ou
+   - Montar HTML no Wordex (botão "Montar template HTML") e salvar o .html
+     na janela paginada (Salvar HTML), ou
+   - Gerar o HTML paginado por script (buildGeneratedReportHtml +
+     paginateBlocks — equivalente ao wordex-paged.html)
 
 2. Servir esse HTML por HTTP (recomendado)
    - Ex.: http://localhost:8080/relatorio.html

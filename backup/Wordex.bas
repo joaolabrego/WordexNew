@@ -1,13 +1,12 @@
 Attribute VB_Name = "Wordex"
 Option Explicit
 
+' Crudex primitivo: importar Wordex.bas + WordexConsulta.bas no crudex.xlsm.
+' Remover do VBA do workbook: WordexTotais, WordexGraficos, frmTotais.
+
 Public Const K_HEADERS_ROW As Long = 1
 Public Const K_DETAILS_ROW As Long = 2
 Public Const K_REQUIRED_COL As Long = 1
-
-Public Sub AbrirFormularioTotais()
-    frmTotais.Show
-End Sub
 
 Public Sub GerarJson()
     Dim json As String
@@ -322,6 +321,7 @@ Public Function Wordex_InferirKind( _
     kindExplicito = Wordex_ObterKindExplicito(plan, numeroLinha, tituloColuna)
 
     If kindExplicito <> vbNullString Then
+        If LCase$(kindExplicito) = "text" Then kindExplicito = "string"
         Wordex_InferirKind = LCase$(kindExplicito)
         Exit Function
     End If
@@ -336,7 +336,7 @@ Public Function Wordex_InferirKind( _
     End If
 
     If Right$(nome, 6) = "_label" Then
-        Wordex_InferirKind = "text"
+        Wordex_InferirKind = "string"
         Exit Function
     End If
 
@@ -358,7 +358,7 @@ Public Function Wordex_InferirKind( _
             Wordex_InferirKind = "datetime"
 
         Case Else
-            Wordex_InferirKind = "text"
+            Wordex_InferirKind = "string"
     End Select
 End Function
 
@@ -420,7 +420,6 @@ Private Function Wordex_DeveEmbalarDatasource(ByVal tituloColuna As String) As B
     Wordex_DeveEmbalarDatasource = _
         (nome = "clientes") Or _
         (nome = "produtos") Or _
-        (nome = "totaisprodutos") Or _
         (Left$(nome, 6) = "totais") Or _
         (Right$(nome, 7) = "grafico")
 End Function
@@ -430,6 +429,8 @@ Private Function Wordex_InferirKindDatasource(ByVal tituloColuna As String) As S
 
     nome = LCase$(Trim$(tituloColuna))
 
+    ' Kind do wrapper: collection | total | histogram.
+    ' FKs não passam por aqui — ObterRegistroJSON só embala quando Wordex_DeveEmbalarDatasource = True.
     If Right$(nome, 7) = "grafico" Then
         Wordex_InferirKindDatasource = "histogram"
     ElseIf Left$(nome, 6) = "totais" Then
@@ -452,6 +453,11 @@ Private Function Wordex_EmbalarJsonColuna( _
 
     conteudo = Trim$(valorTexto)
 
+    If Wordex_JaEmbaladoComoDatasource(conteudo) Then
+        Wordex_EmbalarJsonColuna = conteudo
+        Exit Function
+    End If
+
     If Left$(conteudo, 1) = "[" Then
         Wordex_EmbalarJsonColuna = "{""Kind"": """ & kind & """, ""Items"": " & conteudo & "}"
     ElseIf Left$(conteudo, 1) = "{" Then
@@ -459,6 +465,18 @@ Private Function Wordex_EmbalarJsonColuna( _
     Else
         Wordex_EmbalarJsonColuna = conteudo
     End If
+End Function
+
+Private Function Wordex_JaEmbaladoComoDatasource(ByVal conteudo As String) As Boolean
+    Dim texto As String
+
+    texto = LCase$(Trim$(conteudo))
+
+    If Left$(texto, 1) <> "{" Then Exit Function
+
+    Wordex_JaEmbaladoComoDatasource = _
+        InStr(texto, """kind""") > 0 And _
+        InStr(texto, """items""") > 0
 End Function
 
 Public Function Wordex_JsonValorSemFormatacao(ByVal cel As Range) As String
