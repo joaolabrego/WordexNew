@@ -35,8 +35,8 @@
       flex-wrap: nowrap;
       align-items: stretch;
       gap: 0;
-      min-height: 72px;
-      padding: 0 8px 4px;
+      min-height: 58px;
+      padding: 0 8px 3px;
       overflow-x: auto;
       overflow-y: visible;
       scrollbar-width: thin;
@@ -48,11 +48,11 @@
       flex: 0 0 auto;
       flex-wrap: wrap;
       align-content: flex-start;
-      align-items: flex-start;
+      align-items: center;
       gap: 2px;
-      min-height: 70px;
-      max-height: 76px;
-      padding: 4px 6px 16px;
+      min-height: 56px;
+      max-height: 62px;
+      padding: 4px 6px 14px;
       border-right: 1px solid rgba(62, 92, 128, .32);
       background: transparent;
     }
@@ -105,31 +105,48 @@
       align-items: center;
       justify-content: center;
       gap: 1px;
-      min-width: 30px;
-      max-width: 72px;
+      min-width: 25px;
+      max-width: 34px;
+      min-height: 24px;
+      padding: 2px 4px;
       text-align: center;
-      line-height: 1.1;
-      white-space: normal;
+      font-size: 0;
+      line-height: 1;
+      white-space: nowrap;
     }
 
     .toolbar button[data-icon]::before {
       content: attr(data-icon);
       display: block;
-      font-size: 15px;
+      font-size: 16px;
       line-height: 1;
+      margin: 0;
       font-weight: 400;
     }
 
     .toolbar button.ribbon-large {
-      min-width: 48px;
-      min-height: 44px;
+      min-width: 34px;
+      max-width: 42px;
+      min-height: 32px;
       padding: 3px 5px;
     }
 
     .toolbar button.ribbon-large[data-icon]::before {
-      font-size: 20px;
-      margin-bottom: 0;
+      font-size: 22px;
+      margin: 0;
     }
+
+    .toolbar .compact {
+      min-width: 24px;
+      max-width: 28px;
+      min-height: 24px;
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+
+    .toolbar button[data-icon="N"]::before { font-weight: 700; }
+    .toolbar button[data-icon="I"]::before { font-style: italic; font-family: Georgia, serif; }
+    .toolbar button[data-icon="S"]::before { text-decoration: underline; font-weight: 600; }
 
     .toolbar button.ribbon-icon-html[data-icon]::before {
       content: "";
@@ -262,20 +279,21 @@
       position: relative;
       display: inline-flex;
       align-items: stretch;
-      height: 44px;
+      height: 32px;
     }
 
     .toolbar .wordex-border-trigger {
-      min-width: 48px;
-      min-height: 44px;
+      min-width: 34px;
+      max-width: 38px;
+      min-height: 32px;
       border-top-right-radius: 0;
       border-bottom-right-radius: 0;
     }
 
     .toolbar .wordex-border-arrow {
-      min-width: 18px;
-      max-width: 20px;
-      min-height: 44px;
+      min-width: 16px;
+      max-width: 18px;
+      min-height: 32px;
       padding: 0 2px;
       border-left-color: #d0d0d0;
       border-top-left-radius: 0;
@@ -284,8 +302,9 @@
     }
 
     .toolbar .wordex-border-arrow::before {
-      content: "" !important;
-      display: none !important;
+      content: attr(data-icon) !important;
+      display: block !important;
+      font-size: 12px;
     }
 
     .wordex-border-menu {
@@ -557,6 +576,26 @@
       outline: 1px solid #2277cc;
     }
 
+    .paragraph-block.move-selected {
+      outline: 2px dashed #4a7fd4;
+      outline-offset: 2px;
+      background: rgba(74, 127, 212, 0.08);
+      cursor: grab;
+    }
+
+    body.wordex-paragraph-block-dragging .paragraph-block.move-selected {
+      cursor: grabbing;
+    }
+
+    .wordex-paragraph-drop-indicator {
+      height: 3px;
+      margin: 2px 0;
+      border-radius: 2px;
+      background: #cc6600;
+      box-shadow: 0 0 0 1px rgba(204, 102, 0, 0.25);
+      pointer-events: none;
+    }
+
     .paragraph {
       position: relative;
       min-height: 1.15em;
@@ -646,7 +685,7 @@
       flex-direction: column;
       position: relative;
       max-width: 100%;
-      border: 2px dashed #777;
+      border: 1px solid #000;
       background: #fafafa;
       color: #555;
       text-align: center;
@@ -1002,66 +1041,6 @@
     }
 
 
-
-    /* v238: botões do ribbon somente com ícone + tooltip. */
-    .ribbon-content {
-      min-height: 58px;
-      padding-bottom: 3px;
-    }
-
-    .toolbar-group {
-      min-height: 56px;
-      max-height: 62px;
-      padding: 4px 6px 14px;
-      align-items: center;
-      align-content: flex-start;
-    }
-
-    .toolbar button {
-      min-width: 25px;
-      max-width: 34px;
-      min-height: 24px;
-      padding: 2px 4px;
-      font-size: 0;
-      line-height: 1;
-      white-space: nowrap;
-    }
-
-    .toolbar button[data-icon]::before {
-      font-size: 16px;
-      line-height: 1;
-      margin: 0;
-    }
-
-    .toolbar button.ribbon-large {
-      min-width: 34px;
-      max-width: 42px;
-      min-height: 32px;
-      padding: 3px 5px;
-    }
-
-    .toolbar button.ribbon-large[data-icon]::before {
-      font-size: 22px;
-    }
-
-    .toolbar .compact {
-      min-width: 24px;
-      max-width: 28px;
-      min-height: 24px;
-      padding-left: 4px;
-      padding-right: 4px;
-    }
-
-    .toolbar button[data-icon="N"]::before { font-weight: 700; }
-    .toolbar button[data-icon="I"]::before { font-style: italic; font-family: Georgia, serif; }
-    .toolbar button[data-icon="S"]::before { text-decoration: underline; font-weight: 600; }
-
-    .toolbar button.ribbon-icon-html[data-icon]::before {
-      width: 24px;
-      height: 24px;
-      margin: 0;
-    }
-
     .toolbar button.wordex-align-button::before {
       content: "";
       display: block;
@@ -1086,39 +1065,6 @@
 
     .toolbar button.wordex-align-button.align-justify::before {
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg stroke='%23333' stroke-width='1.8' stroke-linecap='square'%3E%3Cpath d='M4 5h16'/%3E%3Cpath d='M4 9h16'/%3E%3Cpath d='M4 13h16'/%3E%3Cpath d='M4 17h16'/%3E%3C/g%3E%3C/svg%3E");
-    }
-
-    .wordex-border-dropdown {
-      height: 32px;
-    }
-
-    .toolbar .wordex-border-trigger {
-      min-width: 34px;
-      max-width: 38px;
-      min-height: 32px;
-    }
-
-    .toolbar .wordex-border-arrow {
-      min-width: 16px;
-      max-width: 18px;
-      min-height: 32px;
-      padding: 0 2px;
-    }
-
-    .toolbar .wordex-border-arrow::before {
-      content: attr(data-icon) !important;
-      display: block !important;
-      font-size: 12px;
-    }
-
-    .toolbar .wordex-border-menu button {
-      font-size: 12px;
-      line-height: 1.2;
-      min-width: 100%;
-      max-width: none;
-      min-height: 26px;
-      padding: 4px 12px;
-      white-space: nowrap;
     }
 
     .toolbar .wordex-json-picker {
@@ -1264,14 +1210,14 @@
 <div class="toolbar-group">
 <span class="toolbar-title">Inserir</span>
 <button aria-label="Parágrafo" class="ribbon-large" data-icon="¶" onclick="wordex.insertParagraph()" title="Parágrafo"></button>
-<button aria-label="Excluir" class="danger" data-icon="🗑" onclick="wordex.deleteSelectedParagraph()" title="Excluir"></button>
+<button aria-label="Excluir" class="danger wordex-toolbar-hidden" data-icon="🗑" data-wordex-toolbar-context="delete-block" onclick="wordex.deleteSelectedParagraph()" title="Excluir"></button>
 <button aria-label="Imagem" class="wordex-toolbar-hidden" data-icon="▧" data-wordex-toolbar-context="json-image" onclick="wordex.insertDynamicImage()" title="Imagem (JSON)"></button>
 <button aria-label="Histograma" data-icon="📊" onclick="wordex.insertChart()" title="Histograma"></button>
 <button aria-label="Textbox" data-icon="▤" onclick="wordex.insertTextbox()" title="Textbox"></button>
 <button aria-label="Tabela" data-icon="▦" onclick="wordex.insertTable()" title="Tabela"></button>
 <button aria-label="Configurar objeto" class="wordex-toolbar-hidden" data-icon="⚙" data-wordex-toolbar-context="object" onclick="wordex.configureSelectedObject()" title="Configurar objeto"></button>
 </div>
-<div class="toolbar-group">
+<div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="clipboard">
 <span class="toolbar-title">Clipboard</span>
 <button aria-label="Copiar" data-icon="⧉" onclick="wordex.copySelectedWordexBlockToClipboard()" title="Copiar"></button>
 <button aria-label="Recortar" data-icon="✂" onclick="wordex.cutSelectedWordexBlockToClipboard()" title="Recortar"></button>
@@ -1337,7 +1283,7 @@
 <button aria-label="Justificar" class="compact wordex-align-button align-justify" onclick="wordex.applyParagraphAlign('justify')" title="Justificar"></button>
 <button aria-label="Sem alinhamento" class="compact wordex-align-button align-none" onclick="wordex.applyParagraphAlign('none')" title="Sem alinhamento"></button>
 </div>
-<div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="table">
+<div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="border">
 <span class="toolbar-title">Borda</span>
 <input id="borderColor" type="color" value="#000000"/>
 <select class="small" id="borderWidth" title="Espessura da borda" aria-label="Espessura da borda">
@@ -1371,10 +1317,12 @@
 <button onclick="wordex.applyTableBorderPreset('bottom')"><span class="wordex-border-glyph bottom"></span>Inferior</button>
 <button onclick="wordex.applyTableBorderPreset('left')"><span class="wordex-border-glyph left"></span>Esquerda</button>
 <button onclick="wordex.applyTableBorderPreset('right')"><span class="wordex-border-glyph right"></span>Direita</button>
-<button onclick="wordex.applyTableBorderPreset('none')"><span class="wordex-border-glyph none"></span>Nenhuma</button>
+<button data-border-preset="none" onclick="wordex.applyTableBorderPreset('none')"><span class="wordex-border-glyph none"></span>Nenhuma</button>
 <button onclick="wordex.applyTableBorderPreset('all')"><span class="wordex-border-glyph all"></span>Todas</button>
 </div>
 </div>
+</div>
+<div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="table">
 <span class="toolbar-title">Linhas</span>
 <button aria-label="Inserir linha livre" class="compact" data-icon="+" onclick="wordex.insertFreeTableRow()" title="Inserir linha Free"></button>
 <button aria-label="Excluir linha livre" class="compact" data-icon="−" onclick="wordex.deleteFreeTableRow()" title="Excluir linha Free"></button>
@@ -1382,20 +1330,22 @@
 <button aria-label="Mover linha livre para baixo" class="compact" data-icon="↓" onclick="wordex.moveFreeTableRowDown()" title="Mover linha Free para baixo"></button>
 <button aria-label="Mesclar seleção" class="compact" data-icon="⇄" onclick="wordex.mergeSelectedTableComponents()" title="Mesclar linhas, colunas ou células selecionadas"></button>
 <button aria-label="Restaurar footers colunizados" class="compact" data-icon="↺" onclick="wordex.resetStructuralFootersLayout()" title="Restaurar GroupFooter e TableFooter colunizados (desfaz mesclagens)"></button>
+</div>
+<div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="table">
 <span class="toolbar-title">Colunas</span>
 <button aria-label="Inserir coluna" class="compact" data-icon="+" onclick="wordex.insertTableColumn()" title="Inserir coluna em todas as linhas"></button>
 <button aria-label="Excluir coluna" class="compact" data-icon="−" onclick="wordex.deleteTableColumn()" title="Excluir coluna em todas as linhas (mínimo 1 coluna)"></button>
 </div>
 <div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="margin">
-<span class="toolbar-title">Margem</span>
-<select class="small" id="wordexMarginEdge" title="Margem a alterar">
+<span class="toolbar-title">Margem de parágrafo</span>
+<select class="small" id="wordexMarginEdge" title="Lado da margem de parágrafo">
 <option value="top">Superior</option>
 <option value="right">Direita</option>
 <option value="bottom">Inferior</option>
 <option value="left">Esquerda</option>
 </select>
-<button aria-label="Diminuir margem" class="compact" data-icon="−" onclick="wordex.adjustSelectedMargin(-1)" title="Diminuir margem selecionada"></button>
-<button aria-label="Aumentar margem" class="compact" data-icon="+" onclick="wordex.adjustSelectedMargin(1)" title="Aumentar margem selecionada"></button>
+<button aria-label="Diminuir margem de parágrafo" class="compact" data-icon="−" onclick="wordex.adjustSelectedMargin(-1)" title="Diminuir margem de parágrafo"></button>
+<button aria-label="Aumentar margem de parágrafo" class="compact" data-icon="+" onclick="wordex.adjustSelectedMargin(1)" title="Aumentar margem de parágrafo"></button>
 </div>
 <div class="toolbar-group">
 <span class="toolbar-title">Dados</span>
@@ -1403,18 +1353,18 @@
 <button aria-label="Carregar JSON" data-icon="📂" onclick="wordex.chooseJsonFile()" title="Abrir arquivo JSON do disco"></button>
 <input accept="image/*" id="staticImageFileInput" onchange="wordex.loadStaticImageFile(this.files[0]); this.value='';" style="display:none" type="file"/>
 <button aria-label="Imagem local" data-icon="🖼" onclick="wordex.chooseStaticImageFile(event)" title="Imagem do disco: atribui ao objeto selecionado ou cria novo (Ctrl+click limpa)"></button>
+<button aria-label="Marca d'água" data-icon="💧" onclick="wordex.configureReportWatermark(event)" title="Marca d'água: escolher imagem (Ctrl+click remove)"></button>
 <select class="wordex-json-picker wordex-toolbar-hidden" data-wordex-toolbar-context="json-macros" disabled="" id="jsonCollection" onchange="wordex.onJsonCollectionChange()" onpointerdown="wordex.refreshJsonCollectionPicker()" title="Coleção do JSON" aria-label="Coleção do JSON">
 <option value="">Coleção</option>
 </select>
 <select class="wordex-json-picker wordex-toolbar-hidden" data-wordex-toolbar-context="json-macros" disabled="" id="jsonMacroField" onchange="wordex.onJsonMacroFieldChange()" title="Campo macro do JSON" aria-label="Campo macro">
 <option value="">Campo</option>
 </select>
-<button aria-label="Marca d'água" data-icon="◌" onclick="wordex.configureReportWatermark(event)" title="Marca d'água: escolher imagem (Ctrl+click remove)"></button>
 </div>
 <div class="toolbar-group">
-<span class="toolbar-title">Saída</span>
-<button aria-label="Montar HTML" class="primary ribbon-large ribbon-icon-html" data-icon="html" onclick="wordex.generateHtmlFromJson()" title="Montar HTML"></button>
-<button aria-label="Salvar" data-icon="💾" onclick="wordex.saveWordexHtml()" title="Salvar"></button>
+<span class="toolbar-title">Template</span>
+<button aria-label="Montar template HTML" class="primary ribbon-large ribbon-icon-html" data-icon="html" onclick="wordex.generateHtmlFromJson()" title="Montar template HTML"></button>
+<button aria-label="Salvar template HTML" data-icon="💾" onclick="wordex.saveWordexHtml()" title="Salvar template HTML"></button>
 </div>
 </div>
 </div>
@@ -1429,6 +1379,8 @@
   <script src="wordex-pdf.html"></script>
   <script>
     class WordexEditor {
+      static templateHelpersMarker = "/*WORDEX_TEMPLATE_HELPERS*/";
+
       static objectSelector = ".dynamic-image-box, .wordex-table, .wordex-chart-box, .wordex-textbox";
 
       static mainObjectSelector = ".dynamic-image-box, .wordex-table, .wordex-chart-box";
@@ -1458,6 +1410,25 @@
       static textMacroKinds = Object.freeze(["text", "datetime", "currency", "number", "boolean"]);
 
       static imageMacroKinds = Object.freeze(["image"]);
+
+      static deferredSystemMacroNames = Object.freeze([
+        "pagenumber",
+        "pagecount"
+      ]);
+
+      static getSystemMacroFieldDefinitions() {
+        return [
+          { value: "@PageNumber", label: "@PageNumber (página atual)" },
+          { value: "@PageCount", label: "@PageCount (total de páginas)" },
+          { value: "@Today", label: "@Today (data de hoje)" },
+          { value: "@Now", label: "@Now (data e hora)" },
+          { value: "@DateISO", label: "@DateISO (AAAA-MM-DD)" },
+          { value: "@Time", label: "@Time (hora)" },
+          { value: "@Year", label: "@Year (ano)" },
+          { value: "@Month", label: "@Month (mês)" },
+          { value: "@Day", label: "@Day (dia)" }
+        ];
+      }
 
       static pagedTemplateCache = null;
       static pdfTemplateCache = null;
@@ -1557,6 +1528,7 @@
         this.macroPickerActiveTable = null;
         this.reportData = null;
         this.reportDataFileName = "";
+        this.reportGenerationTime = null;
         this.reportImageDataUrlCache = {};
         this.savedWordexFileHandle = null;
         this.jsonMacroKindFilter = null;
@@ -1575,6 +1547,10 @@
         this.isInsertingObject = false;
         this.resizeOverlay = null;
         this.resizeDrag = null;
+        this.paragraphMoveBlockId = null;
+        this.paragraphBlockReorderDrag = null;
+        this.paragraphBlockReorderSuppressClickClear = false;
+        this.paragraphBlockDropIndicator = null;
 
         /*
           Captura Ctrl+Z antes do contenteditable/navegador.
@@ -1620,6 +1596,14 @@
             return;
           }
 
+          if (this.paragraphBlockReorderSuppressClickClear) {
+            return;
+          }
+
+          if (!this.isPrimaryModifierPressed(event)) {
+            this.clearParagraphBlockMoveSelection();
+          }
+
           if (!event.target.closest(".document") && !event.target.closest(".toolbar")) {
             this.selectFallbackParagraph();
             this.renderSelection();
@@ -1639,15 +1623,23 @@
         });
 
         this.documentElement.addEventListener("dblclick", event => {
+          const cell = event.target.closest("td");
+          const cellTable = cell?.closest(".wordex-table");
+
+          /*
+            Duplo-clique em célula serve só para editar/selecionar texto.
+            Não abrir diálogos legados de configuração.
+          */
+          if (cellTable && this.documentElement.contains(cellTable)) {
+            return;
+          }
+
           const object = event.target.closest(WordexEditor.objectSelector);
 
           if (!object) return;
 
           /*
-            Duplo-clique normal fica livre para o navegador:
-            selecionar palavra/texto dentro da célula, por exemplo.
-
-            Configuração do objeto só com Ctrl + duplo-clique.
+            Configuração do objeto só com Ctrl + duplo-clique fora de células.
           */
           if (!this.isPrimaryModifierPressed(event)) {
             return;
@@ -1682,6 +1674,7 @@
         this.installWordexClipboardEvents();
         this.installObjectResizeHandleEvents();
         this.installInlineObjectDragEvents();
+        this.installParagraphBlockReorderEvents();
 
         this.documentElement.addEventListener("input", event => {
           /*
@@ -1857,7 +1850,18 @@
           }
         });
 
-        ["align", "blockX", "blockY"].forEach(attribute => {
+        [
+          "align",
+          "blockX",
+          "blockY",
+          "blockBottomGap",
+          "chartFontFamily",
+          "chartFontSize",
+          "chartFontColor",
+          "chartFontWeight",
+          "chartFontStyle",
+          "chartTextDecoration"
+        ].forEach(attribute => {
           if (source.dataset[attribute]) {
             target.dataset[attribute] = source.dataset[attribute];
           }
@@ -2166,18 +2170,9 @@
         return Math.max(0, value).toFixed(2).replace(/\.?0+$/, "") + "mm";
       }
 
-      measureGeneratedRegionHtmlMargin(regionHtml, regionClass, minimumMm) {
-        if (!regionHtml) {
-          return minimumMm;
-        }
-
-        const page = this.getPageSettings();
-        const pageWidthMm = this.parseCssSizeToMillimeters(page.width);
-        const marginLeftMm = this.parseCssSizeToMillimeters(page.marginLeft);
-        const marginRightMm = this.parseCssSizeToMillimeters(page.marginRight);
-        const contentWidthMm = Math.max(20, pageWidthMm - marginLeftMm - marginRightMm);
-
+      createChromeMeasureBox(contentWidthMm) {
         const measureBox = document.createElement("div");
+        measureBox.className = "wordex-generated-report wordex-chrome-measure";
         measureBox.style.cssText = [
           "position: fixed",
           "left: -100000px",
@@ -2188,10 +2183,26 @@
           "box-sizing: border-box",
           "z-index: -1"
         ].join(";");
-
-        measureBox.className = "wordex-generated-report wordex-chrome-measure";
-        measureBox.innerHTML = String(regionHtml || "");
         document.body.appendChild(measureBox);
+        return measureBox;
+      }
+
+      getGeneratedContentWidthMm() {
+        const page = this.getPageSettings();
+        const pageWidthMm = this.parseCssSizeToMillimeters(page.width);
+        const marginLeftMm = this.parseCssSizeToMillimeters(page.marginLeft);
+        const marginRightMm = this.parseCssSizeToMillimeters(page.marginRight);
+        return Math.max(20, pageWidthMm - marginLeftMm - marginRightMm);
+      }
+
+      measureGeneratedRegionHtmlMargin(regionHtml, regionClass, minimumMm) {
+        if (!regionHtml) {
+          return minimumMm;
+        }
+
+        const contentWidthMm = this.getGeneratedContentWidthMm();
+        const measureBox = this.createChromeMeasureBox(contentWidthMm);
+        measureBox.innerHTML = String(regionHtml || "");
 
         try {
           const region = measureBox.querySelector("." + regionClass);
@@ -2425,11 +2436,62 @@
         return `Novo parágrafo ${label} ${sequence}`;
       }
 
-      getCurrentParagraphStyleFromToolbar() {
+      getDefaultParagraphTextStyle() {
         return {
-          fontFamily: document.getElementById("fontFamily")?.value || "Arial",
-          fontSize: document.getElementById("fontSize")?.value || "12pt",
-          color: document.getElementById("fontColor")?.value || "#000000"
+          fontFamily: "Arial",
+          fontSize: "12pt",
+          color: "#000000"
+        };
+      }
+
+      getParagraphBlockTextStyle(block) {
+        const defaults = this.getDefaultParagraphTextStyle();
+
+        if (!block?.style) {
+          return { ...defaults };
+        }
+
+        return {
+          fontFamily: block.style.fontFamily || defaults.fontFamily,
+          fontSize: block.style.fontSize || defaults.fontSize,
+          color: block.style.color || defaults.color
+        };
+      }
+
+      getCurrentParagraphStyleFromToolbar() {
+        const defaults = this.getDefaultParagraphTextStyle();
+        const paragraph = this.getSelectedParagraphElement();
+
+        if (paragraph) {
+          const block = this.findBlockById(paragraph.dataset.blockId);
+
+          if (block) {
+            return this.getParagraphBlockTextStyle(block);
+          }
+        }
+
+        /*
+          Com objeto selecionado (gráfico, imagem, textbox), a toolbar reflete o
+          objeto — mas parágrafos novos devem manter a tipografia do parágrafo
+          hospedeiro, não a do objeto.
+        */
+        if (this.selectedObject) {
+          const hostParagraph = this.selectedObject.closest(".paragraph");
+          const hostBlock = hostParagraph
+            ? this.findBlockById(hostParagraph.dataset.blockId)
+            : null;
+
+          if (hostBlock) {
+            return this.getParagraphBlockTextStyle(hostBlock);
+          }
+
+          return { ...defaults };
+        }
+
+        return {
+          fontFamily: document.getElementById("fontFamily")?.value || defaults.fontFamily,
+          fontSize: document.getElementById("fontSize")?.value || defaults.fontSize,
+          color: document.getElementById("fontColor")?.value || defaults.color
         };
       }
 
@@ -2663,6 +2725,8 @@
       }
 
       selectParagraph(region, blockId, options = {}) {
+        this.clearParagraphBlockMoveSelection();
+
         this.selected.region = region;
         this.selectedParagraphId = blockId;
         this.selectedBlockId = blockId;
@@ -2679,6 +2743,8 @@
       }
 
       selectObject(object) {
+        this.clearParagraphBlockMoveSelection();
+
         const paragraph = object.closest(".paragraph");
         const block = object.closest(".paragraph-block, .object-block");
         const region = object.closest(".region");
@@ -3544,7 +3610,7 @@
         }
 
         if (this.paragraphHasMainObject(paragraph)) {
-          return false;
+          return this.isCaretInParagraphTextOutsideMainObject(paragraph);
         }
 
         const selection = window.getSelection();
@@ -3592,13 +3658,8 @@
         }
 
         if (fieldSelect) {
-          fieldSelect.disabled = !hasData;
-
-          if (hasData) {
-            this.populateJsonMacroFieldSelect("ROOT");
-          } else {
-            fieldSelect.innerHTML = '<option value="">Campo</option>';
-          }
+          fieldSelect.disabled = false;
+          this.populateJsonMacroFieldSelect("ROOT", { includeSystemMacros: true });
         }
       }
 
@@ -3794,13 +3855,73 @@
       }
       getChartTextStyle(chartBox) {
         return {
-          fontFamily: chartBox?.style?.fontFamily || "Arial",
-          fontSize: chartBox?.style?.fontSize || "12pt",
-          color: chartBox?.style?.color || "#444444",
-          fontWeight: chartBox?.style?.fontWeight || "normal",
-          fontStyle: chartBox?.style?.fontStyle || "normal",
-          textDecoration: chartBox?.style?.textDecorationLine || chartBox?.style?.textDecoration || "none"
+          fontFamily: chartBox?.dataset?.chartFontFamily || chartBox?.style?.fontFamily || "Arial",
+          fontSize: chartBox?.dataset?.chartFontSize || chartBox?.style?.fontSize || "12pt",
+          color: chartBox?.dataset?.chartFontColor || chartBox?.style?.color || "#444444",
+          fontWeight: chartBox?.dataset?.chartFontWeight || chartBox?.style?.fontWeight || "normal",
+          fontStyle: chartBox?.dataset?.chartFontStyle || chartBox?.style?.fontStyle || "normal",
+          textDecoration: chartBox?.dataset?.chartTextDecoration ||
+            chartBox?.style?.textDecorationLine ||
+            chartBox?.style?.textDecoration ||
+            "none"
         };
+      }
+
+      applyChartTextStyle(chartBox, style = {}) {
+        if (!chartBox?.matches?.(".wordex-chart-box") || !style) {
+          return;
+        }
+
+        const current = this.getChartTextStyle(chartBox);
+        const next = { ...current, ...style };
+
+        chartBox.dataset.chartFontFamily = String(next.fontFamily || "Arial");
+        chartBox.dataset.chartFontSize = String(next.fontSize || "12pt");
+        chartBox.dataset.chartFontColor = String(next.color || "#444444");
+        chartBox.dataset.chartFontWeight = String(next.fontWeight || "normal");
+        chartBox.dataset.chartFontStyle = String(next.fontStyle || "normal");
+        chartBox.dataset.chartTextDecoration = String(next.textDecoration || "none");
+
+        [
+          "font-family",
+          "font-size",
+          "color",
+          "font-weight",
+          "font-style",
+          "text-decoration",
+          "text-decoration-line"
+        ].forEach(property => {
+          chartBox.style.removeProperty(property);
+        });
+      }
+
+      migrateChartTextStyleFromInline(chartBox) {
+        if (!chartBox?.matches?.(".wordex-chart-box")) {
+          return;
+        }
+
+        const hasInlineTypography = !!(
+          chartBox.style.fontFamily ||
+          chartBox.style.fontSize ||
+          chartBox.style.color ||
+          chartBox.style.fontWeight ||
+          chartBox.style.fontStyle ||
+          chartBox.style.textDecoration ||
+          chartBox.style.textDecorationLine
+        );
+
+        if (!hasInlineTypography) {
+          return;
+        }
+
+        this.applyChartTextStyle(chartBox, {
+          fontFamily: chartBox.style.fontFamily,
+          fontSize: chartBox.style.fontSize,
+          color: chartBox.style.color,
+          fontWeight: chartBox.style.fontWeight,
+          fontStyle: chartBox.style.fontStyle,
+          textDecoration: chartBox.style.textDecorationLine || chartBox.style.textDecoration
+        });
       }
 
       normalizeFontFamilyForSelect(fontFamily) {
@@ -4116,30 +4237,14 @@
           return;
         }
 
-        const page = this.getPageSettings();
-        const pageWidthMm = this.parseCssSizeToMillimeters(page.width);
-        const marginLeftMm = this.parseCssSizeToMillimeters(page.marginLeft);
-        const marginRightMm = this.parseCssSizeToMillimeters(page.marginRight);
-        const contentWidthMm = Math.max(20, pageWidthMm - marginLeftMm - marginRightMm);
-        const measureBox = document.createElement("div");
-        measureBox.className = "wordex-generated-report wordex-chrome-measure";
-        measureBox.style.cssText = [
-          "position: fixed",
-          "left: -100000px",
-          "top: 0",
-          "visibility: hidden",
-          "pointer-events: none",
-          "width: " + this.formatMillimeters(contentWidthMm),
-          "box-sizing: border-box",
-          "z-index: -1"
-        ].join(";");
+        const measureBox = this.createChromeMeasureBox(this.getGeneratedContentWidthMm());
         measureBox.appendChild(documentRoot);
-        document.body.appendChild(measureBox);
 
         try {
           charts.forEach(chartBox => {
             this.layoutChartOverlaysNow(chartBox);
           });
+          this.syncGeneratedFreeContainerBounds(documentRoot);
         } finally {
           if (measureBox.parentNode) {
             measureBox.parentNode.removeChild(measureBox);
@@ -5394,6 +5499,8 @@
           return;
         }
 
+        this.migrateChartTextStyleFromInline(chartBox);
+
         const chartData = this.readChartDataFromElement(chartBox);
 
         if (!chartData) {
@@ -5592,11 +5699,8 @@
           return;
         }
 
-        const text = prompt("Texto inicial:", "Textbox");
-        if (text === null) return;
-
         this.insertTextboxIntoObjectParagraph(
-          this.createTextboxElement(text, "free", "35mm", "8mm")
+          this.createTextboxElement("Textbox", "free", "35mm", "8mm")
         );
       }
 
@@ -5617,11 +5721,21 @@
 
       insertTable() {
         if (!this.getReportDataRootRecord()) {
-          alert("Carregue um arquivo JSON antes de inserir a tabela.");
+          this.insertSimpleStaticTable();
           return;
         }
 
         this.openInsertTableDialog();
+      }
+
+      isStaticTable(table) {
+        return !!table?.matches?.("table.wordex-table") &&
+          String(table.dataset.wordexTableKind || "").trim().toLowerCase() === "static";
+      }
+
+      insertSimpleStaticTable(rows = 3, cols = 3) {
+        const table = this.createSimpleStaticTableElement(rows, cols, "left", "80mm");
+        this.insertNodeAtCurrentInsertionPoint(table);
       }
 
       closeInsertTableDialog() {
@@ -5975,6 +6089,14 @@
 
         const renderGroupFields = () => {
           const detailPath = String(detailSelect?.value || "ROOT").trim() || "ROOT";
+
+          if (detailPath === "ROOT") {
+            headerFields.innerHTML =
+              "<p style=\"margin:0;color:#555;font-size:13px;\">Tabela estática 3×3: preencha as células com texto fixo ou macros do ROOT (sem coleções).</p>";
+            footerFields.innerHTML = "";
+            return;
+          }
+
           const ancestors = this.getCollectionAncestorChain(detailPath);
           const headerAncestors = ancestors.filter(ancestor => ancestor !== "ROOT").slice().reverse();
           const previousHeaders = readSelectedValues("data-wordex-header-ancestor");
@@ -6033,9 +6155,15 @@
 
         backdrop.querySelector("#wordexInsertTableConfirm")?.addEventListener("click", () => {
           const detailDatasource = String(detailSelect?.value || "ROOT").trim() || "ROOT";
+
+          if (detailDatasource === "ROOT") {
+            this.closeInsertTableDialog();
+            this.insertSimpleStaticTable();
+            return;
+          }
+
           const headerDatasources = readSelectedValues("data-wordex-header-ancestor");
           const footerDatasources = readSelectedValues("data-wordex-footer-ancestor");
-
           const table = this.buildTableFromDatasourceSpec(
             detailDatasource,
             footerDatasources,
@@ -6424,6 +6552,7 @@
         }
 
         this.updateChartBoxPresentation(chartBox);
+        this.applyBorderStyle(chartBox, WordexEditor.getChartDefaultBorderSettings());
         this.applyAlignment(chartBox, align);
         return chartBox;
       }
@@ -6669,6 +6798,8 @@
           return;
         }
 
+        this.migrateChartTextStyleFromInline(chartBox);
+
         const sourceName = String(chartBox.dataset.sourceName || "").trim();
         const chartType = chartBox.dataset.chartType || "bar";
         const chartMode = chartBox.dataset.chartMode || "normal";
@@ -6696,6 +6827,7 @@
         this.applyChartLegendPanelPosition(chartBox);
         this.bindChartBarSeriesInteraction(chartBox);
         this.scheduleChartOverlayLayout(chartBox);
+        this.ensureChartEssentialBorder(chartBox);
       }
 
       chartDataToDialogModel(chartData) {
@@ -7187,6 +7319,36 @@
         return table;
       }
 
+      createSimpleStaticTableElement(rows = 3, cols = 3, align = "left", width = "80mm") {
+        const safeRows = Math.max(1, Number(rows) || 3);
+        const safeCols = Math.max(1, Number(cols) || 3);
+        const table = document.createElement("table");
+        table.className = "wordex-table";
+        table.contentEditable = "false";
+        table.dataset.wordexType = "table";
+        table.dataset.wordexTableKind = "static";
+        table.dataset.align = align;
+        table.style.width = width;
+
+        for (let rowIndex = 0; rowIndex < safeRows; rowIndex++) {
+          const tr = document.createElement("tr");
+          tr.dataset.wordexRowType = "Free";
+
+          for (let columnIndex = 0; columnIndex < safeCols; columnIndex++) {
+            const td = document.createElement("td");
+            td.contentEditable = "true";
+            td.innerHTML = "<br>";
+            tr.appendChild(td);
+          }
+
+          table.appendChild(tr);
+          this.updateTableRowTypeLabel(tr);
+        }
+
+        this.applyAlignment(table, align);
+        return table;
+      }
+
       ensureTableBoundaryRowTypes(table) {
         const rows = Array.from(table?.rows || []);
 
@@ -7661,6 +7823,11 @@
         this.savedRange = caretRange.cloneRange();
 
         this.syncParagraphElement(paragraphElement);
+
+        if (node.matches?.(WordexEditor.mainObjectSelector)) {
+          this.scheduleFitParagraphBlockToMainObject(node);
+        }
+
         this.renderSelection();
 
         if (node.matches?.("table.wordex-table")) {
@@ -8168,7 +8335,37 @@
         );
       }
 
-      applyObjectFreePosition(object, container, x, y) {
+      getDefaultObjectBottomGap() {
+        return 4;
+      }
+
+      getObjectBottomGap(object) {
+        const stored = Number.parseInt(object?.dataset?.blockBottomGap, 10);
+
+        if (Number.isFinite(stored)) {
+          return Math.max(0, stored);
+        }
+
+        const marginBottom = Number.parseInt(object?.style?.marginBottom, 10);
+
+        if (Number.isFinite(marginBottom)) {
+          return Math.max(0, marginBottom);
+        }
+
+        return this.getDefaultObjectBottomGap();
+      }
+
+      resolveObjectBottomGap(object, bottomGap) {
+        if (bottomGap === undefined) {
+          return this.getObjectBottomGap(object);
+        }
+
+        const next = Math.max(0, Math.round(bottomGap));
+        object.dataset.blockBottomGap = String(next);
+        return next;
+      }
+
+      applyObjectFreePosition(object, container, x, y, bottomGap = undefined) {
         if (!object || !container) {
           return;
         }
@@ -8177,6 +8374,7 @@
         const objectWidth = object.getBoundingClientRect().width;
         const objectHeight = object.getBoundingClientRect().height;
         const min = this.getObjectMinimumSize(object);
+        const resolvedBottomGap = this.resolveObjectBottomGap(object, bottomGap);
 
         const nextX = this.clamp(
           Math.round(x),
@@ -8191,6 +8389,12 @@
             Math.floor(container.clientHeight - Math.max(objectHeight, min.height) - 4)
           );
           nextY = this.clamp(nextY, 0, maxY);
+        } else if (container.matches(".paragraph")) {
+          const neededHeight = nextY + Math.max(objectHeight, min.height) + resolvedBottomGap;
+
+          if (neededHeight > container.clientHeight) {
+            container.style.minHeight = neededHeight + "px";
+          }
         } else {
           const neededHeight = nextY + Math.max(objectHeight, min.height) + 8;
 
@@ -8225,7 +8429,7 @@
         object.style.marginLeft = nextX + "px";
         object.style.marginTop = nextY + "px";
         object.style.marginRight = "8px";
-        object.style.marginBottom = "4px";
+        object.style.marginBottom = resolvedBottomGap + "px";
       }
 
       updateFreeContainerBounds(container) {
@@ -8263,6 +8467,67 @@
         container.style.minHeight = Math.max(baseline, maxBottom) + "px";
       }
 
+      measureParagraphMainObjectLayout(object, paragraph) {
+        const objectRect = object.getBoundingClientRect();
+        const paragraphRect = paragraph.getBoundingClientRect();
+        const objectHeight = Math.ceil(object.offsetHeight || objectRect.height);
+
+        if (objectHeight <= 0) {
+          return null;
+        }
+
+        const measuredTopGap = Math.max(0, Math.round(objectRect.top - paragraphRect.top));
+        const storedY = Number.parseInt(object.dataset.blockY, 10);
+        const marginTop = Number.parseInt(object.style.marginTop, 10);
+        const absoluteTop = Number.parseInt(object.style.top, 10);
+        const explicitTopGap = [
+          Number.isFinite(storedY) ? storedY : null,
+          Number.isFinite(marginTop) ? marginTop : null,
+          Number.isFinite(absoluteTop) ? absoluteTop : null
+        ].reduce((max, value) => (value === null ? max : Math.max(max, value)), 0);
+        const topGap = Math.max(measuredTopGap, explicitTopGap);
+        const bottomGap = this.getObjectBottomGap(object);
+
+        return {
+          objectHeight,
+          topGap,
+          bottomGap
+        };
+      }
+
+      applyFloatedMainObjectVerticalGaps(object, topGap, bottomGap) {
+        const align = object.dataset.align || "left";
+
+        if (align === "free") {
+          if (object.style.position === "absolute") {
+            object.style.margin = "0";
+            return;
+          }
+
+          const marginLeft = Number.parseInt(object.style.marginLeft, 10);
+          const marginRight = Number.parseInt(object.style.marginRight, 10);
+          const left = Number.isFinite(marginLeft) ? marginLeft : 0;
+          const right = Number.isFinite(marginRight) ? marginRight : 8;
+
+          object.style.margin = `${topGap}px ${right}px ${bottomGap}px ${left}px`;
+          return;
+        }
+
+        if (align === "left") {
+          object.style.margin = `0 10px ${bottomGap}px 0`;
+          return;
+        }
+
+        if (align === "right") {
+          object.style.margin = `0 0 ${bottomGap}px 10px`;
+          return;
+        }
+
+        if (align === "center") {
+          object.style.margin = `${topGap}px auto ${bottomGap}px`;
+        }
+      }
+
       fitParagraphBlockToMainObject(object) {
         if (!object?.matches?.(WordexEditor.mainObjectSelector)) {
           return;
@@ -8274,20 +8539,30 @@
           return;
         }
 
-        const objectRect = object.getBoundingClientRect();
-        const paragraphRect = paragraph.getBoundingClientRect();
-        const objectHeight = Math.ceil(object.offsetHeight || objectRect.height);
+        const layout = this.measureParagraphMainObjectLayout(object, paragraph);
 
-        if (objectHeight <= 0) {
+        if (!layout) {
           return;
         }
 
-        const storedY = Number.parseInt(object.dataset.blockY, 10);
-        const blockY = Number.isFinite(storedY)
-          ? Math.max(0, storedY)
-          : Math.max(0, Math.round(objectRect.top - paragraphRect.top));
-        const padding = 4;
-        const neededHeight = blockY + objectHeight + padding;
+        this.applyFloatedMainObjectVerticalGaps(
+          object,
+          layout.topGap,
+          layout.bottomGap
+        );
+
+        let neededHeight = layout.topGap + layout.objectHeight + layout.bottomGap;
+
+        paragraph.querySelectorAll(WordexEditor.objectSelector).forEach(item => {
+          if (item === object) {
+            return;
+          }
+
+          neededHeight = Math.max(
+            neededHeight,
+            this.getObjectBottomInFreeContainer(item, paragraph)
+          );
+        });
 
         paragraph.style.minHeight = Math.max(18, neededHeight) + "px";
 
@@ -8328,6 +8603,302 @@
         });
       }
 
+      getTableRowExplicitHeight(row) {
+        if (!row) {
+          return 0;
+        }
+
+        const rowHeight = Number.parseFloat(row.style.height);
+        const cellHeight = Number.parseFloat(row.cells[0]?.style.height);
+        const height = Number.isFinite(rowHeight) && rowHeight > 0
+          ? rowHeight
+          : (Number.isFinite(cellHeight) && cellHeight > 0 ? cellHeight : 0);
+
+        return Math.ceil(height);
+      }
+
+      applyTableRowHeightFromReference(referenceRow, targetRow) {
+        if (!targetRow || !referenceRow) {
+          return;
+        }
+
+        let height = this.getTableRowExplicitHeight(referenceRow);
+
+        if (height <= 0) {
+          height = Math.ceil(referenceRow.getBoundingClientRect().height);
+        }
+
+        if (height <= 0) {
+          return;
+        }
+
+        targetRow.style.height = height + "px";
+
+        Array.from(targetRow.cells).forEach(cell => {
+          cell.style.height = height + "px";
+        });
+      }
+
+      measureTableRowContentHeight(row) {
+        if (!row) {
+          return 0;
+        }
+
+        row.style.height = "auto";
+
+        Array.from(row.cells).forEach(cell => {
+          cell.style.height = "auto";
+        });
+
+        void row.offsetHeight;
+
+        let maxHeight = Math.ceil(row.getBoundingClientRect().height);
+
+        Array.from(row.cells).forEach(cell => {
+          maxHeight = Math.max(maxHeight, Math.ceil(cell.getBoundingClientRect().height));
+        });
+
+        return Math.max(18, maxHeight);
+      }
+
+      syncTableRowsHeightToContent(table, rows = null) {
+        if (!this.isWordexTableObject(table)) {
+          return;
+        }
+
+        const targetRows = Array.isArray(rows) && rows.length
+          ? rows.filter(Boolean)
+          : Array.from(table.rows);
+
+        targetRows.forEach(row => {
+          const neededHeight = this.measureTableRowContentHeight(row);
+
+          if (neededHeight <= 0) {
+            return;
+          }
+
+          row.style.height = neededHeight + "px";
+
+          Array.from(row.cells).forEach(cell => {
+            cell.style.height = neededHeight + "px";
+          });
+        });
+      }
+
+      syncTableLayoutAfterTextFormatting(table, rows = null) {
+        if (!this.isWordexTableObject(table)) {
+          return;
+        }
+
+        this.syncTableRowsHeightToContent(table, rows);
+        this.syncTableLayoutAfterStructureChange(table);
+      }
+
+      syncTableLayoutAfterCellContentChange(cells) {
+        const targets = Array.isArray(cells) ? cells.filter(Boolean) : [];
+
+        if (!targets.length) {
+          return;
+        }
+
+        const table = targets[0].closest(".wordex-table");
+
+        if (!table || !this.isWordexTableObject(table)) {
+          const paragraph = targets[0].closest(".paragraph");
+
+          if (paragraph) {
+            this.syncParagraphElement(paragraph);
+            this.saveUndoStateIfChanged();
+          }
+
+          return;
+        }
+
+        const rows = [...new Set(
+          targets.map(cell => cell.parentElement).filter(Boolean)
+        )];
+
+        this.syncTableLayoutAfterTextFormatting(table, rows);
+      }
+
+      syncTableLayoutAfterStructureChange(table) {
+        if (!this.isWordexTableObject(table)) {
+          return;
+        }
+
+        this.syncObjectAfterChange(table);
+        this.scheduleFitParagraphBlockToMainObject(table);
+        this.syncFreeContainerBoundsForObject(table);
+        this.positionObjectResizeOverlay();
+      }
+
+      measureTableContentHeight(table) {
+        const rows = Array.from(table?.rows || []);
+
+        if (rows.length === 0) {
+          return 0;
+        }
+
+        /*
+          O CSS do relatório paginado impõe min-height: 7mm nas células.
+          Na geração fora do DOM, usamos um piso conservador para não subestimar
+          a altura real depois que os dados expandem a tabela.
+        */
+        const reportCellMinPx = Math.ceil((7 * 96) / 25.4);
+        let total = 0;
+
+        rows.forEach(row => {
+          const rowHeight = Number.parseFloat(row.style.height) ||
+            Number.parseFloat(row.cells[0]?.style.height) ||
+            18;
+
+          total += Math.max(18, reportCellMinPx, Math.ceil(rowHeight));
+        });
+
+        return total + 2;
+      }
+
+      measureObjectContentHeight(object) {
+        if (!object) {
+          return 0;
+        }
+
+        if (this.isWordexTableObject(object)) {
+          return this.measureTableContentHeight(object);
+        }
+
+        const styledHeight = Number.parseFloat(object.style.height);
+
+        if (Number.isFinite(styledHeight) && styledHeight > 0) {
+          return Math.ceil(styledHeight);
+        }
+
+        return Math.ceil(object.offsetHeight || object.getBoundingClientRect().height || 0);
+      }
+
+      getObjectBottomInGeneratedContainer(object, container) {
+        if (!object || !container) {
+          return 0;
+        }
+
+        if (
+          this.usesFreeAbsolutePosition(container) &&
+          object.style.position === "absolute" &&
+          container.isConnected
+        ) {
+          const containerRect = container.getBoundingClientRect();
+          const objectRect = object.getBoundingClientRect();
+
+          if (containerRect.height > 0 && objectRect.height > 0) {
+            return Math.max(0, Math.round(objectRect.bottom - containerRect.top + 8));
+          }
+        }
+
+        const top = Number.parseInt(object.dataset.blockY, 10) ||
+          Number.parseInt(object.style.top, 10) ||
+          Number.parseInt(object.style.marginTop, 10) ||
+          0;
+        const bottomGap = container.matches(".paragraph")
+          ? this.getObjectBottomGap(object)
+          : 8;
+
+        return top + this.measureObjectContentHeight(object) + bottomGap;
+      }
+
+      updateGeneratedFreeContainerBounds(container) {
+        if (!container) {
+          return;
+        }
+
+        if (container.matches(".paragraph") && this.paragraphHasMainObject(container)) {
+          const mainObjects = container.querySelectorAll(WordexEditor.mainObjectSelector);
+
+          if (mainObjects.length === 1) {
+            this.fitGeneratedParagraphBlockToMainObject(mainObjects[0]);
+            return;
+          }
+        }
+
+        let maxBottom = 0;
+
+        container.querySelectorAll(WordexEditor.objectSelector).forEach(object => {
+          maxBottom = Math.max(
+            maxBottom,
+            this.getObjectBottomInGeneratedContainer(object, container)
+          );
+        });
+
+        if (maxBottom <= 0) {
+          return;
+        }
+
+        const baseline = container.classList.contains("object-block") ? 24 : 18;
+        container.style.minHeight = Math.max(baseline, maxBottom) + "px";
+      }
+
+      fitGeneratedParagraphBlockToMainObject(object) {
+        if (!object?.matches?.(WordexEditor.mainObjectSelector)) {
+          return;
+        }
+
+        const paragraph = object.closest(".paragraph");
+
+        if (!paragraph || !this.paragraphHasMainObject(paragraph)) {
+          return;
+        }
+
+        const layout = this.measureParagraphMainObjectLayout(object, paragraph);
+
+        if (!layout) {
+          return;
+        }
+
+        this.applyFloatedMainObjectVerticalGaps(
+          object,
+          layout.topGap,
+          layout.bottomGap
+        );
+
+        let neededHeight = layout.topGap + layout.objectHeight + layout.bottomGap;
+
+        paragraph.querySelectorAll(WordexEditor.objectSelector).forEach(item => {
+          if (item === object) {
+            return;
+          }
+
+          neededHeight = Math.max(
+            neededHeight,
+            this.getObjectBottomInGeneratedContainer(item, paragraph)
+          );
+        });
+
+        paragraph.style.minHeight = Math.max(18, neededHeight) + "px";
+
+        const wrapper = paragraph.closest(".paragraph-block, .object-block");
+
+        if (wrapper) {
+          wrapper.style.minHeight = "";
+        }
+      }
+
+      syncGeneratedFreeContainerBounds(container) {
+        if (!container) {
+          return;
+        }
+
+        container.querySelectorAll(".paragraph").forEach(paragraph => {
+          if (this.usesFreeAbsolutePosition(paragraph)) {
+            this.updateGeneratedFreeContainerBounds(paragraph);
+          }
+        });
+
+        container.querySelectorAll(".object-block").forEach(block => {
+          if (this.usesFreeAbsolutePosition(block)) {
+            this.updateGeneratedFreeContainerBounds(block);
+          }
+        });
+      }
+
       getObjectBottomInFreeContainer(object, container) {
         if (!object || !container) {
           return 0;
@@ -8347,8 +8918,11 @@
           Number.parseInt(object.dataset.blockY, 10) ||
           Number.parseInt(object.style.marginTop, 10) ||
           0;
+        const bottomGap = container.matches(".paragraph")
+          ? this.getObjectBottomGap(object)
+          : 8;
 
-        return top + object.offsetHeight + 8;
+        return top + object.offsetHeight + bottomGap;
       }
 
       syncFreeContainerBoundsForObject(object) {
@@ -8792,10 +9366,12 @@
       }
 
       configureTable(table) {
-        const align = this.askAlignment(table.dataset.align || "left");
-        if (!align) return;
+        const sequence = ["left", "center", "right"];
+        const current = table.dataset.align === "free" ? "left" : (table.dataset.align || "left");
+        const currentIndex = Math.max(0, sequence.indexOf(current));
+        const nextAlign = sequence[(currentIndex + 1) % sequence.length];
 
-        this.applyAlignment(table, align);
+        this.applyAlignment(table, nextAlign);
         this.limitObjectWidthToParagraph(table);
         this.syncObjectAfterChange(table);
         this.selectObject(table);
@@ -8935,6 +9511,10 @@
           return;
         }
 
+        if (this.clearTextEmphasisFromActiveTableCell()) {
+          return;
+        }
+
         if (this.selectedObject) {
           this.clearTextEmphasisFromElement(this.selectedObject);
 
@@ -8942,6 +9522,9 @@
             this.selectedObject.querySelectorAll("td").forEach(cell => {
               this.clearTextEmphasisFromElement(cell);
             });
+            this.syncTableLayoutAfterTextFormatting(this.selectedObject);
+            this.keepObjectSelected(this.selectedObject);
+            return;
           }
 
           this.syncObjectAfterChangeAndKeepSelected(this.selectedObject);
@@ -9005,6 +9588,17 @@
 
         this.selectedParagraphId = paragraph.dataset.blockId;
         this.selectedBlockId = paragraph.dataset.blockId;
+
+        const activeCell = cleanupRoot?.matches?.("td")
+          ? cleanupRoot
+          : cleanupRoot?.closest?.("td");
+
+        if (activeCell && paragraph.contains(activeCell)) {
+          this.syncTableLayoutAfterCellContentChange([activeCell]);
+          this.renderSelection();
+          return true;
+        }
+
         this.syncParagraphElement(paragraph);
         this.renderSelection();
         this.saveUndoStateIfChanged();
@@ -9068,6 +9662,50 @@
           style,
           radius
         };
+      }
+
+      static getChartDefaultBorderSettings() {
+        return {
+          color: "#000000",
+          width: "1px",
+          style: "solid",
+          radius: "0"
+        };
+      }
+
+      isChartBorderElement(element) {
+        return !!element?.matches?.(".wordex-chart-box");
+      }
+
+      chartHasVisibleBorder(element) {
+        if (!element) {
+          return false;
+        }
+
+        const computed = window.getComputedStyle(element);
+        const widths = [
+          computed.borderTopWidth,
+          computed.borderRightWidth,
+          computed.borderBottomWidth,
+          computed.borderLeftWidth
+        ].map(value => parseFloat(value) || 0);
+
+        if (!widths.some(width => width > 0)) {
+          return false;
+        }
+
+        return ["top", "right", "bottom", "left"].some(edge => {
+          const style = computed[`border${edge.charAt(0).toUpperCase()}${edge.slice(1)}Style`];
+          return style && style !== "none" && style !== "hidden";
+        });
+      }
+
+      ensureChartEssentialBorder(element, settings = WordexEditor.getChartDefaultBorderSettings()) {
+        if (!this.isChartBorderElement(element) || this.chartHasVisibleBorder(element)) {
+          return;
+        }
+
+        this.applyBorderStyle(element, settings);
       }
 
       normalizeBorderRadius(radius) {
@@ -9223,6 +9861,10 @@
           a escolha do usuário prevaleça visualmente e também no HTML salvo.
         */
         if (settings.width === "0" || settings.style === "none") {
+          if (this.isChartBorderElement(element)) {
+            return;
+          }
+
           this.clearBorderStyle(element);
           return;
         }
@@ -9263,6 +9905,10 @@
 
       clearBorderStyle(element) {
         if (!element) return;
+
+        if (this.isChartBorderElement(element)) {
+          return;
+        }
 
         /*
           Não basta remover a borda inline: vários elementos do editor têm uma
@@ -9507,6 +10153,10 @@
         const lineCss = this.getBorderLineCss(settings);
 
         if (preset === "none") {
+          if (this.isChartBorderElement(element)) {
+            return false;
+          }
+
           this.clearBorderStyle(element);
           return true;
         }
@@ -9606,7 +10256,7 @@
         const target = this.getCurrentMarginTarget();
 
         if (!target) {
-          alert("Selecione um parágrafo, imagem, histograma, textbox ou a tabela inteira para alterar a margem.");
+          alert("Selecione um parágrafo para alterar a margem de parágrafo.");
           return;
         }
 
@@ -9830,6 +10480,11 @@
           return;
         }
 
+        if (this.isChartBorderElement(target.element) && preset === "none") {
+          alert("Gráficos não podem ficar sem borda.");
+          return;
+        }
+
         const applied = this.applyBorderPresetToBoxElement(target.element, preset);
 
         if (!applied) {
@@ -10035,6 +10690,56 @@
         );
       }
 
+      focusTableCellForEditing(cell) {
+        if (!cell || !this.documentElement.contains(cell)) {
+          return;
+        }
+
+        cell.focus({ preventScroll: true });
+
+        const selection = window.getSelection();
+
+        if (!selection) {
+          return;
+        }
+
+        if (
+          selection.rangeCount > 0 &&
+          cell.contains(selection.getRangeAt(0).commonAncestorContainer)
+        ) {
+          this.savedRange = selection.getRangeAt(0).cloneRange();
+          return;
+        }
+
+        const range = document.createRange();
+        range.selectNodeContents(cell);
+        range.collapse(false);
+
+        selection.removeAllRanges();
+        selection.addRange(range);
+        this.savedRange = range.cloneRange();
+      }
+
+      prepareTableCellForEditing(cell) {
+        if (!cell) {
+          return;
+        }
+
+        const table = cell.closest(".wordex-table");
+
+        if (!table) {
+          return;
+        }
+
+        this.selectedObject = null;
+        this.clearTableComponentSelectionState();
+        this.selectedCell = cell;
+        this.macroPickerActiveTable = table;
+        table.dataset.wordexSelectionMode = "cell";
+        this.focusTableCellForEditing(cell);
+        this.renderSelection();
+      }
+
       enterTableCellEditMode(cell) {
         if (!cell) {
           return;
@@ -10050,7 +10755,7 @@
         this.clearTableComponentSelectionState();
         this.selectedCell = cell;
         this.macroPickerActiveTable = table;
-        delete table.dataset.wordexSelectionMode;
+        table.dataset.wordexSelectionMode = "cell";
 
         const paragraph = table.closest(".paragraph");
         const region = table.closest(".region");
@@ -10064,6 +10769,7 @@
           this.selectedBlockId = paragraph.dataset.blockId;
         }
 
+        this.focusTableCellForEditing(cell);
         this.renderSelection();
       }
 
@@ -10645,7 +11351,14 @@
         const rowIndex = rows.indexOf(context.row);
         const newIndex = rowIndex + step;
 
-        if (newIndex <= 0 || newIndex >= rows.length - 1) {
+        const isStatic = this.isStaticTable(table);
+
+        if (isStatic) {
+          if (newIndex < 0 || newIndex >= rows.length) {
+            alert("A linha não pode ser movida para fora da tabela.");
+            return;
+          }
+        } else if (newIndex <= 0 || newIndex >= rows.length - 1) {
           alert("A linha Free não pode ultrapassar o TableHeader nem o TableFooter.");
           return;
         }
@@ -10660,11 +11373,13 @@
           table.insertBefore(movingRow, afterReference);
         }
 
-        const updatedIndex = Array.from(table.rows).indexOf(movingRow);
-        this.setTableRowDatasource(
-          movingRow,
-          this.resolveFreeRowDatasourceAtPosition(table, updatedIndex)
-        );
+        if (!isStatic) {
+          const updatedIndex = Array.from(table.rows).indexOf(movingRow);
+          this.setTableRowDatasource(
+            movingRow,
+            this.resolveFreeRowDatasourceAtPosition(table, updatedIndex)
+          );
+        }
 
         const selectedCell = movingRow.cells[columnIndex] || movingRow.cells[0] || null;
         this.syncObjectAfterChange(table);
@@ -10682,6 +11397,10 @@
 
       canInsertFreeTableRowAt(table, insertRowIndex) {
         const rowCount = table?.rows?.length || 0;
+
+        if (this.isStaticTable(table)) {
+          return insertRowIndex > 0 && insertRowIndex <= rowCount;
+        }
 
         if (rowCount < 3) {
           return false;
@@ -11328,8 +12047,9 @@
         const table = context.table;
         const rows = Array.from(table.rows);
         const rowIndex = rows.indexOf(context.row);
+        const isStatic = this.isStaticTable(table);
 
-        if (rowIndex <= 0 || rowIndex >= rows.length - 1) {
+        if (!isStatic && (rowIndex <= 0 || rowIndex >= rows.length - 1)) {
           alert("Selecione uma linha entre o TableHeader e o TableFooter.");
           return;
         }
@@ -11337,17 +12057,18 @@
         const insertIndex = rowIndex + 1;
 
         if (!this.canInsertFreeTableRowAt(table, insertIndex)) {
-          alert("Linhas Free só podem ficar entre o TableHeader e o TableFooter.");
+          alert(
+            isStatic
+              ? "Não foi possível inserir a linha nesta posição."
+              : "Linhas Free só podem ficar entre o TableHeader e o TableFooter."
+          );
           return;
         }
 
-        const cols = this.getTableDetailColumnCount(table);
+        const cols = isStatic
+          ? this.getTableColumnCount(table)
+          : this.getTableDetailColumnCount(table);
         const newRow = table.insertRow(insertIndex);
-        const freeDatasource = this.resolveFreeRowDatasourceForInsert(
-          table,
-          insertIndex,
-          context.row
-        );
 
         for (let column = 0; column < cols; column++) {
           const td = document.createElement("td");
@@ -11357,9 +12078,22 @@
         }
 
         newRow.dataset.wordexRowType = "Free";
-        this.setTableRowDatasource(newRow, freeDatasource);
-        this.recolumnizeTableRowToDetailColumns(table, newRow);
-        this.syncObjectAfterChange(table);
+
+        if (isStatic) {
+          this.updateTableRowTypeLabel(newRow);
+        } else {
+          const freeDatasource = this.resolveFreeRowDatasourceForInsert(
+            table,
+            insertIndex,
+            context.row
+          );
+
+          this.setTableRowDatasource(newRow, freeDatasource);
+          this.recolumnizeTableRowToDetailColumns(table, newRow);
+        }
+
+        this.applyTableRowHeightFromReference(context.row, newRow);
+        this.syncTableLayoutAfterStructureChange(table);
         this.selectTableComponent(table, context.cell, "row");
         this.saveUndoStateIfChanged();
       }
@@ -11379,16 +12113,39 @@
         const table = context.table;
         const rows = Array.from(table.rows);
         const rowIndex = rows.indexOf(context.row);
+        const columnIndex = Math.max(0, context.columnIndex);
 
-        if (rowIndex <= 0 || rowIndex >= rows.length - 1) {
+        const isStatic = this.isStaticTable(table);
+
+        if (isStatic) {
+          if (rows.length <= 1) {
+            alert("A tabela precisa manter ao menos uma linha.");
+            return;
+          }
+        } else if (rowIndex <= 0 || rowIndex >= rows.length - 1) {
           alert("Esta linha não pode ser excluída.");
           return;
         }
 
         table.deleteRow(rowIndex);
-        this.ensureTableBoundaryRowTypes(table);
-        this.syncObjectAfterChange(table);
-        this.selectObject(table);
+
+        if (!isStatic) {
+          this.ensureTableBoundaryRowTypes(table);
+        }
+
+        const targetRow = table.rows[rowIndex] || table.rows[rowIndex - 1] || table.rows[0] || null;
+        const targetCell = targetRow
+          ? (this.getTableCellAtLogicalColumn(targetRow, columnIndex)?.cell || targetRow.cells[0] || null)
+          : null;
+
+        this.syncTableLayoutAfterStructureChange(table);
+
+        if (targetCell) {
+          this.selectTableComponent(table, targetCell, "row");
+        } else {
+          this.selectObject(table);
+        }
+
         this.saveUndoStateIfChanged();
       }
 
@@ -11524,32 +12281,326 @@
           return rowType === "GroupFooter" || rowType === "TableFooter";
         });
 
-        this.syncObjectAfterChange(table);
+        this.syncTableLayoutAfterStructureChange(table);
         this.enterTableCellEditMode(firstFooterRow?.cells?.[0] || null);
         this.saveUndoStateIfChanged();
+      }
+
+      isCaretInEditableTableCell() {
+        let cell = this.selectedCell;
+
+        if (!cell || !this.documentElement.contains(cell)) {
+          cell = this.getTableCellFromRangeSelection(window.getSelection());
+        }
+
+        if (!cell && this.savedRange) {
+          cell = this.getTableCellFromRange(this.savedRange);
+        }
+
+        return !!(cell && this.documentElement.contains(cell));
+      }
+
+      isTableCellTextEditingContext() {
+        const liveObject = this.getLiveSelectedObject();
+
+        if (liveObject && this.isWordexTableObject(liveObject)) {
+          const mode = this.selectedTableMode || "table";
+
+          if (mode === "row" || mode === "column") {
+            return false;
+          }
+
+          if (mode === "cell" && this.getSelectedTableCells().length > 0) {
+            return true;
+          }
+        }
+
+        if (this.isCaretInEditableTableCell()) {
+          if (liveObject && this.isWordexTableObject(liveObject)) {
+            const mode = this.selectedTableMode || "table";
+            return mode === "cell" || mode === "table";
+          }
+
+          return true;
+        }
+
+        if (
+          this.selectedCell &&
+          this.documentElement.contains(this.selectedCell) &&
+          !liveObject
+        ) {
+          return true;
+        }
+
+        return false;
+      }
+
+      getActiveTableCellForTextFormatting() {
+        if (this.selectedTableMode === "cell") {
+          const selectedCells = this.getSelectedTableCells();
+
+          if (selectedCells.length === 1) {
+            return selectedCells[0];
+          }
+
+          if (selectedCells.length > 1) {
+            return selectedCells[0];
+          }
+        }
+
+        let cell = this.selectedCell;
+
+        if (!cell || !this.documentElement.contains(cell)) {
+          cell = this.getTableCellFromRangeSelection(window.getSelection());
+        }
+
+        if (!cell && this.savedRange) {
+          cell = this.getTableCellFromRange(this.savedRange);
+        }
+
+        return cell && this.documentElement.contains(cell) ? cell : null;
+      }
+
+      getTableCellsForTextFormatting() {
+        if (this.selectedTableMode === "cell") {
+          const selectedCells = this.getSelectedTableCells();
+
+          if (selectedCells.length > 0) {
+            return selectedCells;
+          }
+        }
+
+        const cell = this.getActiveTableCellForTextFormatting();
+
+        return cell ? [cell] : [];
+      }
+
+      getTextStyleAtSelection(fallbackElement = null) {
+        const selection = window.getSelection();
+        let styleSource = fallbackElement;
+
+        if (selection?.rangeCount) {
+          const node = selection.getRangeAt(0).startContainer;
+          const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+          const scoped = element?.closest?.("span, td, .paragraph, .wordex-textbox");
+
+          if (scoped && this.documentElement.contains(scoped)) {
+            styleSource = scoped;
+          }
+        }
+
+        if (!styleSource) {
+          return null;
+        }
+
+        const computed = window.getComputedStyle(styleSource);
+        const inline = styleSource.style || {};
+
+        return {
+          fontFamily: inline.fontFamily || computed.fontFamily,
+          fontSize: inline.fontSize || computed.fontSize,
+          color: inline.color || computed.color
+        };
+      }
+
+      syncTextToolbarControls() {
+        if (!this.isTableCellTextEditingContext()) {
+          return;
+        }
+
+        const cell = this.getActiveTableCellForTextFormatting();
+
+        if (!cell) {
+          return;
+        }
+
+        const style = this.getTextStyleAtSelection(cell);
+        const fontFamily = document.getElementById("fontFamily");
+        const fontSize = document.getElementById("fontSize");
+        const fontColor = document.getElementById("fontColor");
+
+        if (!style) {
+          return;
+        }
+
+        if (fontFamily) {
+          fontFamily.value = this.normalizeFontFamilyForSelect(style.fontFamily);
+        }
+
+        if (fontSize) {
+          fontSize.value = this.normalizeFontSizeForSelect(style.fontSize);
+        }
+
+        if (fontColor) {
+          fontColor.value = this.normalizeColorForInput(style.color);
+        }
+      }
+
+      syncTableCellFormattingState(cells) {
+        const targets = Array.isArray(cells) ? cells.filter(Boolean) : [];
+
+        if (!targets.length) {
+          return;
+        }
+
+        this.syncTableLayoutAfterCellContentChange(targets);
+        this.renderSelection();
+      }
+
+      applyFormattingToActiveTableCell(style) {
+        if (!this.isTableCellTextEditingContext()) {
+          return false;
+        }
+
+        const cells = this.getTableCellsForTextFormatting();
+
+        if (!cells.length) {
+          return false;
+        }
+
+        cells.forEach(cell => {
+          this.applyStyleObject(cell, style);
+        });
+
+        this.syncTableCellFormattingState(cells);
+        return true;
+      }
+
+      clearTextEmphasisFromActiveTableCell() {
+        if (!this.isTableCellTextEditingContext()) {
+          return false;
+        }
+
+        const cells = this.getTableCellsForTextFormatting();
+
+        if (!cells.length) {
+          return false;
+        }
+
+        cells.forEach(cell => {
+          this.clearTextEmphasisFromElement(cell);
+          this.removeEmptyInlineStyleElements(cell);
+        });
+
+        this.syncTableCellFormattingState(cells);
+        return true;
+      }
+
+      isCaretInParagraphTextOutsideMainObject(paragraph) {
+        const selection = window.getSelection();
+
+        if (!selection?.rangeCount || !paragraph) {
+          return false;
+        }
+
+        const range = selection.getRangeAt(0);
+
+        if (!paragraph.contains(range.commonAncestorContainer)) {
+          return false;
+        }
+
+        const element = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+          ? range.commonAncestorContainer
+          : range.commonAncestorContainer.parentElement;
+
+        return !element?.closest?.(WordexEditor.mainObjectSelector);
+      }
+
+      isTextToolbarContext() {
+        const liveObject = this.getLiveSelectedObject();
+        const activeTextbox = this.getActiveTextboxForTextEditing();
+        const paragraph = this.getSelectedParagraphElement();
+
+        if (liveObject?.matches?.(".dynamic-image-box")) {
+          return false;
+        }
+
+        if (liveObject?.matches?.(".wordex-chart-box")) {
+          return true;
+        }
+
+        if (activeTextbox) {
+          return true;
+        }
+
+        if (this.isTableCellTextEditingContext()) {
+          return true;
+        }
+
+        if (!paragraph) {
+          return false;
+        }
+
+        if (!this.paragraphHasMainObject(paragraph)) {
+          return true;
+        }
+
+        return this.isCaretInParagraphTextOutsideMainObject(paragraph);
+      }
+
+      isAlignToolbarContext() {
+        const liveObject = this.getLiveSelectedObject();
+
+        return !!(
+          liveObject ||
+          this.getActiveTextboxForTextEditing() ||
+          this.getSelectedParagraphElement()
+        );
+      }
+
+      isBorderToolbarContext() {
+        const liveObject = this.getLiveSelectedObject();
+
+        if (liveObject && this.isWordexTableObject(liveObject)) {
+          const mode = this.selectedTableMode || "table";
+          return mode === "cell" || !!this.getCurrentTableBorderContext();
+        }
+
+        return !!this.getCurrentTableBorderContext() || !!this.getCurrentBoxBorderTarget();
+      }
+
+      isJsonMacrosToolbarContext() {
+        if (this.isParagraphMacroToolbarActive()) {
+          return true;
+        }
+
+        if (!this.getReportDataRootRecord()) {
+          return false;
+        }
+
+        return !!(
+          this.getActiveTableForMacroContext() ||
+          this.isImageMacroToolbarActive()
+        );
       }
 
       getToolbarContextState() {
         const liveObject = this.getLiveSelectedObject();
         const isTable = !!(liveObject && this.isWordexTableObject(liveObject));
         const isChart = !!(liveObject && liveObject.matches(".wordex-chart-box"));
-        const isNonTextObject = !!(
-          liveObject &&
-          liveObject.matches(".dynamic-image-box, .wordex-table")
-        );
-        const activeTextbox = this.getActiveTextboxForTextEditing();
-        const paragraph = this.getSelectedParagraphElement();
         const marginTarget = this.getCurrentMarginTarget();
+        const hasBlockSelection = !!this.getSelectedBlockContext();
+        const hasClipboardPayload = !!(
+          this.wordexClipboard?.blocks?.length
+        );
+        const hasJsonData = !!this.getReportDataRootRecord();
 
         return {
-          text: !!(activeTextbox || (paragraph && !isNonTextObject) || isChart),
-          align: !!(liveObject || activeTextbox || paragraph),
+          insert: true,
+          "delete-block": !!this.selectedParagraphId,
+          clipboard: hasBlockSelection || hasClipboardPayload,
+          page: true,
+          output: true,
+          "data-core": true,
+          text: this.isTextToolbarContext(),
+          align: this.isAlignToolbarContext(),
           "chart-bar": isChart,
+          border: this.isBorderToolbarContext(),
           table: isTable,
           margin: !!marginTarget,
           object: !!liveObject,
-          "json-image": !!this.getReportDataRootRecord(),
-          "json-macros": !!this.getReportDataRootRecord()
+          "json-image": hasJsonData,
+          "json-macros": this.isJsonMacrosToolbarContext()
         };
       }
 
@@ -11557,17 +12608,72 @@
         const state = this.getToolbarContextState();
 
         document.querySelectorAll("[data-wordex-toolbar-context]").forEach(element => {
-          const context = element.dataset.wordexToolbarContext;
-          const visible = !!state[context];
+          const contexts = String(element.dataset.wordexToolbarContext || "")
+            .split(/\s+/)
+            .map(context => context.trim())
+            .filter(Boolean);
+          const visible = contexts.some(context => !!state[context]);
 
           element.classList.toggle("wordex-toolbar-hidden", !visible);
         });
 
-        if (!state.table) {
+        if (!state.border) {
           this.closeBorderDropdown?.();
         }
 
-        this.syncChartToolbarControls();
+        this.syncBorderMenuAvailability();
+
+        if (this.getLiveSelectedObject()?.matches?.(".wordex-chart-box")) {
+          this.syncChartToolbarControls();
+        } else {
+          this.syncParagraphToolbarControls();
+        }
+
+        this.syncTextToolbarControls();
+      }
+
+      syncParagraphToolbarControls() {
+        if (this.selectedObject || this.isTableCellTextEditingContext()) {
+          return;
+        }
+
+        const paragraph = this.getSelectedParagraphElement();
+
+        if (!paragraph) {
+          return;
+        }
+
+        const style = this.getParagraphBlockTextStyle(
+          this.findBlockById(paragraph.dataset.blockId)
+        );
+        const fontFamily = document.getElementById("fontFamily");
+        const fontSize = document.getElementById("fontSize");
+        const fontColor = document.getElementById("fontColor");
+
+        if (fontFamily) {
+          fontFamily.value = this.normalizeFontFamilyForSelect(style.fontFamily);
+        }
+
+        if (fontSize) {
+          fontSize.value = this.normalizeFontSizeForSelect(style.fontSize);
+        }
+
+        if (fontColor) {
+          fontColor.value = this.normalizeColorForInput(style.color);
+        }
+      }
+
+      syncBorderMenuAvailability() {
+        const target = this.getCurrentBoxBorderTarget();
+        const isChart = this.isChartBorderElement(target?.element);
+        const noneButton = document.querySelector('#wordexBorderMenu button[data-border-preset="none"]');
+
+        if (!noneButton) {
+          return;
+        }
+
+        noneButton.disabled = isChart;
+        noneButton.title = isChart ? "Gráficos não podem ficar sem borda" : "";
       }
 
       getSelectedTableRowContextWithoutAlert() {
@@ -11869,6 +12975,10 @@
           return;
         }
 
+        if (this.applyFormattingToActiveTableCell(style)) {
+          return;
+        }
+
         if (this.selectedObject) {
           this.applyFormattingToSelectedObject(style);
           return;
@@ -11997,6 +13107,16 @@
           this.selectedBlockId = paragraph.dataset.blockId;
         }
 
+        const activeCell = this.isCaretInEditableTableCell()
+          ? this.getActiveTableCellForTextFormatting()
+          : null;
+
+        if (activeCell && paragraph.contains(activeCell)) {
+          this.syncTableLayoutAfterCellContentChange([activeCell]);
+          this.renderSelection();
+          return;
+        }
+
         this.syncParagraphElement(paragraph);
         this.renderSelection();
         this.saveUndoStateIfChanged();
@@ -12023,6 +13143,13 @@
 
         if (!object) return;
 
+        if (object.matches(".wordex-chart-box")) {
+          this.applyChartTextStyle(object, style);
+          this.updateChartBoxPresentation(object);
+          this.syncObjectAfterChangeAndKeepSelected(object);
+          return;
+        }
+
         /*
           Imagem: fonte/cor afetam apenas o rótulo visual do marcador.
           Tabela: fonte/cor afetam o conteúdo das células.
@@ -12033,10 +13160,9 @@
           object.querySelectorAll("td").forEach(cell => {
             this.applyStyleObject(cell, style);
           });
-        }
-
-        if (object.matches(".wordex-chart-box")) {
-          this.updateChartBoxPresentation(object);
+          this.syncTableLayoutAfterTextFormatting(object);
+          this.keepObjectSelected(object);
+          return;
         }
 
         this.syncObjectAfterChangeAndKeepSelected(object);
@@ -12834,15 +13960,288 @@
 
         document.addEventListener("mousemove", event => {
           this.handleInlineObjectMouseDragMove(event);
+          this.handleParagraphBlockReorderDragMove(event);
         });
 
         document.addEventListener("mouseup", event => {
           this.finishInlineObjectMouseDrag(event);
+          this.finishParagraphBlockReorderDrag(event);
         });
+      }
+
+      installParagraphBlockReorderEvents() {
+        this.documentElement.addEventListener("mousedown", event => {
+          this.startParagraphBlockReorderDragCandidate(event);
+        }, true);
+      }
+
+      selectParagraphBlockForMove(region, blockId) {
+        this.syncCurrentEditingState();
+        this.paragraphMoveBlockId = blockId;
+        this.selected.region = region;
+        this.selectedParagraphId = blockId;
+        this.selectedBlockId = blockId;
+        this.selectedObject = null;
+        this.selectedCell = null;
+        this.clearTableSelectionState();
+        this.macroPickerActiveTable = null;
+        this.releaseJsonMacroPickerFromImageContext();
+        this.renderSelection();
+      }
+
+      clearParagraphBlockMoveSelection() {
+        if (!this.paragraphMoveBlockId) {
+          return;
+        }
+
+        this.paragraphMoveBlockId = null;
+        this.removeParagraphBlockDropIndicator();
+        this.renderSelection();
+      }
+
+      getRegionElement(region) {
+        return this.documentElement.querySelector(`.region[data-region="${region}"]`);
+      }
+
+      getParagraphBlockLayoutRect(wrapper) {
+        const rect = wrapper.getBoundingClientRect();
+        let top = rect.top;
+        let bottom = rect.bottom;
+
+        wrapper.querySelectorAll(".chart-box, .table-box, .image-box, .object-block").forEach(element => {
+          const elementRect = element.getBoundingClientRect();
+
+          if (elementRect.height > 0) {
+            top = Math.min(top, elementRect.top);
+            bottom = Math.max(bottom, elementRect.bottom);
+          }
+        });
+
+        return { top, bottom, height: Math.max(bottom - top, rect.height) };
+      }
+
+      findInsertBeforeParagraphWrapperIndex(wrappers, clientY, draggedBlockId) {
+        for (let index = 0; index < wrappers.length; index++) {
+          const wrapper = wrappers[index];
+          const blockId = wrapper.dataset.blockId;
+          const isDragged = blockId === draggedBlockId;
+          const rect = this.getParagraphBlockLayoutRect(wrapper);
+
+          if (clientY < rect.top) {
+            return index;
+          }
+
+          if (clientY <= rect.bottom) {
+            if (isDragged) {
+              continue;
+            }
+
+            return index + 1;
+          }
+        }
+
+        return wrappers.length;
+      }
+
+      computeParagraphBlockDropIndex(region, draggedBlockId, clientY) {
+        const regionElement = this.getRegionElement(region);
+        const modelBlocks = this.wordexDocument[region] || [];
+
+        if (!regionElement || !modelBlocks.length) {
+          return -1;
+        }
+
+        const wrappers = Array.from(regionElement.querySelectorAll(".paragraph-block"));
+        const fromIndex = modelBlocks.findIndex(block => block.id === draggedBlockId);
+
+        if (fromIndex < 0) {
+          return -1;
+        }
+
+        const insertBeforeWrapperIndex = this.findInsertBeforeParagraphWrapperIndex(
+          wrappers,
+          clientY,
+          draggedBlockId
+        );
+        const insertBeforeId = wrappers[insertBeforeWrapperIndex]?.dataset?.blockId || null;
+        let toIndex = insertBeforeId
+          ? modelBlocks.findIndex(block => block.id === insertBeforeId)
+          : modelBlocks.length;
+
+        if (toIndex > fromIndex) {
+          toIndex--;
+        }
+
+        return toIndex;
+      }
+
+      showParagraphBlockDropIndicator(region, clientY, draggedBlockId) {
+        const regionElement = this.getRegionElement(region);
+
+        if (!regionElement) {
+          return;
+        }
+
+        const wrappers = Array.from(regionElement.querySelectorAll(".paragraph-block"));
+        const insertBeforeWrapperIndex = this.findInsertBeforeParagraphWrapperIndex(
+          wrappers,
+          clientY,
+          draggedBlockId
+        );
+        const insertBeforeWrapper = wrappers[insertBeforeWrapperIndex] || null;
+
+        this.removeParagraphBlockDropIndicator();
+
+        const indicator = document.createElement("div");
+        indicator.className = "wordex-paragraph-drop-indicator";
+        indicator.dataset.wordexDropIndicator = "1";
+
+        if (insertBeforeWrapper) {
+          regionElement.insertBefore(indicator, insertBeforeWrapper);
+        } else if (wrappers.length) {
+          const lastWrapper = wrappers[wrappers.length - 1];
+          lastWrapper.insertAdjacentElement("afterend", indicator);
+        } else {
+          regionElement.appendChild(indicator);
+        }
+
+        this.paragraphBlockDropIndicator = indicator;
+      }
+
+      removeParagraphBlockDropIndicator() {
+        if (this.paragraphBlockDropIndicator?.parentNode) {
+          this.paragraphBlockDropIndicator.parentNode.removeChild(this.paragraphBlockDropIndicator);
+        }
+
+        this.paragraphBlockDropIndicator = null;
+      }
+
+      moveBlockToIndex(region, blockId, targetIndex) {
+        this.syncCurrentEditingState();
+
+        const blocks = this.wordexDocument[region] || [];
+        const fromIndex = blocks.findIndex(block => block.id === blockId);
+
+        if (fromIndex < 0 || targetIndex < 0 || targetIndex >= blocks.length || fromIndex === targetIndex) {
+          return false;
+        }
+
+        const [block] = blocks.splice(fromIndex, 1);
+        blocks.splice(targetIndex, 0, block);
+
+        this.selected.region = region;
+        this.selectedBlockId = block.id;
+        this.selectedParagraphId = block.id;
+        this.paragraphMoveBlockId = block.id;
+        this.selectedObject = null;
+
+        this.render();
+        this.renderSelection();
+        this.saveUndoStateIfChanged();
+        return true;
+      }
+
+      startParagraphBlockReorderDragCandidate(event) {
+        if (
+          event.button !== 0 ||
+          event.defaultPrevented ||
+          this.resizeDrag ||
+          this.inlineObjectDrag ||
+          !this.paragraphMoveBlockId
+        ) {
+          return;
+        }
+
+        if (event.target.closest(".wordex-resize-overlay, .toolbar, .wordex-resize-handle")) {
+          return;
+        }
+
+        const wrapper = event.target.closest(".paragraph-block");
+
+        if (!wrapper || wrapper.dataset.blockId !== this.paragraphMoveBlockId) {
+          return;
+        }
+
+        const regionElement = wrapper.closest(".region");
+
+        if (!regionElement) {
+          return;
+        }
+
+        event.preventDefault();
+
+        this.paragraphBlockReorderDrag = {
+          region: regionElement.dataset.region,
+          blockId: this.paragraphMoveBlockId,
+          started: false,
+          startClientX: event.clientX,
+          startClientY: event.clientY
+        };
+      }
+
+      handleParagraphBlockReorderDragMove(event) {
+        const drag = this.paragraphBlockReorderDrag;
+
+        if (!drag) {
+          return;
+        }
+
+        const dx = event.clientX - drag.startClientX;
+        const dy = event.clientY - drag.startClientY;
+
+        if (!drag.started) {
+          if (Math.hypot(dx, dy) < 5) {
+            return;
+          }
+
+          drag.started = true;
+          document.body.classList.add("wordex-paragraph-block-dragging");
+        }
+
+        event.preventDefault();
+        this.showParagraphBlockDropIndicator(drag.region, event.clientY, drag.blockId);
+      }
+
+      finishParagraphBlockReorderDrag(event) {
+        const drag = this.paragraphBlockReorderDrag;
+
+        if (!drag) {
+          return;
+        }
+
+        this.paragraphBlockReorderDrag = null;
+        document.body.classList.remove("wordex-paragraph-block-dragging");
+        this.removeParagraphBlockDropIndicator();
+
+        if (!drag.started) {
+          return;
+        }
+
+        const targetIndex = this.computeParagraphBlockDropIndex(
+          drag.region,
+          drag.blockId,
+          event.clientY
+        );
+
+        if (targetIndex >= 0) {
+          this.moveBlockToIndex(drag.region, drag.blockId, targetIndex);
+        }
+
+        this.paragraphBlockReorderSuppressClickClear = true;
+        window.setTimeout(() => {
+          this.paragraphBlockReorderSuppressClickClear = false;
+        }, 0);
+
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
       }
 
       startInlineObjectMouseDragCandidate(event) {
         if (event.button !== 0 || event.defaultPrevented || this.resizeDrag) {
+          return;
+        }
+
+        if (this.paragraphMoveBlockId) {
           return;
         }
 
@@ -12890,10 +14289,13 @@
           mode: dragContext.mode,
           container: dragContext.container,
           started: false,
+          adjustBottomGap: this.isPrimaryModifierPressed(event) &&
+            dragContext.container.matches(".paragraph"),
           startClientX: event.clientX,
           startClientY: event.clientY,
           startOffsetX: 0,
-          startOffsetY: 0
+          startOffsetY: 0,
+          startBottomGap: 0
         };
       }
 
@@ -12921,16 +14323,28 @@
           this.prepareObjectForFreeDrag(drag.object, drag.container);
           drag.startOffsetX = this.getObjectVisualXInsideBlock(drag.object, drag.container);
           drag.startOffsetY = this.getObjectVisualYInsideBlock(drag.object, drag.container);
+          drag.startBottomGap = this.getObjectBottomGap(drag.object);
         }
 
         event.preventDefault();
 
-        this.applyObjectFreePosition(
-          drag.object,
-          drag.container,
-          drag.startOffsetX + dx,
-          drag.startOffsetY + dy
-        );
+        if (drag.adjustBottomGap) {
+          this.applyObjectFreePosition(
+            drag.object,
+            drag.container,
+            drag.startOffsetX + dx,
+            drag.startOffsetY,
+            drag.startBottomGap + dy
+          );
+        } else {
+          this.applyObjectFreePosition(
+            drag.object,
+            drag.container,
+            drag.startOffsetX + dx,
+            drag.startOffsetY + dy
+          );
+        }
+
         this.updateFreeContainerBounds(drag.container);
         this.keepObjectSelected(drag.object);
       }
@@ -13005,15 +14419,37 @@
           if (paragraph) {
             const currentX = this.getObjectVisualXInsideBlock(this.selectedObject, paragraph);
             const currentY = this.getObjectVisualYInsideBlock(this.selectedObject, paragraph);
+            const currentBottomGap = this.getObjectBottomGap(this.selectedObject);
+            const adjustBottomGap = event.shiftKey;
 
             if (event.key === "ArrowLeft") {
               this.applyObjectFreePosition(this.selectedObject, paragraph, currentX - step, currentY);
             } else if (event.key === "ArrowRight") {
               this.applyObjectFreePosition(this.selectedObject, paragraph, currentX + step, currentY);
             } else if (event.key === "ArrowUp") {
-              this.applyObjectFreePosition(this.selectedObject, paragraph, currentX, currentY - step);
+              if (adjustBottomGap) {
+                this.applyObjectFreePosition(
+                  this.selectedObject,
+                  paragraph,
+                  currentX,
+                  currentY,
+                  currentBottomGap - step
+                );
+              } else {
+                this.applyObjectFreePosition(this.selectedObject, paragraph, currentX, currentY - step);
+              }
             } else if (event.key === "ArrowDown") {
-              this.applyObjectFreePosition(this.selectedObject, paragraph, currentX, currentY + step);
+              if (adjustBottomGap) {
+                this.applyObjectFreePosition(
+                  this.selectedObject,
+                  paragraph,
+                  currentX,
+                  currentY,
+                  currentBottomGap + step
+                );
+              } else {
+                this.applyObjectFreePosition(this.selectedObject, paragraph, currentX, currentY + step);
+              }
             }
 
             this.updateFreeContainerBounds(paragraph);
@@ -13037,61 +14473,6 @@
           }
         }
 
-        /*
-          Sem objeto selecionado: Ctrl + ↑/↓ move o parágrafo/bloco selecionado.
-        */
-        if (this.selectedBlockId && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
-          event.preventDefault();
-
-          this.moveSelectedBlockVertically(
-            event.key === "ArrowUp" ? "up" : "down"
-          );
-        }
-      }
-
-      moveSelectedBlockVertically(direction) {
-        if (!this.selectedBlockId) return;
-
-        const blocks = this.wordexDocument[this.selected.region];
-        const index = blocks.findIndex(block => block.id === this.selectedBlockId);
-
-        if (index < 0) return;
-
-        const newIndex = direction === "up" ? index - 1 : index + 1;
-
-        if (newIndex < 0 || newIndex >= blocks.length) return;
-
-        const [block] = blocks.splice(index, 1);
-        blocks.splice(newIndex, 0, block);
-
-        this.selectedBlockId = block.id;
-
-        if (block.type === "paragraph") {
-          this.selectedParagraphId = block.id;
-          this.selectedObject = null;
-        } else {
-          this.selectedParagraphId = null;
-        }
-
-        this.render();
-
-        if (block.type === "paragraph") {
-          const paragraph = this.getSelectedParagraphElement();
-
-          if (paragraph) {
-            paragraph.focus();
-            this.placeCaretAtEnd(paragraph);
-            this.selectParagraph(this.selected.region, block.id);
-          }
-        } else {
-          const rendered = this.documentElement.querySelector(
-            `.object-block[data-block-id="${block.id}"] .dynamic-image-box, .object-block[data-block-id="${block.id}"] .wordex-table, .object-block[data-block-id="${block.id}"] .wordex-chart-box`
-          );
-
-          if (rendered) {
-            this.keepObjectSelected(rendered);
-          }
-        }
       }
 
       moveStandaloneObjectHorizontally(delta) {
@@ -13436,6 +14817,16 @@
 
       syncObjectAfterChange(object) {
         if (this.syncObjectDomState(object)) {
+          const paragraph = object.closest(".paragraph");
+
+          if (
+            paragraph &&
+            object.matches?.(WordexEditor.mainObjectSelector) &&
+            this.paragraphHasMainObject(paragraph)
+          ) {
+            this.scheduleFitParagraphBlockToMainObject(object);
+          }
+
           this.saveUndoStateIfChanged();
         }
       }
@@ -13485,6 +14876,21 @@
               block.style.minHeight = paragraphElement.style.minHeight;
             }
           }
+
+          const border = paragraphElement.style.getPropertyValue("border");
+          const borderRadius = paragraphElement.style.getPropertyValue("border-radius");
+
+          if (border) {
+            block.style.border = border;
+          } else {
+            delete block.style.border;
+          }
+
+          if (borderRadius) {
+            block.style.borderRadius = borderRadius;
+          } else {
+            delete block.style.borderRadius;
+          }
         }
       }
 
@@ -13496,6 +14902,8 @@
       copyStandaloneBlockX(block, object) {
         block.blockX = object.dataset.blockX || "0";
         block.blockY = object.dataset.blockY || "0";
+        block.blockBottomGap = object.dataset.blockBottomGap ||
+          String(this.getDefaultObjectBottomGap());
       }
 
       syncStandaloneObjectHtml(block, object) {
@@ -13903,6 +15311,13 @@
             return;
           }
 
+          if (this.isPrimaryModifierPressed(event)) {
+            event.preventDefault();
+            this.selectParagraphBlockForMove(region, block.id);
+            return;
+          }
+
+          this.clearParagraphBlockMoveSelection();
           this.selectParagraph(region, block.id);
         });
 
@@ -13927,11 +15342,18 @@
           });
 
           paragraph.querySelectorAll(".wordex-chart-box").forEach(chartBox => {
+            this.migrateChartTextStyleFromInline(chartBox);
             this.hydrateChartBoxFromSavedHtml(chartBox);
           });
 
           this.normalizeFreeObjectsInContainer(paragraph);
           this.syncParagraphElement(paragraph);
+
+          const mainObjects = paragraph.querySelectorAll(WordexEditor.mainObjectSelector);
+
+          if (mainObjects.length === 1) {
+            this.scheduleFitParagraphBlockToMainObject(mainObjects[0]);
+          }
         });
 
         paragraph.style.fontFamily = block.style.fontFamily;
@@ -13940,10 +15362,30 @@
         paragraph.style.textAlign = block.style.textAlign;
         paragraph.style.minHeight = blockStyle.minHeight || "";
 
+        if (block.style.border) {
+          paragraph.style.setProperty("border", block.style.border, "important");
+        }
+
+        if (block.style.borderRadius) {
+          paragraph.style.setProperty("border-radius", block.style.borderRadius, "important");
+        }
+
         paragraph.addEventListener("mousedown", event => {
-          paragraph.dataset.wordexFocusFromTable = event.target.closest(".wordex-table")
-            ? "1"
-            : "";
+          const cell = event.target.closest("td");
+          const table = event.target.closest(".wordex-table");
+
+          if (cell && table && table.closest(".paragraph") === paragraph) {
+            paragraph.dataset.wordexFocusFromTable = "1";
+
+            if (!this.isPrimaryModifierPressed(event) && !event.shiftKey) {
+              event.preventDefault();
+              this.prepareTableCellForEditing(cell);
+            }
+
+            return;
+          }
+
+          paragraph.dataset.wordexFocusFromTable = table ? "1" : "";
         }, true);
 
         paragraph.addEventListener("focus", () => {
@@ -13951,7 +15393,11 @@
 
           delete paragraph.dataset.wordexFocusFromTable;
           this.selectParagraph(region, block.id, { preserveTableSelection });
-          this.placeCaretAtEndIfNoSelection(paragraph);
+
+          if (!preserveTableSelection) {
+            this.placeCaretAtEndIfNoSelection(paragraph);
+          }
+
           this.saveSelectionIfInsideParagraph();
         });
 
@@ -13963,6 +15409,13 @@
             return;
           }
 
+          if (this.isPrimaryModifierPressed(event)) {
+            event.preventDefault();
+            this.selectParagraphBlockForMove(region, block.id);
+            return;
+          }
+
+          this.clearParagraphBlockMoveSelection();
           this.selectParagraph(region, block.id);
           this.saveSelectionIfInsideParagraph();
         });
@@ -14073,6 +15526,11 @@
           blockElement.classList.toggle(
             "selected-block",
             blockElement.dataset.blockId === this.selectedBlockId
+          );
+          blockElement.classList.toggle(
+            "move-selected",
+            blockElement.matches(".paragraph-block") &&
+              blockElement.dataset.blockId === this.paragraphMoveBlockId
           );
         });
 
@@ -14323,18 +15781,43 @@
         return this.getSuggestedReportBaseName() + ".pdf";
       }
 
-      downloadTextFile(fileName, text, mimeType) {
-        const blob = new Blob([text], { type: mimeType || "text/plain;charset=utf-8" });
+      openBlobContent(content, options = {}) {
+        const mimeType = options.mimeType || "text/plain;charset=utf-8";
+        const blob = content instanceof Blob
+          ? content
+          : new Blob([content], { type: mimeType });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
+        const revokeMs = Number(options.revokeMs) > 0 ? Number(options.revokeMs) : 1000;
 
-        link.href = url;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+        if (options.download) {
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = options.download;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        } else {
+          const opened = window.open(url, options.target || "_blank");
 
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+          if (!opened) {
+            const link = document.createElement("a");
+            link.href = url;
+            link.target = options.target || "_blank";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+          }
+        }
+
+        setTimeout(() => URL.revokeObjectURL(url), revokeMs);
+      }
+
+      downloadTextFile(fileName, text, mimeType) {
+        this.openBlobContent(text, {
+          mimeType: mimeType || "text/plain;charset=utf-8",
+          download: fileName,
+          revokeMs: 1000
+        });
       }
 
       generateHtmlFromJson() {
@@ -14586,20 +16069,264 @@
       }
 
       openGeneratedHtmlInNewTab(html) {
-        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const opened = window.open(url, "_blank");
+        this.openBlobContent(html, {
+          mimeType: "text/html;charset=utf-8",
+          target: "_blank",
+          revokeMs: 60000
+        });
+      }
 
-        if (!opened) {
-          const link = document.createElement("a");
-          link.href = url;
-          link.target = "_blank";
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
+      static getTemplateHelpersScript() {
+        return [
+          "function applyTemplatePlaceholders(template, values) {",
+          "  return String(template || \"\").replace(/@@([A-Z0-9_]+)@@/g, function (match, key) {",
+          "    if (!Object.prototype.hasOwnProperty.call(values, key)) {",
+          "      return match;",
+          "    }",
+          "    return String(values[key] ?? \"\");",
+          "  });",
+          "}",
+          "",
+          "function sanitizeOutputFileName(value, defaultName, ext) {",
+          "  var name = String(value || \"\").trim().replace(/[\\\\/:*?\"<>|]+/g, \"_\");",
+          "  if (!name) return defaultName;",
+          "  var suffix = String(ext || \"\");",
+          "  if (suffix && !new RegExp(suffix.replace(\".\", \"\\\\.\") + \"$\", \"i\").test(name)) {",
+          "    name += suffix;",
+          "  }",
+          "  return name;",
+          "}",
+          "",
+          "function sanitizeHtmlFileName(value) {",
+          "  return sanitizeOutputFileName(value, \"Relatorio.html\", \".html\");",
+          "}",
+          "",
+          "function sanitizeFileName(value) {",
+          "  return sanitizeOutputFileName(value, \"Relatorio.pdf\", \".pdf\");",
+          "}",
+          "",
+          "function blobToDataUrl(blob) {",
+          "  return new Promise(function (resolve) {",
+          "    if (!blob) {",
+          "      resolve(\"\");",
+          "      return;",
+          "    }",
+          "    var reader = new FileReader();",
+          "    reader.onload = function () {",
+          "      resolve(String(reader.result || \"\"));",
+          "    };",
+          "    reader.onerror = function () {",
+          "      resolve(\"\");",
+          "    };",
+          "    reader.readAsDataURL(blob);",
+          "  });",
+          "}",
+          "",
+          "function fetchImageAsDataUrl(url) {",
+          "  var src = String(url || \"\").trim();",
+          "  if (!src || src.indexOf(\"data:\") === 0) {",
+          "    return Promise.resolve(\"\");",
+          "  }",
+          "  return fetch(src, {",
+          "    mode: \"cors\",",
+          "    credentials: \"omit\",",
+          "    cache: \"force-cache\"",
+          "  })",
+          "    .then(function (response) {",
+          "      if (!response.ok) {",
+          "        return \"\";",
+          "      }",
+          "      return response.blob();",
+          "    })",
+          "    .then(function (blob) {",
+          "      if (!blob || String(blob.type || \"\").indexOf(\"image/\") !== 0) {",
+          "        return \"\";",
+          "      }",
+          "      return blobToDataUrl(blob);",
+          "    })",
+          "    .catch(function () {",
+          "      return \"\";",
+          "    });",
+          "}",
+          "",
+          "function rasterizeLoadedImageElement(img) {",
+          "  if (!img || !img.naturalWidth || !img.naturalHeight) {",
+          "    return \"\";",
+          "  }",
+          "  try {",
+          "    var canvas = document.createElement(\"canvas\");",
+          "    canvas.width = img.naturalWidth;",
+          "    canvas.height = img.naturalHeight;",
+          "    canvas.getContext(\"2d\").drawImage(img, 0, 0);",
+          "    return canvas.toDataURL(\"image/png\");",
+          "  } catch (error) {",
+          "    return \"\";",
+          "  }",
+          "}",
+          "",
+          "function loadImageAsDataUrl(url, useCrossOrigin) {",
+          "  return new Promise(function (resolve) {",
+          "    var src = String(url || \"\").trim();",
+          "    if (!src) {",
+          "      resolve(\"\");",
+          "      return;",
+          "    }",
+          "    if (src.indexOf(\"data:\") === 0) {",
+          "      resolve(src);",
+          "      return;",
+          "    }",
+          "    var img = new Image();",
+          "    if (useCrossOrigin) {",
+          "      img.crossOrigin = \"anonymous\";",
+          "    }",
+          "    img.onload = function () {",
+          "      resolve(rasterizeLoadedImageElement(img));",
+          "    };",
+          "    img.onerror = function () {",
+          "      resolve(\"\");",
+          "    };",
+          "    img.src = src;",
+          "  });",
+          "}",
+          "",
+          "function isProbablyCrossOriginUrl(url) {",
+          "  var src = String(url || \"\").trim();",
+          "  if (!src || src.indexOf(\"data:\") === 0 || src.indexOf(\"blob:\") === 0) {",
+          "    return false;",
+          "  }",
+          "  try {",
+          "    return new URL(src, window.location.href).origin !== window.location.origin;",
+          "  } catch (error) {",
+          "    return /^https?:/i.test(src);",
+          "  }",
+          "}",
+          "",
+          "function omitUnembeddableImage(cloneImg, src, skipped) {",
+          "  if (!cloneImg) return;",
+          "  cloneImg.removeAttribute(\"src\");",
+          "  cloneImg.removeAttribute(\"crossorigin\");",
+          "  cloneImg.setAttribute(\"data-wordex-pdf-omitted\", \"1\");",
+          "  cloneImg.style.visibility = \"hidden\";",
+          "  cloneImg.style.display = \"none\";",
+          "  if (src && skipped && skipped.indexOf(src) === -1) {",
+          "    skipped.push(src);",
+          "  }",
+          "}",
+          "",
+          "function resolveMappedImageDataUrl(src, imageDataUrlMap) {",
+          "  var text = String(src || \"\").trim();",
+          "  var map = imageDataUrlMap || {};",
+          "  if (!text) {",
+          "    return \"\";",
+          "  }",
+          "  if (map[text] && String(map[text]).indexOf(\"data:\") === 0) {",
+          "    return String(map[text]);",
+          "  }",
+          "  return \"\";",
+          "}",
+          "",
+          "function normalizeWordexSystemMacroName(path) {",
+          "  return String(path || \"\").trim().replace(/^@+/, \"\").toLowerCase();",
+          "}",
+          "",
+          "function isWordexSystemMacroPath(path) {",
+          "  return String(path || \"\").trim().indexOf(\"@\") === 0;",
+          "}",
+          "",
+          "function formatWordexSystemMacroDate(date, kind) {",
+          "  var value = date instanceof Date ? date : new Date(date);",
+          "  var pad = function (part) { return String(part).padStart(2, \"0\"); };",
+          "  if (kind === \"dateiso\") {",
+          "    return value.getFullYear() + \"-\" + pad(value.getMonth() + 1) + \"-\" + pad(value.getDate());",
+          "  }",
+          "  if (kind === \"time\") {",
+          "    return pad(value.getHours()) + \":\" + pad(value.getMinutes()) + \":\" + pad(value.getSeconds());",
+          "  }",
+          "  if (kind === \"date\") {",
+          "    return value.toLocaleDateString(\"pt-BR\");",
+          "  }",
+          "  return value.toLocaleString(\"pt-BR\", {",
+          "    year: \"numeric\",",
+          "    month: \"2-digit\",",
+          "    day: \"2-digit\",",
+          "    hour: \"2-digit\",",
+          "    minute: \"2-digit\",",
+          "    second: \"2-digit\"",
+          "  });",
+          "}",
+          "",
+          "function resolveWordexSystemMacroValue(path, options) {",
+          "  options = options || {};",
+          "  var name = normalizeWordexSystemMacroName(path);",
+          "  if (!name) return null;",
+          "  if (name === \"pagenumber\") {",
+          "    return Number.isFinite(options.pageNumber) ? String(options.pageNumber) : null;",
+          "  }",
+          "  if (name === \"pagecount\") {",
+          "    return Number.isFinite(options.pageCount) ? String(options.pageCount) : null;",
+          "  }",
+          "  var generationTime = options.generationTime || new Date();",
+          "  if (name === \"today\") return formatWordexSystemMacroDate(generationTime, \"date\");",
+          "  if (name === \"now\") return formatWordexSystemMacroDate(generationTime, \"datetime\");",
+          "  if (name === \"dateiso\") return formatWordexSystemMacroDate(generationTime, \"dateiso\");",
+          "  if (name === \"time\") return formatWordexSystemMacroDate(generationTime, \"time\");",
+          "  if (name === \"year\") return String(generationTime.getFullYear());",
+          "  if (name === \"month\") return String(generationTime.getMonth() + 1).padStart(2, \"0\");",
+          "  if (name === \"day\") return String(generationTime.getDate()).padStart(2, \"0\");",
+          "  return null;",
+          "}",
+          "",
+          "function replaceWordexSystemMacrosInText(text, options) {",
+          "  return String(text || \"\").replace(/\\{\\{\\s*([^{}]+?)\\s*\\}\\}/g, function (match, path) {",
+          "    var trimmed = String(path || \"\").trim();",
+          "    if (!isWordexSystemMacroPath(trimmed)) return match;",
+          "    var resolved = resolveWordexSystemMacroValue(trimmed, options);",
+          "    return resolved === null ? match : resolved;",
+          "  });",
+          "}",
+          "",
+          "function applyWordexSystemMacrosInElement(root, options) {",
+          "  if (!root) return;",
+          "  var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);",
+          "  var textNodes = [];",
+          "  while (walker.nextNode()) textNodes.push(walker.currentNode);",
+          "  textNodes.forEach(function (node) {",
+          "    node.nodeValue = replaceWordexSystemMacrosInText(node.nodeValue || \"\", options);",
+          "  });",
+          "  var elements = [root].concat(Array.prototype.slice.call(root.querySelectorAll(\"*\")));",
+          "  elements.forEach(function (element) {",
+          "    Array.prototype.slice.call(element.attributes || []).forEach(function (attribute) {",
+          "      if (String(attribute.value || \"\").indexOf(\"{{\") < 0) return;",
+          "      element.setAttribute(attribute.name, replaceWordexSystemMacrosInText(attribute.value, options));",
+          "    });",
+          "  });",
+          "}",
+          "",
+          "function applyWordexSystemPageMacros(root) {",
+          "  if (!root) return;",
+          "  var pages = root.querySelectorAll(\".pagex-page\");",
+          "  var pageCount = pages.length;",
+          "  Array.prototype.forEach.call(pages, function (pageEl, index) {",
+          "    applyWordexSystemMacrosInElement(pageEl, {",
+          "      pageNumber: index + 1,",
+          "      pageCount: pageCount",
+          "    });",
+          "  });",
+          "}"
+        ].join("\n");
+      }
+
+      static injectTemplateHelpers(template) {
+        const source = String(template || "");
+
+        if (!source.includes(WordexEditor.templateHelpersMarker)) {
+          return source;
         }
 
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        return source.replace(
+          WordexEditor.templateHelpersMarker,
+          WordexEditor.getTemplateHelpersScript()
+        );
       }
 
       static loadPagedTemplate() {
@@ -14615,7 +16342,7 @@
           );
         }
 
-        WordexEditor.pagedTemplateCache = String(template);
+        WordexEditor.pagedTemplateCache = WordexEditor.injectTemplateHelpers(template);
         return WordexEditor.pagedTemplateCache;
       }
 
@@ -14632,7 +16359,7 @@
           );
         }
 
-        WordexEditor.pdfTemplateCache = String(template);
+        WordexEditor.pdfTemplateCache = WordexEditor.injectTemplateHelpers(template);
         return WordexEditor.pdfTemplateCache;
       }
 
@@ -14768,11 +16495,12 @@
       }
 
       buildGeneratedDocumentClone(data) {
+        this.reportGenerationTime = new Date();
         const clone = this.documentElement.cloneNode(true);
         const hasReportData = data !== undefined && data !== null;
 
         clone.querySelectorAll(".document-title, .empty").forEach(node => node.remove());
-        this.removeEditorSelectionMarks(clone);
+        this.clearEditorSelectionMarks(clone);
 
         if (hasReportData) {
           const rootCollection = this.normalizeRootCollection(data);
@@ -14789,6 +16517,7 @@
         } else {
           this.finalizeStaticImages(clone);
           this.materializeCharts(clone, []);
+          this.applySystemMacrosInElement(clone);
         }
 
         this.layoutGeneratedReportCharts(clone);
@@ -14870,10 +16599,6 @@
         return [data];
       }
 
-      removeEditorSelectionMarks(container) {
-        this.clearEditorSelectionMarks(container);
-      }
-
       cleanGeneratedDocumentNode(container) {
         if (!container) return;
 
@@ -14916,6 +16641,10 @@
 
       expandTableWithData(table, rootData, rootScopes) {
         if (!table || table.dataset.wordexGenerated === "1") return;
+
+        if (this.isStaticTable(table)) {
+          return;
+        }
 
         this.normalizeLegacyTableFooterRows(table);
 
@@ -15511,9 +17240,127 @@
         return macroMatch ? this.normalizeMacroName(macroMatch[1]) : "";
       }
 
-      resolveMacrosInElement(element, scopes) {
-        if (!element) return;
+      isSystemMacroPath(path) {
+        return String(path || "").trim().startsWith("@");
+      }
 
+      normalizeSystemMacroName(path) {
+        return String(path || "")
+          .trim()
+          .replace(/^@+/, "")
+          .toLowerCase();
+      }
+
+      isDeferredSystemMacroName(name) {
+        return WordexEditor.deferredSystemMacroNames.includes(
+          this.normalizeSystemMacroName(name)
+        );
+      }
+
+      getMacroResolutionOptions(overrides = {}) {
+        return {
+          generationTime: overrides.generationTime || this.reportGenerationTime || new Date(),
+          pageNumber: overrides.pageNumber,
+          pageCount: overrides.pageCount
+        };
+      }
+
+      formatSystemMacroDate(date, kind) {
+        const value = date instanceof Date ? date : new Date(date);
+        const pad = part => String(part).padStart(2, "0");
+
+        if (kind === "dateiso") {
+          return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+        }
+
+        if (kind === "time") {
+          return `${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
+        }
+
+        if (kind === "date") {
+          return value.toLocaleDateString("pt-BR");
+        }
+
+        return value.toLocaleString("pt-BR", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit"
+        });
+      }
+
+      resolveSystemMacroValue(path, options = {}) {
+        const name = this.normalizeSystemMacroName(path);
+
+        if (!name) {
+          return null;
+        }
+
+        if (name === "pagenumber") {
+          return Number.isFinite(options.pageNumber) ? String(options.pageNumber) : null;
+        }
+
+        if (name === "pagecount") {
+          return Number.isFinite(options.pageCount) ? String(options.pageCount) : null;
+        }
+
+        const generationTime = options.generationTime || new Date();
+
+        if (name === "today") {
+          return this.formatSystemMacroDate(generationTime, "date");
+        }
+
+        if (name === "now") {
+          return this.formatSystemMacroDate(generationTime, "datetime");
+        }
+
+        if (name === "dateiso") {
+          return this.formatSystemMacroDate(generationTime, "dateiso");
+        }
+
+        if (name === "time") {
+          return this.formatSystemMacroDate(generationTime, "time");
+        }
+
+        if (name === "year") {
+          return String(generationTime.getFullYear());
+        }
+
+        if (name === "month") {
+          return String(generationTime.getMonth() + 1).padStart(2, "0");
+        }
+
+        if (name === "day") {
+          return String(generationTime.getDate()).padStart(2, "0");
+        }
+
+        return null;
+      }
+
+      resolveSystemMacrosInText(text, options = {}) {
+        const macroOptions = this.getMacroResolutionOptions(options);
+
+        return String(text || "").replace(/{{\s*([^{}]+?)\s*}}/g, (match, path) => {
+          const trimmed = String(path || "").trim();
+
+          if (!this.isSystemMacroPath(trimmed)) {
+            return match;
+          }
+
+          const resolved = this.resolveSystemMacroValue(trimmed, macroOptions);
+
+          return resolved === null ? match : resolved;
+        });
+      }
+
+      applySystemMacrosInElement(element, options = {}) {
+        if (!element) {
+          return;
+        }
+
+        const macroOptions = this.getMacroResolutionOptions(options);
         const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
         const textNodes = [];
 
@@ -15526,7 +17373,46 @@
             return;
           }
 
-          node.nodeValue = this.resolveMacrosInText(node.nodeValue || "", scopes);
+          node.nodeValue = this.resolveSystemMacrosInText(node.nodeValue || "", macroOptions);
+        });
+
+        const allElements = [element, ...Array.from(element.querySelectorAll?.("*") || [])];
+
+        allElements.forEach(child => {
+          if (child.matches?.(".dynamic-image-box, .wordex-chart-box")) {
+            return;
+          }
+
+          Array.from(child.attributes || []).forEach(attribute => {
+            if (!String(attribute.value || "").includes("{{")) {
+              return;
+            }
+
+            child.setAttribute(
+              attribute.name,
+              this.resolveSystemMacrosInText(attribute.value, macroOptions)
+            );
+          });
+        });
+      }
+
+      resolveMacrosInElement(element, scopes, macroOptions = null) {
+        if (!element) return;
+
+        const options = macroOptions || this.getMacroResolutionOptions();
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        const textNodes = [];
+
+        while (walker.nextNode()) {
+          textNodes.push(walker.currentNode);
+        }
+
+        textNodes.forEach(node => {
+          if (this.shouldSkipMacroResolutionNode(node)) {
+            return;
+          }
+
+          node.nodeValue = this.resolveMacrosInText(node.nodeValue || "", scopes, options);
         });
 
         const allElements = [element, ...Array.from(element.querySelectorAll?.("*") || [])];
@@ -15538,7 +17424,7 @@
 
           Array.from(child.attributes || []).forEach(attribute => {
             if (!String(attribute.value || "").includes("{{")) return;
-            child.setAttribute(attribute.name, this.resolveMacrosInText(attribute.value, scopes));
+            child.setAttribute(attribute.name, this.resolveMacrosInText(attribute.value, scopes, options));
           });
         });
       }
@@ -15651,8 +17537,22 @@
         });
       }
 
-      resolveMacrosInText(text, scopes) {
-        return String(text || "").replace(/{{\s*([^{}]+?)\s*}}/g, (_match, path) => {
+      resolveMacrosInText(text, scopes, macroOptions = null) {
+        const options = macroOptions || this.getMacroResolutionOptions();
+
+        return String(text || "").replace(/{{\s*([^{}]+?)\s*}}/g, (match, path) => {
+          const trimmed = String(path || "").trim();
+
+          if (this.isSystemMacroPath(trimmed)) {
+            const resolved = this.resolveSystemMacroValue(trimmed, options);
+
+            if (resolved === null) {
+              return match;
+            }
+
+            return this.escapeHtml(resolved);
+          }
+
           return this.escapeHtml(this.stringifyResolvedValue(this.resolveDataPath(path, scopes)));
         });
       }
@@ -16109,9 +18009,11 @@
         }
 
         const rowContext = this.getSelectedTableRowForMacroContext();
-        const collectionName = rowContext?.row
-          ? this.getTableRowMacroCollectionName(table, rowContext.row)
-          : "ROOT";
+        const collectionName = this.isStaticTable(table)
+          ? "ROOT"
+          : (rowContext?.row
+            ? this.getTableRowMacroCollectionName(table, rowContext.row)
+            : "ROOT");
         const collections = this.getLockedTableCollectionOptions(collectionName);
         const nextCollection = this.renderJsonCollectionSelect(
           collectionSelect,
@@ -16157,6 +18059,10 @@
             collectionSelect.title = selectedCollection
               ? `Coleção da linha da tabela (fixa) — ${selectedCollection}`
               : "Coleção da linha da tabela (fixa)";
+          } else if (this.isParagraphMacroToolbarActive()) {
+            collectionSelect.title = selectedCollection
+              ? `Coleção do parágrafo (ROOT) — ${selectedCollection}`
+              : "Coleção do parágrafo (ROOT)";
           } else {
             const base = this.getReportDataRootRecord()
               ? "Coleção do JSON"
@@ -16419,8 +18325,21 @@
         const previousValue = fieldSelect.value;
         const fields = this.getMacroFieldsForCollection(collectionName, options);
         const { mode } = this.normalizeMacroFieldOptions(options);
+        const includeSystemMacros = !!options?.includeSystemMacros;
+        const selectableValues = [];
 
         fieldSelect.innerHTML = `<option value="">${mode === "chart" ? "Histograma" : "Campo"}</option>`;
+
+        if (includeSystemMacros) {
+          WordexEditor.getSystemMacroFieldDefinitions().forEach(definition => {
+            const option = document.createElement("option");
+
+            option.value = definition.value;
+            option.textContent = definition.label;
+            fieldSelect.appendChild(option);
+            selectableValues.push(definition.value);
+          });
+        }
 
         fields.forEach(fieldName => {
           const option = document.createElement("option");
@@ -16430,10 +18349,11 @@
             ? `${fieldName} (chart)`
             : (sample ? this.formatMacroFieldOption(fieldName, sample) : fieldName);
           fieldSelect.appendChild(option);
+          selectableValues.push(fieldName);
         });
 
         this.suppressJsonMacroAutoInsert = true;
-        fieldSelect.value = fields.includes(previousValue) ? previousValue : "";
+        fieldSelect.value = selectableValues.includes(previousValue) ? previousValue : "";
         this.suppressJsonMacroAutoInsert = false;
         this.updateJsonMacroPickerTitles();
       }
@@ -16540,7 +18460,19 @@
 
         const macroField = this.getSelectedJsonMacroName();
 
-        if (!macroField || !this.getReportDataRootRecord()) {
+        if (!macroField) {
+          return;
+        }
+
+        if (
+          this.isParagraphMacroToolbarActive() &&
+          this.isSystemMacroPath(macroField)
+        ) {
+          this.insertJsonMacroField(macroField);
+          return;
+        }
+
+        if (!this.getReportDataRootRecord()) {
           return;
         }
 
@@ -16740,11 +18672,6 @@
             this.reportDataFileName = file.name || "JSON carregado";
             this.prefetchReportImageDataUrls(this.reportData).catch(() => {});
             this.updateJsonMacroToolbar({ forceCollectionRebuild: true });
-            alert(
-              hadData
-                ? "JSON substituído: " + this.reportDataFileName
-                : "JSON carregado: " + this.reportDataFileName
-            );
           } catch (error) {
             if (!hadData) {
               this.reportData = null;
@@ -16771,10 +18698,208 @@
           .replaceAll('"', "&quot;")
           .replaceAll("'", "&#039;");
       }
+
+      normalizeReportJsonInput(json) {
+        if (json == null) {
+          throw new Error("JSON do relatório não informado.");
+        }
+
+        if (typeof json === "string") {
+          const text = json.trim();
+
+          if (!text) {
+            throw new Error("JSON do relatório está vazio.");
+          }
+
+          return JSON.parse(text);
+        }
+
+        return json;
+      }
+
+      createHiddenPipelineIframe(html) {
+        return new Promise((resolve, reject) => {
+          const iframe = document.createElement("iframe");
+          iframe.setAttribute("aria-hidden", "true");
+          iframe.setAttribute("tabindex", "-1");
+          iframe.style.cssText =
+            "position:fixed;left:-10000px;top:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none";
+
+          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          let settled = false;
+
+          const cleanup = () => {
+            URL.revokeObjectURL(url);
+
+            if (iframe.parentNode) {
+              iframe.parentNode.removeChild(iframe);
+            }
+          };
+
+          const finish = (handler) => {
+            if (settled) {
+              return;
+            }
+
+            settled = true;
+            handler();
+          };
+
+          iframe.addEventListener("load", () => {
+            finish(() => {
+              const win = iframe.contentWindow;
+
+              if (!win) {
+                cleanup();
+                reject(new Error("Não foi possível inicializar o iframe do relatório."));
+                return;
+              }
+
+              resolve({
+                iframe,
+                win,
+                cleanup
+              });
+            });
+          });
+
+          iframe.addEventListener("error", () => {
+            finish(() => {
+              cleanup();
+              reject(new Error("Falha ao carregar o iframe do relatório."));
+            });
+          });
+
+          document.body.appendChild(iframe);
+          iframe.src = url;
+        });
+      }
+
+      async waitForDocumentReadyFlag(win, className, timeoutMs) {
+        const deadline = Date.now() + (timeoutMs || 120000);
+
+        while (Date.now() < deadline) {
+          const body = win.document?.body;
+
+          if (body && body.classList.contains(className)) {
+            return;
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+
+        throw new Error("Tempo esgotado aguardando a etapa do relatório.");
+      }
+
+      async waitForPdfExportResult(win, timeoutMs) {
+        const deadline = Date.now() + (timeoutMs || 180000);
+
+        while (Date.now() < deadline) {
+          const result = win.wordexPdfExportResult;
+
+          if (result?.ok && (result.dataUri || result.base64)) {
+            return result;
+          }
+
+          if (result && result.ok === false) {
+            throw new Error(result.error || "Erro ao gerar PDF.");
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        throw new Error("Tempo esgotado aguardando a geração do PDF.");
+      }
+
+      async obterPdfFromJson(json, options = {}) {
+        const data = this.normalizeReportJsonInput(json);
+        const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 180000;
+
+        this.reportData = data;
+        await this.prefetchReportImageDataUrls(data);
+
+        const pagedHtml = this.buildGeneratedReportHtml(data);
+        const pagedFrame = await this.createHiddenPipelineIframe(pagedHtml);
+
+        try {
+          await this.waitForDocumentReadyFlag(pagedFrame.win, "wordex-pagex-ready", timeoutMs);
+
+          const buildPdfHtml = pagedFrame.win.wordexBuildPdfHtml;
+
+          if (typeof buildPdfHtml !== "function") {
+            throw new Error("Pipeline de PDF indisponível no relatório paginado.");
+          }
+
+          const pdfHtml = await buildPdfHtml.call(pagedFrame.win, { returnBase64: true });
+          pagedFrame.cleanup();
+
+          const pdfFrame = await this.createHiddenPipelineIframe(pdfHtml);
+
+          try {
+            const result = await this.waitForPdfExportResult(pdfFrame.win, timeoutMs);
+
+            if (result.dataUri) {
+              return result.dataUri;
+            }
+
+            return `data:application/pdf;base64,${result.base64}`;
+          } finally {
+            pdfFrame.cleanup();
+          }
+        } finally {
+          if (pagedFrame.iframe.parentNode) {
+            pagedFrame.cleanup();
+          }
+        }
+      }
     }
 
     const wordex = new WordexEditor("document");
     window.wordex = wordex;
+
+    window.ObterPDF = function ObterPDF(json, options) {
+      return wordex.obterPdfFromJson(json, options);
+    };
+
+    window.addEventListener("message", event => {
+      const payload = event.data;
+
+      if (!payload || payload.type !== "wordex-obter-pdf") {
+        return;
+      }
+
+      const reply = detail => {
+        if (!event.source || typeof event.source.postMessage !== "function") {
+          return;
+        }
+
+        event.source.postMessage(
+          {
+            type: "wordex-obter-pdf-result",
+            id: payload.id ?? null,
+            ...detail
+          },
+          event.origin || "*"
+        );
+      };
+
+      window.ObterPDF(payload.json, payload.options)
+        .then(dataUri => {
+          reply({
+            ok: true,
+            dataUri,
+            base64: dataUri,
+            fileName: wordex.getSuggestedReportPdfFileName()
+          });
+        })
+        .catch(error => {
+          reply({
+            ok: false,
+            error: error?.message || String(error)
+          });
+        });
+    });
   </script>
 </body>
 </html>

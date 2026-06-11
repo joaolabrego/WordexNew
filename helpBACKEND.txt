@@ -1,0 +1,212 @@
+Wordex — Backend / Windows Service (template + JSON → PDF)
+============================================================
+
+Este guia explica como gerar PDF no servidor quando você tem apenas:
+
+  - o template (WORDEX.html salvo no editor), e
+  - o JSON de dados (Crudex, C#, DataSet, etc.)
+
+A paginação NÃO precisa ser reimplementada em C#. Ela usa JavaScript
+(wordex-paged.html: paginateBlocks, startPagex) com medição real de
+altura no DOM. Replicar isso em C# seria um projeto separado.
+
+
+O que é cada peça
+-----------------
+
+  Template     Layout do relatório (parágrafos, tabelas, gráficos,
+               header/footer, marca d'água).
+               Fica dentro do WORDEX.html que você salvou com
+               "Salvar template HTML" (botão 💾).
+
+  JSON         Somente os DADOS: ROOT, coleções, totais, histogramas.
+               Montado no C# com WordexReportJsonBuilder / WordexCrudex
+               ou no Excel/VBA (crudex.xlsm).
+
+  Paginação    Quebra o corpo em páginas A4 (.pagex-page).
+               Roda em JavaScript — não existe equivalente pronto em C#.
+
+  PDF          Saída final (bytes ou data URI base64).
+
+
+Pipeline completo
+-----------------
+
+  wordexDocument (template no WORDEX.html)
+      + JSON (dados)
+      → buildGeneratedReportHtml(data)     [WORDEX.html]
+      → wordex-paged.html                  [paginateBlocks → .pagex-page]
+      → wordex-pdf.html                    [jsPDF + html2canvas]
+      → PDF
+
+No iframe ou no backend headless, o atalho é ObterPDF(json), que
+executa todo esse pipeline internamente (iframes ocultos).
+
+
+Regra: o que vai para PDF
+-------------------------
+
+  SIM — HTML paginado:
+    - saída após "Montar template HTML" + paginação automática
+    - cada página = elemento .pagex-page
+    - body com class wordex-pagex-ready quando pronto
+
+  NÃO — converter direto para PDF:
+    - WORDEX.html aberto no editor (barra de ferramentas, #wordexDocument)
+    - HTML montado antes da paginação (sem .pagex-page)
+
+No C# (WordexChromePdf), RequirePaginatedHtml = true por padrão e
+rejeita arquivos que não sejam paginados.
+
+
+Abordagem recomendada: headless + ObterPDF
+------------------------------------------
+
+Não pagine em C#. Suba um Chromium headless que chama o Wordex como
+o iframe faria no browser do usuário.
+
+  DataSet
+      → WordexReportJsonBuilder / WordexCrudex
+      → JSON
+      → Playwright ou Puppeteer
+      → WORDEX.html (HTTP) + ObterPDF(json)
+      → PDF (data URI → bytes)
+
+Arquivos a publicar na pasta do serviço
+---------------------------------------
+
+  WORDEX.html          template salvo (💾 Salvar template HTML)
+  wordex-paged.html    paginação (obrigatório na mesma pasta)
+  wordex-pdf.html      captura PDF (obrigatório na mesma pasta)
+
+Sirva a pasta por HTTP (localhost). Não use file:// — imagens e
+fetch podem falhar.
+
+
+Passo a passo (Windows Service)
+-------------------------------
+
+1. No editor Wordex
+   - Desenhe o relatório
+   - Salve o template: botão "Salvar template HTML" (💾)
+   - Copie WORDEX.html + wordex-paged.html + wordex-pdf.html para
+     a pasta do serviço (ex.: C:\Wordex\)
+
+2. No serviço (C#)
+   - Monte o JSON a partir do DataSet (WordexReportJsonBuilder)
+   - Suba HTTP local servindo a pasta Wordex (Kestrel, HttpListener,
+     python -m http.server, npx serve, etc.)
+
+3. Headless (Playwright .NET — conceito)
+   - Abra http://127.0.0.1:PORTA/WORDEX.html
+   - Aguarde window.ObterPDF existir
+   - Chame ObterPDF com o JSON
+   - Decodifique data:application/pdf;base64,... → byte[]
+
+Exemplo conceitual (Playwright .NET / Microsoft.Playwright):
+
+  await page.GotoAsync("http://127.0.0.1:8080/WORDEX.html",
+      new() { WaitUntil = WaitUntilState.NetworkIdle });
+
+  var dataUri = await page.EvaluateAsync<string>(
+      "async (json) => await window.ObterPDF(json)",
+      jsonRoot);   // objeto ROOT [{ ... }]
+
+  // dataUri = "data:application/pdf;base64,JVBERi0x..."
+  // extrair base64 após a vírgula → Convert.FromBase64String
+
+
+Exemplo conceitual (Puppeteer / Node.js):
+
+  const browser = await puppeteer.launch({ headless: true });
+  const page = await browser.newPage();
+  await page.goto("http://127.0.0.1:8080/WORDEX.html", {
+    waitUntil: "networkidle0",
+    timeout: 120000
+  });
+  const dataUri = await page.evaluate(
+    async (json) => await window.ObterPDF(json),
+    jsonRoot
+  );
+  await browser.close();
+
+
+Duas variantes de PDF no backend
+--------------------------------
+
+  Variante A — ObterPDF (recomendada para começar)
+    - Um único passo: JSON → PDF
+    - Usa jsPDF + html2canvas (mesmo fluxo do iframe)
+    - Não precisa de WordexChromePdf
+
+  Variante B — Chrome print (qualidade de impressão Chromium)
+    - Headless pagina o relatório → HTML com .pagex-page
+    - WordexChromePdf converte esse HTML em PDF (--print-to-pdf)
+    - Exige expor HTML paginado (ex.: ObterHtmlPaginado — a implementar)
+      ou salvar HTML na janela paginada e converter depois
+    - Ver helpCHROME.txt para flags e WordexChromePdf no C#
+
+Para produção inicial, use a Variante A. Migre para B se precisar
+da renderização nativa do motor de impressão do Chrome.
+
+
+O que o C# já faz (Wordex.Json)
+-------------------------------
+
+  WordexReportJsonBuilder   monta JSON ROOT a partir de DataSet
+  WordexConsulta / Crudex   mesmas funções do VBA (ObterRegistros, etc.)
+  WordexChromePdf           HTML paginado → PDF via Chrome CLI
+                            (NÃO aceita WORDEX.html do editor)
+
+WordexReportJsonBuilder NÃO gera HTML nem pagina — só produz JSON.
+
+
+O que NÃO fazer
+---------------
+
+  - Paginar só com template + JSON em C# puro (sem browser)
+  - Passar WORDEX.html do editor para WordexChromePdf
+  - Esperar que o JSON sozinho vire PDF (falta template + motor JS)
+  - Usar file:// para servir Wordex no serviço (prefira HTTP)
+
+
+Integração com Crudex / DataSet
+-------------------------------
+
+  // Conceito — adapte nomes de abas e campos ao seu relatório
+  var builder = new WordexReportJsonBuilder(dataSet);
+  builder.AddField("Titulo", "Carta ao cliente");
+  builder.AddCollection("Clientes", "Clientes", row => {
+      row.AddField("Nome", ...);
+      row.AddHistogram("VendasGrafico", ...);
+  });
+  var json = builder.BuildJson();
+
+  // json → ObterPDF no headless → PDF bytes
+
+
+Múltiplos relatórios / templates
+--------------------------------
+
+Cada layout = um WORDEX.html salvo (pasta ou arquivo distinto).
+O serviço escolhe qual URL abrir conforme o tipo de relatório.
+O JSON muda a cada execução; o template muda quando o layout muda.
+
+
+Referências cruzadas
+--------------------
+
+  helpIFRAME.txt    ObterPDF(json), postMessage, fluxo interno
+  helpCHROME.txt    Chrome CLI, Puppeteer, WordexChromePdf (HTML paginado)
+  MANUAL-WORDEX.md  §13 PDF, §14 pipeline técnico
+
+
+Resumo
+------
+
+  Você tem: template (HTML salvo) + JSON (C#).
+  Falta:    motor de layout JavaScript (já pronto no Wordex).
+
+  Solução:  HTTP local + headless + ObterPDF(json) → PDF.
+
+  Não reimplemente paginação em C#.

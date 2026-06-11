@@ -132,6 +132,15 @@ body.wordex-generated-report .document > .region::before {
   box-sizing: border-box;
 }
 
+body.wordex-generated-report .object-block,
+body.wordex-generated-report .paragraph-block {
+  overflow: visible;
+}
+
+body.wordex-generated-report .dynamic-image-box {
+  overflow: visible;
+}
+
 .dynamic-image-box img {
   display: block;
   max-width: 100%;
@@ -157,6 +166,7 @@ body.wordex-generated-report .document > .region::before {
   flex-direction: column;
   position: relative;
   max-width: 100%;
+  border: 1px solid #000;
   text-align: center;
   overflow: hidden;
   contain: layout paint;
@@ -375,6 +385,19 @@ body.wordex-generated-report .wordex-paginable-table td {
   page-break-inside: avoid;
 }
 
+body.wordex-generated-report .pagex-body {
+  background: transparent;
+}
+
+body.wordex-generated-report table.wordex-table {
+  background: transparent !important;
+}
+
+body.wordex-generated-report table.wordex-table td,
+body.wordex-generated-report table.wordex-table th {
+  background: transparent;
+}
+
 @@WORDEX_PAGE_AT_RULE@@
 
 .wordex-paged-toolbar {
@@ -590,7 +613,7 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
           "#wordex-pagex-output { display:block; }",
           ".pagex-pages { display:flex; flex-direction:column; align-items:center; gap:18px; padding:18px 0; background:#d8d8d8; }",
           ".pagex-page { position:relative; width:" + pageConfig.width + "; height:" + pageHeight + "; background:white; box-shadow:0 0 10px rgba(0,0,0,.35); overflow:hidden; box-sizing:border-box; display:flex; flex-direction:column; }",
-          ".pagex-header,.pagex-footer,.pagex-body { box-sizing:border-box; margin-left:" + mm(pageConfig.marginLeftMm) + "; margin-right:" + mm(pageConfig.marginRightMm) + "; min-height:0; min-width:0; }",
+          ".pagex-header,.pagex-footer,.pagex-body { position:relative; z-index:1; box-sizing:border-box; margin-left:" + mm(pageConfig.marginLeftMm) + "; margin-right:" + mm(pageConfig.marginRightMm) + "; min-height:0; min-width:0; }",
           ".pagex-header { flex:0 0 auto; overflow:visible; padding-top:1mm; margin-top:0; margin-bottom:0; }",
           ".pagex-body { flex:0 0 auto; min-height:0; overflow:hidden; margin-top:-8px; }",
           ".pagex-footer { flex:0 0 auto; overflow:visible; padding-bottom:1mm; display:flex; flex-direction:column; justify-content:flex-end; }",
@@ -598,10 +621,8 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
           ".pagex-header .header-template,.pagex-footer .footer-template { padding:0 !important; margin:0 !important; border:none !important; background:transparent !important; overflow:visible !important; max-height:none !important; min-height:0 !important; }",
           ".pagex-body .paragraph-block,.pagex-body .object-block { break-inside:avoid; page-break-inside:avoid; }",
           ".pagex-header .paragraph-block,.pagex-header .object-block,.pagex-footer .paragraph-block,.pagex-footer .object-block { margin:8px 0; padding:2px; }",
-          ".pagex-watermark { position:absolute; inset:0; z-index:1; pointer-events:none; user-select:none; display:flex; align-items:center; justify-content:center; overflow:visible; }",
+          ".pagex-watermark { position:absolute; inset:0; z-index:2; pointer-events:none; user-select:none; display:flex; align-items:center; justify-content:center; overflow:visible; }",
           ".pagex-watermark img { display:block; width:auto; height:auto; max-width:80%; max-height:80%; object-fit:contain; }",
-          ".pagex-header,.pagex-footer,.pagex-body { z-index:10; }",
-          ".pagex-body { z-index:20; }",
           "@media print { .pagex-pages { display:block; padding:0; background:white; gap:0; } .pagex-page { box-shadow:none; margin:0; page-break-after:always; } .pagex-page:last-child { page-break-after:auto; } }"
         ].join("\\n");
         document.head.appendChild(style);
@@ -634,7 +655,6 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         var page = document.createElement("div");
         page.className = "pagex-page";
         var watermark = createWatermark();
-        if (watermark) page.appendChild(watermark);
         var header = document.createElement("div");
         header.className = "pagex-header";
         var headerEl = htmlToElement(headerTemplateHtml);
@@ -651,6 +671,7 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         page.appendChild(header);
         page.appendChild(body);
         page.appendChild(footer);
+        if (watermark) page.appendChild(watermark);
         pages.appendChild(page);
         return { page: page, body: body, bodyFlow: bodyFlow };
       }
@@ -678,6 +699,136 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         body.style.maxHeight = available + "px";
       }
 
+      function layoutBlockChartOverlays(block) {
+        if (!block) return;
+
+        Array.prototype.slice.call(block.querySelectorAll(".wordex-chart-box")).forEach(function (chartBox) {
+          layoutChartBarValueLabels(chartBox);
+          layoutChartCategoryLabels(chartBox);
+        });
+      }
+
+      function tightenMainObjectBlockHeights(block) {
+        if (!block) {
+          return;
+        }
+
+        var paragraph = block.querySelector(".paragraph");
+
+        if (!paragraph) {
+          return;
+        }
+
+        var mainObjects = block.querySelectorAll(".dynamic-image-box, .wordex-chart-box, .wordex-textbox");
+
+        if (mainObjects.length !== 1) {
+          return;
+        }
+
+        var object = mainObjects[0];
+        var paragraphRect = paragraph.getBoundingClientRect();
+        var objectRect = object.getBoundingClientRect();
+
+        if (!objectRect.height) {
+          return;
+        }
+
+        var blockY = paragraphRect.height > 0
+          ? Math.max(0, Math.round(objectRect.top - paragraphRect.top))
+          : (Number.parseInt(object.style.top, 10) || Number.parseInt(object.dataset.blockY, 10) || 0);
+        var neededHeight = blockY + Math.ceil(objectRect.height) + 4;
+
+        paragraph.style.minHeight = Math.max(18, neededHeight) + "px";
+        block.style.minHeight = "";
+      }
+
+      function tightenAllMainObjectBlockHeights(root) {
+        if (!root) {
+          return;
+        }
+
+        Array.prototype.slice.call(root.querySelectorAll(".paragraph-block, .object-block")).forEach(function (block) {
+          layoutBlockChartOverlays(block);
+          tightenMainObjectBlockHeights(block);
+        });
+      }
+
+      function collectNodePaintRects(nodes, rects) {
+        Array.prototype.forEach.call(nodes || [], function (node) {
+          var rect = node.getBoundingClientRect();
+
+          if (rect.width > 0 || rect.height > 0) {
+            rects.push(rect);
+          }
+        });
+      }
+
+      function getBlockLayoutBounds(block) {
+        if (!block) {
+          return { top: 0, bottom: 0, height: 0 };
+        }
+
+        void block.offsetHeight;
+
+        var rects = [block.getBoundingClientRect()];
+
+        collectNodePaintRects(block.querySelectorAll(
+          ".dynamic-image-box, .wordex-chart-box, .wordex-textbox, table.wordex-table, [data-align='free']"
+        ), rects);
+
+        var top = Math.min.apply(null, rects.map(function (rect) { return rect.top; }));
+        var bottom = Math.max.apply(null, rects.map(function (rect) { return rect.bottom; }));
+
+        return {
+          top: top,
+          bottom: bottom,
+          height: bottom - top
+        };
+      }
+
+      function bodyHasBlockOverlap(body) {
+        var flow = body.querySelector(".body-flow");
+
+        if (!flow || flow.children.length < 2) {
+          return false;
+        }
+
+        var children = Array.prototype.slice.call(flow.children);
+        var previousMaxBottom = null;
+
+        for (var i = 0; i < children.length; i++) {
+          layoutBlockChartOverlays(children[i]);
+          var bounds = getBlockLayoutBounds(children[i]);
+
+          if (previousMaxBottom !== null && bounds.top < previousMaxBottom - 0.5) {
+            return true;
+          }
+
+          previousMaxBottom = Math.max(previousMaxBottom || bounds.bottom, bounds.bottom);
+        }
+
+        return false;
+      }
+
+      function getBodyVisualBottom(body) {
+        var flow = body.querySelector(".body-flow");
+
+        if (!flow) {
+          return 0;
+        }
+
+        var bodyRect = body.getBoundingClientRect();
+        var bottom = bodyRect.top;
+
+        Array.prototype.slice.call(flow.children).forEach(function (block) {
+          layoutBlockChartOverlays(block);
+          var bounds = getBlockLayoutBounds(block);
+          bottom = Math.max(bottom, bounds.bottom);
+        });
+
+        return bottom - bodyRect.top;
+      }
+
       function overflows(body) {
         void body.offsetHeight;
 
@@ -690,7 +841,19 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
           maxHeight = body.clientHeight;
         }
 
-        return body.scrollHeight > maxHeight + 0.5;
+        if (body.scrollHeight > maxHeight + 0.5) {
+          return true;
+        }
+
+        if (getBodyVisualBottom(body) > maxHeight + 0.5) {
+          return true;
+        }
+
+        if (bodyHasBlockOverlap(body)) {
+          return true;
+        }
+
+        return false;
       }
 
       function getChartSvgViewBox(svg) {
@@ -708,25 +871,6 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         }
 
         return { x: 0, y: 0, width: 220, height: 100 };
-      }
-
-      function viewBoxPercentX(svg, x) {
-        var viewBox = getChartSvgViewBox(svg);
-        return ((Number(x) - viewBox.x) / viewBox.width) * 100;
-      }
-
-      function viewBoxPercentY(svg, y) {
-        var viewBox = getChartSvgViewBox(svg);
-        return ((Number(y) - viewBox.y) / viewBox.height) * 100;
-      }
-
-      function measureViewBoxWidthPx(svg, preview, widthViewBox) {
-        var viewBox = getChartSvgViewBox(svg);
-        var rect = preview ? preview.getBoundingClientRect() : null;
-
-        if (!rect || !viewBox.width) return 0;
-
-        return (Number(widthViewBox) || 0) * rect.width / viewBox.width;
       }
 
       function getChartViewBoxRenderedRect(svg, preview) {
@@ -1235,6 +1379,8 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         blocks.forEach(function (block) {
           var clone = block.cloneNode(true);
           current.bodyFlow.appendChild(clone);
+          layoutBlockChartOverlays(clone);
+          tightenMainObjectBlockHeights(clone);
           if (overflows(current.body) && current.bodyFlow.children.length > 1) {
             clone.remove();
             current = createPage(pages);
@@ -1255,11 +1401,16 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         cleanSource(source);
         addPagexCss();
         await waitForResources(source);
+        tightenAllMainObjectBlockHeights(source);
         paginateBlocks(source, output);
         scheduleChartOverlayRelayout(output);
+        tightenAllMainObjectBlockHeights(output);
         await waitForResources(output);
+        tightenAllMainObjectBlockHeights(source);
         paginateBlocks(source, output);
         scheduleChartOverlayRelayout(output);
+        tightenAllMainObjectBlockHeights(output);
+        applyWordexSystemPageMacros(output);
         document.body.classList.add("wordex-pagex-ready");
         document.documentElement.classList.add("wordex-pagex-ready");
         var pageCount = output.querySelectorAll(".pagex-page").length;
@@ -1270,15 +1421,7 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         if (saveHtmlButton) saveHtmlButton.disabled = false;
       }
 
-      function applyTemplatePlaceholders(template, values) {
-        return String(template || "").replace(/@@([A-Z0-9_]+)@@/g, function (match, key) {
-          if (!Object.prototype.hasOwnProperty.call(values, key)) {
-            return match;
-          }
-
-          return String(values[key] ?? "");
-        });
-      }
+      /*WORDEX_TEMPLATE_HELPERS*/
 
       function collectReportStyles() {
         var styleNode = document.getElementById("wordex-report-styles");
@@ -1291,13 +1434,6 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         } catch (error) {
           return {};
         }
-      }
-
-      function sanitizeHtmlFileName(value) {
-        var name = String(value || "").trim().replace(/[\\\\/:*?"<>|]+/g, "_");
-        if (!name) return "Relatorio.html";
-        if (!/\\.html$/i.test(name)) name += ".html";
-        return name;
       }
 
       function saveMountedHtml() {
@@ -1326,128 +1462,6 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         }, 1000);
 
         setPagedStatus("HTML salvo: " + fileName);
-      }
-
-      function fetchImageAsDataUrl(url) {
-        var src = String(url || "").trim();
-
-        if (!src || src.indexOf("data:") === 0) {
-          return Promise.resolve("");
-        }
-
-        return fetch(src, {
-          mode: "cors",
-          credentials: "omit",
-          cache: "force-cache"
-        })
-          .then(function (response) {
-            if (!response.ok) {
-              return "";
-            }
-
-            return response.blob();
-          })
-          .then(function (blob) {
-            if (!blob || String(blob.type || "").indexOf("image/") !== 0) {
-              return "";
-            }
-
-            return new Promise(function (resolve) {
-              var reader = new FileReader();
-              reader.onload = function () {
-                resolve(String(reader.result || ""));
-              };
-              reader.onerror = function () {
-                resolve("");
-              };
-              reader.readAsDataURL(blob);
-            });
-          })
-          .catch(function () {
-            return "";
-          });
-      }
-
-      function rasterizeLoadedImageElement(img) {
-        if (!img || !img.naturalWidth || !img.naturalHeight) {
-          return "";
-        }
-
-        try {
-          var canvas = document.createElement("canvas");
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
-          canvas.getContext("2d").drawImage(img, 0, 0);
-          return canvas.toDataURL("image/png");
-        } catch (error) {
-          return "";
-        }
-      }
-
-      function loadImageAsDataUrl(url, useCrossOrigin) {
-        return new Promise(function (resolve) {
-          var src = String(url || "").trim();
-          if (!src) {
-            resolve("");
-            return;
-          }
-          if (src.indexOf("data:") === 0) {
-            resolve(src);
-            return;
-          }
-
-          var img = new Image();
-          if (useCrossOrigin) {
-            img.crossOrigin = "anonymous";
-          }
-
-          img.onload = function () {
-            resolve(rasterizeLoadedImageElement(img));
-          };
-
-          img.onerror = function () {
-            resolve("");
-          };
-
-          img.src = src;
-        });
-      }
-
-      function isProbablyCrossOriginUrl(url) {
-        var src = String(url || "").trim();
-        if (!src || src.indexOf("data:") === 0 || src.indexOf("blob:") === 0) {
-          return false;
-        }
-
-        try {
-          return new URL(src, window.location.href).origin !== window.location.origin;
-        } catch (error) {
-          return /^https?:/i.test(src);
-        }
-      }
-
-      function omitUnembeddableImage(cloneImg, src) {
-        if (!cloneImg) return;
-        cloneImg.removeAttribute("src");
-        cloneImg.removeAttribute("crossorigin");
-        cloneImg.setAttribute("data-wordex-pdf-omitted", "1");
-        cloneImg.style.visibility = "hidden";
-        cloneImg.style.display = "none";
-      }
-
-      function resolveMappedImageDataUrl(src, imageDataUrlMap) {
-        var text = String(src || "").trim();
-        var map = imageDataUrlMap || {};
-
-        if (!text) {
-          return "";
-        }
-
-        if (map[text] && String(map[text]).indexOf("data:") === 0) {
-          return String(map[text]);
-        }
-
-        return "";
       }
 
       async function preparePagexHtmlForPdf(root, imageDataUrlMap) {
@@ -1509,18 +1523,17 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         return clone.innerHTML;
       }
 
-      async function openPdfViewerTab() {
+      async function buildPdfViewerHtml(options) {
         var template = window.WORDEX_PDF_TEMPLATE;
         if (!template) {
-          alert("Template PDF indisponível. Volte ao editor e clique em Montar HTML novamente.");
-          return;
+          throw new Error("Template PDF indisponível. Volte ao editor e clique em Montar HTML novamente.");
         }
 
         if (!document.body.classList.contains("wordex-pagex-ready")) {
-          alert("Aguarde a paginação terminar.");
-          return;
+          throw new Error("Aguarde a paginação terminar.");
         }
 
+        options = options || {};
         var pagexOutput = document.getElementById("wordex-pagex-output");
         var pagexStyle = document.getElementById("wordex-pagex-style");
         var config = readPagexConfig();
@@ -1530,7 +1543,8 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         var pdfConfig = JSON.stringify({
           fileName: pdfFileName,
           title: pdfTitle,
-          imageDataUrlMap: imageDataUrlMap
+          imageDataUrlMap: imageDataUrlMap,
+          returnBase64: !!options.returnBase64
         }).split("<\\\/").join("<\\\\/");
 
         var pagexHtml = "";
@@ -1541,22 +1555,31 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
           pagexHtml = await preparePagexHtmlForPdf(pagexOutput, imageDataUrlMap);
         }
 
-        var html = applyTemplatePlaceholders(template, {
+        return applyTemplatePlaceholders(template, {
           WORDEX_TITLE: pdfTitle,
           WORDEX_PDF_CONFIG: pdfConfig,
           WORDEX_PAGEX_HTML: pagexHtml,
           WORDEX_PAGEX_STYLE: pagexStyle ? pagexStyle.textContent : "",
           WORDEX_REPORT_STYLES: collectReportStyles()
         });
+      }
 
-        var blob = new Blob([html], { type: "text/html;charset=utf-8" });
-        var url = URL.createObjectURL(blob);
-        var opened = window.open(url, "_blank");
+      async function openPdfViewerTab() {
+        try {
+          var html = await buildPdfViewerHtml();
+          var blob = new Blob([html], { type: "text/html;charset=utf-8" });
+          var url = URL.createObjectURL(blob);
+          var opened = window.open(url, "_blank");
 
-        if (!opened) {
-          window.location.href = url;
+          if (!opened) {
+            window.location.href = url;
+          }
+        } catch (error) {
+          alert(error.message);
         }
       }
+
+      window.wordexBuildPdfHtml = buildPdfViewerHtml;
 
       function bindPagedToolbarActions() {
         var saveHtmlButton = document.getElementById("wordex-paged-save-html");

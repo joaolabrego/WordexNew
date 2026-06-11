@@ -1,11 +1,11 @@
 [
     {
         "Nome": {
-            "Kind": "text",
+            "Kind": "string",
             "Value": "Evadin S/A"
         },
         "CNPJ": {
-            "Kind": "text",
+            "Kind": "string",
             "Value": "12.345.678/0001-90"
         },
         "Clientes": {
@@ -13,19 +13,19 @@
             "Items": [
                 {
                     "ClienteId": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "1"
                     },
                     "Nome": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "João Silva"
                     },
                     "Email": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "joaosilva@gmail.com"
                     },
                     "Telefone": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "(11) 98765-4321"
                     },
                     "Produtos": {
@@ -33,72 +33,72 @@
                         "Items": [
                             {
                                 "ProdutoId": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "1"
                                 },
                                 "ClienteId": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "1"
                                 },
                                 "CategoriaId": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "1"
                                 },
                                 "Nome": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "Produto A"
                                 },
                                 "Preço": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "100,00"
                                 },
                                 "Quantidade": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "2"
                                 },
                                 "Categoria": {
                                     "CategoriaId": {
-                                        "Kind": "text",
+                                        "Kind": "string",
                                         "Value": "1"
                                     },
                                     "Nome": {
-                                        "Kind": "text",
+                                        "Kind": "string",
                                         "Value": "Eletrônico"
                                     }
                                 }
                             },
                             {
                                 "ProdutoId": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "2"
                                 },
                                 "ClienteId": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "1"
                                 },
                                 "CategoriaId": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "2"
                                 },
                                 "Nome": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "Produto B"
                                 },
                                 "Preço": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "50,00"
                                 },
                                 "Quantidade": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "1"
                                 },
                                 "Categoria": {
                                     "CategoriaId": {
-                                        "Kind": "text",
+                                        "Kind": "string",
                                         "Value": "2"
                                     },
                                     "Nome": {
-                                        "Kind": "text",
+                                        "Kind": "string",
                                         "Value": "Livros"
                                     }
                                 }
@@ -110,29 +110,29 @@
                         "Items": [
                             {
                                 "ClienteId": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "1"
                                 },
                                 "PreçoSum": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "150,00"
                                 },
                                 "QuantidadeSum": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "3"
                                 }
                             },
                             {
                                 "ClienteId": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "2"
                                 },
                                 "PreçoSum": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "200,00"
                                 },
                                 "QuantidadeSum": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "3"
                                 }
                             }
@@ -145,19 +145,19 @@
                 },
                 {
                     "ClienteId": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "2"
                     },
                     "Nome": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "Maria Oliveira"
                     },
                     "Email": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "mariaoliveira@gmail.com"
                     },
                     "Telefone": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "(21) 91234-5678"
                     },
                     "Produtos": {
@@ -165,36 +165,36 @@
                         "Items": [
                             {
                                 "ProdutoId": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "3"
                                 },
                                 "ClienteId": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "2"
                                 },
                                 "CategoriaId": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "3"
                                 },
                                 "Nome": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "Produto C"
                                 },
                                 "Preço": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "200,00"
                                 },
                                 "Quantidade": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "3"
                                 },
                                 "Categoria": {
                                     "CategoriaId": {
-                                        "Kind": "text",
+                                        "Kind": "string",
                                         "Value": "3"
                                     },
                                     "Nome": {
-                                        "Kind": "text",
+                                        "Kind": "string",
                                         "Value": "Escritório"
                                     }
                                 }
@@ -206,29 +206,29 @@
                         "Items": [
                             {
                                 "ClienteId": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "1"
                                 },
                                 "PreçoSum": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "150,00"
                                 },
                                 "QuantidadeSum": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "3"
                                 }
                             },
                             {
                                 "ClienteId": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "2"
                                 },
                                 "PreçoSum": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "200,00"
                                 },
                                 "QuantidadeSum": {
-                                    "Kind": "text",
+                                    "Kind": "string",
                                     "Value": "3"
                                 }
                             }
@@ -246,43 +246,43 @@
             "Items": [
                 {
                     "PreçoCount": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "3"
                     },
                     "PreçoSum": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "350,00"
                     },
                     "PreçoMin": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "50,00"
                     },
                     "PreçoMax": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "200,00"
                     },
                     "PreçoAvg": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "116,67"
                     },
                     "QuantidadeCount": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "3"
                     },
                     "QuantidadeSum": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "6"
                     },
                     "QuantidadeMin": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "1"
                     },
                     "QuantidadeMax": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "3"
                     },
                     "QuantidadeAvg": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "2,0"
                     }
                 }
@@ -293,15 +293,15 @@
             "Items": [
                 {
                     "ClienteId": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "1"
                     },
                     "Nome": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "Produto A"
                     },
                     "PreçoSum": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "100,00"
                     },
                     "PreçoSum_Value": {
@@ -309,11 +309,11 @@
                         "Value": 100
                     },
                     "PreçoSum_Label": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "Preço"
                     },
                     "QuantidadeSum": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "2"
                     },
                     "QuantidadeSum_Value": {
@@ -321,7 +321,7 @@
                         "Value": 2
                     },
                     "QuantidadeSum_Label": {
-                        "Kind": "text",
+                        "Kind": "string",
                         "Value": "Quantidade"
                     }
                 }

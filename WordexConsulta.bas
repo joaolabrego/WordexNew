@@ -4,35 +4,18 @@ Option Explicit
 ' =====================================================================
 ' WORDEX - Totais e gráficos calculados em memória (sem abas Totais*)
 '
-' Reproduz o JSON de ObterRegistros("TotaisProdutos", ...) lendo a aba
-' de dados (ex.: "Produtos") e aplicando a mesma lógica de GerarAbaTotais.
-'
-' Parâmetros de configuração (mesmos do formulário frmTotais / GerarAbaTotais):
 '   nomeAbaOrigem        - aba com os registros (ex.: "Produtos")
 '   colunasAgrupadoras   - colunas de agrupamento separadas por vírgula;
 '                          vazio = total geral (uma linha)
 '   colunasTotalizadoras - colunas numéricas a totalizar (ex.: "Preço, Quantidade")
 '   valoresCalcular      - operações (ex.: "Sum" ou "Count, Sum, Min, Max, Avg")
-'   criterios (ParamArray) - pares opcionais NomeDaColuna, Valor, como em ObterRegistros;
-'                            filtra linhas da aba origem antes de totalizar e, quando
-'                            aplicável, linhas do resultado agregado
+'   criterios (ParamArray) - pares opcionais NomeDaColuna, Valor
 '
-' Exemplos (substituem abas intermediárias):
-'   TotaisProdutos (por cliente, array):
-'     =ObterTotal("Produtos"; "ClienteId"; "Preço, Quantidade"; "Sum")
-'   TotaisProdutosGerais (total geral, substitui ObterRegistro na ROOT D2):
-'     =ObterRegistroTotal("Produtos"; ""; "Preço, Quantidade"; "Count, Sum, Min, Max, Avg")
-'   TotaisProdutosGrafico (todas as categorias, array):
-'     =ObterGrafico("Produtos"; "CategoriaId"; "Preço"; "Sum")
-'   TotaisProdutosGrafico (1ª linha, substitui ObterRegistro na ROOT E2):
-'     =ObterRegistroGrafico("Produtos"; "CategoriaId"; "Preço"; "Sum")
-'   Com filtro:
-'     =ObterTotal("Produtos"; "ClienteId"; "Preço, Quantidade"; "Sum"; "ClienteId"; A2)
-'
-' IMPORTANTE: total geral usa agrupadoras VAZIAS (""), não "ClienteId".
-'
-' Nota: se WordexGraficos.bas também estiver importado, renomeie ObterGrafico
-'       daquele módulo para evitar conflito de nomes.
+' Exemplos:
+'   =ObterTotal("Produtos"; "ClienteId"; "Preço, Quantidade"; "Sum"; "ClienteId"; A2)
+'   =ObterTotais("Produtos"; ""; "Preço, Quantidade"; "Count, Sum, Min, Max, Avg")
+'   =ObterGrafico("Produtos"; "CategoriaId"; "Preço"; "Sum")
+'   =ObterRegistroGrafico("Produtos"; "CategoriaId"; "Preço"; "Sum")
 ' =====================================================================
 
 Private Const CONSULTA_FORMATO_COUNT As String = "###,###,###,##0"
@@ -95,7 +78,7 @@ Erro:
     ObterGrafico = "[{""Erro"": " & Consulta_JsonString(Err.Description) & "}]"
 End Function
 
-Public Function ObterRegistroTotal( _
+Public Function ObterTotais( _
     ByVal nomeAbaOrigem As String, _
     ByVal colunasAgrupadoras As String, _
     ByVal colunasTotalizadoras As String, _
@@ -109,7 +92,7 @@ Public Function ObterRegistroTotal( _
 
     arrCriterios = CVar(criterios)
 
-    ObterRegistroTotal = Consulta_GerarJson( _
+    ObterTotais = Consulta_RegistroParaArray(Consulta_GerarJson( _
         nomeAbaOrigem, _
         colunasAgrupadoras, _
         colunasTotalizadoras, _
@@ -117,11 +100,29 @@ Public Function ObterRegistroTotal( _
         False, _
         arrCriterios, _
         False _
-    )
+    ))
     Exit Function
 
 Erro:
-    ObterRegistroTotal = "{""Erro"": " & Consulta_JsonString(Err.Description) & "}"
+    ObterTotais = "[{""Erro"": " & Consulta_JsonString(Err.Description) & "}]"
+End Function
+
+' Alias legado (=ObterRegistroTotal nas fórmulas antigas da planilha).
+Public Function ObterRegistroTotal( _
+    ByVal nomeAbaOrigem As String, _
+    ByVal colunasAgrupadoras As String, _
+    ByVal colunasTotalizadoras As String, _
+    ByVal valoresCalcular As String, _
+    ParamArray criterios() As Variant _
+) As String
+
+    ObterRegistroTotal = ObterTotais( _
+        nomeAbaOrigem, _
+        colunasAgrupadoras, _
+        colunasTotalizadoras, _
+        valoresCalcular, _
+        criterios _
+    )
 End Function
 
 Public Function ObterRegistroGrafico( _
@@ -138,7 +139,7 @@ Public Function ObterRegistroGrafico( _
 
     arrCriterios = CVar(criterios)
 
-    ObterRegistroGrafico = Consulta_GerarJson( _
+    ObterRegistroGrafico = Consulta_RegistroParaArray(Consulta_GerarJson( _
         nomeAbaOrigem, _
         colunasAgrupadoras, _
         colunasTotalizadoras, _
@@ -146,7 +147,7 @@ Public Function ObterRegistroGrafico( _
         True, _
         arrCriterios, _
         False _
-    )
+    ))
     Exit Function
 
 Erro:
@@ -347,11 +348,6 @@ Private Function Consulta_GrupoParaJsonObject( _
             virgula = ","
 
             If gerarParaGrafico Then
-                valorGrafico = Consulta_ValorGrafico(valorTotal, fonteEhData, tipoTotal)
-
-                json = json & virgula & Consulta_JsonString(nomeTotal & "_Value") & ": "
-                json = json & Consulta_JsonCampoNumero(valorGrafico)
-
                 json = json & virgula & Consulta_JsonString(nomeTotal & "_Label") & ": "
                 json = json & Consulta_JsonCampoTexto(Consulta_LegendaGrafico(nomeTotal))
                 virgula = ","
@@ -361,6 +357,18 @@ Private Function Consulta_GrupoParaJsonObject( _
 
     json = json & "}"
     Consulta_GrupoParaJsonObject = json
+End Function
+
+Private Function Consulta_RegistroParaArray(ByVal conteudo As String) As String
+    conteudo = Trim$(conteudo)
+
+    If conteudo = vbNullString Or conteudo = "{}" Then
+        Consulta_RegistroParaArray = "[]"
+    ElseIf Left$(conteudo, 1) = "[" Then
+        Consulta_RegistroParaArray = conteudo
+    Else
+        Consulta_RegistroParaArray = "[" & conteudo & "]"
+    End If
 End Function
 
 Private Function Consulta_GrupoAtendeCriterios( _
@@ -455,15 +463,6 @@ Private Function Consulta_ObterValorCampoGrupo( _
             End If
 
             If gerarParaGrafico Then
-                If nomeCampo = nomeTotal & "_Value" Then
-                    valorGrafico = Consulta_ValorGrafico( _
-                        Consulta_CalcularValorTotal(stats, campo, tipoTotal), fonteEhData, tipoTotal _
-                    )
-                    Consulta_ObterValorCampoGrupo = valorGrafico
-                    colunaEncontrada = True
-                    Exit Function
-                End If
-
                 If nomeCampo = nomeTotal & "_Label" Then
                     Consulta_ObterValorCampoGrupo = Consulta_LegendaGrafico(nomeTotal)
                     colunaEncontrada = True
@@ -501,7 +500,7 @@ Private Function Consulta_ValorComoTexto(ByVal valor As Variant, ByVal numberFor
 End Function
 
 Private Function Consulta_JsonCampoTexto(ByVal texto As String) As String
-    Consulta_JsonCampoTexto = "{""Kind"": ""text"", ""Value"": " & Consulta_JsonString(texto) & "}"
+    Consulta_JsonCampoTexto = "{""Kind"": ""string"", ""Value"": " & Consulta_JsonString(texto) & "}"
 End Function
 
 Private Function Consulta_JsonCampoNumero(ByVal valor As Variant) As String

@@ -1,0 +1,515 @@
+Wordex — HTML para PDF no backend (Chrome CLI e Puppeteer)
+==========================================================
+
+Este guia explica como um frontend pode solicitar a conversão de HTML
+em PDF no servidor usando o motor do Chromium. Há duas abordagens
+principais em Node.js:
+
+  1. Chrome CLI      — chama chrome.exe com --print-to-pdf
+  2. Puppeteer       — biblioteca Node que controla o Chrome por código
+
+(Alternativa parecida: Playwright — mesma ideia, API diferente.)
+
+Importante: o navegador do usuário (JavaScript no frontend) NÃO pode
+executar o Chrome diretamente por questões de segurança. O fluxo
+correto é:
+
+  Frontend  →  API no servidor  →  Chrome (CLI ou Puppeteer)  →  PDF
+
+O frontend apenas chama a API e recebe o PDF (arquivo ou base64).
+
+
+Quando usar backend (CLI / Puppeteer) em vez de ObterPDF
+--------------------------------------------------------
+
+O Wordex já expõe ObterPDF(json) no iframe (ver helpIFRAME.txt), que
+gera PDF no próprio navegador com jsPDF + html2canvas.
+
+Use backend com Chromium quando:
+
+- a geração deve rodar no servidor, sem depender do browser do cliente
+- você quer PDF via motor de impressão do Chromium
+- o volume de relatórios é alto e prefere processar fora do iframe
+
+Use ObterPDF(json) quando:
+
+- não há backend disponível
+- o Wordex já está embutido em iframe na mesma origem
+- basta devolver data URI ao frontend
+
+
+Chrome CLI ou Puppeteer?
+------------------------
+
+Chrome CLI (execFile/spawn)
+  + simples, sem dependência npm pesada
+  + fácil de testar manualmente no terminal
+  - menos controle (esperar seletor, cookies, múltiplas páginas)
+  - parsing de erros mais difícil
+
+Puppeteer (recomendado em Node.js)
+  + API JavaScript: abrir página, esperar render, gerar PDF
+  + page.waitForSelector, timeouts, screenshots, logs
+  + page.pdf() devolve Buffer direto (sem arquivo temporário)
+  - instala Chromium via npm (download na primeira vez)
+  - consome mais memória que um exec isolado
+
+Na prática: se o backend já é Node.js, use Puppeteer. Se o backend é
+.NET, PowerShell ou um script ops simples, use Chrome CLI.
+
+
+Visão geral do fluxo com Wordex
+--------------------------------
+
+1. Obter o HTML paginado do relatório
+   - Montar HTML no Wordex (botão "Montar HTML") e salvar o .html, ou
+   - Gerar o HTML por API/script a partir do JSON (mesma lógica do editor)
+
+2. Servir esse HTML por HTTP (recomendado)
+   - Ex.: http://localhost:8080/relatorio.html
+   - Evite file:// quando houver imagens externas, fontes ou fetch
+
+3. Chamar o Chrome headless apontando para essa URL
+
+4. Ler o PDF gerado e devolver ao frontend (bytes ou base64)
+
+
+Localização do Chrome no Windows
+--------------------------------
+
+Caminhos comuns (ajuste conforme a instalação):
+
+  "C:\Program Files\Google\Chrome\Application\chrome.exe"
+  "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+
+Chromium / Edge (alternativas compatíveis):
+
+  "C:\Program Files\Microsoft\Edge\Application\msedge.exe"
+
+Para descobrir no PowerShell:
+
+  (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe').'(default)'
+
+
+Comando básico (Chrome headless)
+--------------------------------
+
+PowerShell / CMD — um HTML local servido em http://localhost:8080:
+
+  "C:\Program Files\Google\Chrome\Application\chrome.exe" ^
+    --headless=new ^
+    --disable-gpu ^
+    --no-sandbox ^
+    --run-all-compositor-stages-before-draw ^
+    --virtual-time-budget=10000 ^
+    --print-to-pdf="D:\WordexNew\saida\relatorio.pdf" ^
+    "http://localhost:8080/relatorio.html"
+
+Flags úteis:
+
+  --headless=new          modo headless atual do Chrome
+  --disable-gpu           evita problemas em servidor sem GPU
+  --no-sandbox            comum em Linux/Docker; use com cautela
+  --print-to-pdf=CAMINHO  grava o PDF no disco
+  --no-pdf-header-footer  remove cabeçalho/rodapé automático (data, URL)
+  --virtual-time-budget=N aguarda animações/render (milissegundos)
+
+Para relatório Wordex paginado, prefira HTML já paginado (saída do
+"Montar HTML"), onde cada .pagex-page representa uma página A4.
+
+
+Servir o HTML localmente (antes do Chrome)
+------------------------------------------
+
+Exemplo mínimo com Python (na pasta do relatório):
+
+  cd D:\WordexNew\saida
+  python -m http.server 8080
+
+Exemplo com Node (npx, sem instalar pacote):
+
+  npx --yes serve D:\WordexNew\saida -l 8080
+
+O Chrome deve apontar para a URL http, não para file:///...
+
+
+Puppeteer (biblioteca Node.js)
+------------------------------
+
+Nome da biblioteca: Puppeteer
+Site: https://pptr.dev
+
+O Puppeteer abre o Chrome/Chromium headless, carrega o HTML e chama o
+mesmo motor de impressão usado pelo --print-to-pdf da CLI, mas tudo
+via JavaScript (sem montar linha de comando manualmente).
+
+
+Instalação
+----------
+
+Na pasta do backend:
+
+  npm init -y
+  npm install express puppeteer
+
+Na primeira execução o Puppeteer baixa um Chromium compatível.
+Para usar o Chrome já instalado no Windows, use puppeteer-core e
+informe executablePath (ver exemplo mais abaixo).
+
+
+Exemplo mínimo (script isolado)
+-------------------------------
+
+  // gerar-pdf.js
+  const puppeteer = require("puppeteer");
+
+  async function htmlParaPdf(htmlUrl, pdfPath) {
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-gpu"]
+    });
+
+    try {
+      const page = await browser.newPage();
+      await page.goto(htmlUrl, {
+        waitUntil: "networkidle0",
+        timeout: 120000
+      });
+
+      // Relatório Wordex paginado: aguarda páginas montadas
+      await page.waitForSelector(".pagex-page", { timeout: 60000 });
+
+      await page.pdf({
+        path: pdfPath,
+        format: "A4",
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: "0", right: "0", bottom: "0", left: "0" }
+      });
+    } finally {
+      await browser.close();
+    }
+  }
+
+  htmlParaPdf(
+    "http://localhost:8080/relatorio.html",
+    "D:\\WordexNew\\saida\\relatorio.pdf"
+  ).catch(console.error);
+
+Opções importantes de page.pdf():
+
+  format: "A4"              tamanho da página (Wordex padrão)
+  preferCSSPageSize: true   respeita @page / CSS do HTML paginado
+  printBackground: true     fundos, marca d'água e cores
+  displayHeaderFooter: false evita data/URL no rodapé do PDF
+  margin                     zere se o HTML já define margens
+
+
+Exemplo de API (Node.js + Express + Puppeteer)
+----------------------------------------------
+
+  // server-puppeteer.js
+  const express = require("express");
+  const puppeteer = require("puppeteer");
+
+  const app = express();
+  app.use(express.json());
+
+  let browserPromise = null;
+
+  async function getBrowser() {
+    if (!browserPromise) {
+      browserPromise = puppeteer.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-gpu"]
+      });
+    }
+    return browserPromise;
+  }
+
+  app.post("/api/pdf", async (req, res) => {
+    const htmlUrl = req.body.htmlUrl;
+    if (!htmlUrl) {
+      return res.status(400).json({ error: "htmlUrl obrigatório" });
+    }
+
+    let page = null;
+
+    try {
+      const browser = await getBrowser();
+      page = await browser.newPage();
+
+      await page.goto(htmlUrl, {
+        waitUntil: "networkidle0",
+        timeout: 120000
+      });
+
+      await page.waitForSelector(".pagex-page", { timeout: 60000 });
+
+      const pdfBuffer = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        preferCSSPageSize: true,
+        displayHeaderFooter: false,
+        margin: { top: "0", right: "0", bottom: "0", left: "0" }
+      });
+
+      const dataUri =
+        "data:application/pdf;base64," + pdfBuffer.toString("base64");
+
+      res.json({ ok: true, dataUri, fileName: "Relatorio.pdf" });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    } finally {
+      if (page) await page.close();
+    }
+  });
+
+  app.listen(3000, () => console.log("API PDF em :3000"));
+
+Reutilizar o browser (como no exemplo) é mais rápido para vários
+relatórios seguidos. Feche o browser no shutdown do processo.
+
+
+Usar o Chrome instalado (puppeteer-core)
+----------------------------------------
+
+Se não quiser o Chromium baixado pelo npm:
+
+  npm install puppeteer-core
+
+  const puppeteer = require("puppeteer-core");
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    executablePath:
+      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    args: ["--no-sandbox", "--disable-gpu"]
+  });
+
+
+PDF a partir de HTML em string (sem URL)
+----------------------------------------
+
+Útil se o backend monta o HTML em memória:
+
+  await page.setContent(html, { waitUntil: "networkidle0" });
+  await page.waitForSelector(".pagex-page");
+  const pdfBuffer = await page.pdf({ ... });
+
+Para HTML grande com imagens base64, setContent costuma funcionar bem.
+Para assets externos (http), prefira goto(htmlUrl).
+
+
+Playwright (alternativa ao Puppeteer)
+-------------------------------------
+
+Biblioteca: Playwright (Microsoft). Conceito idêntico.
+
+  npm install playwright
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  await page.goto(htmlUrl);
+  await page.pdf({ path: "relatorio.pdf", format: "A4" });
+
+Escolha Puppeteer se já está no ecossistema Node/Chrome; Playwright se
+precisa também Firefox/WebKit com a mesma API.
+
+
+Exemplo de API (Node.js + Express + Chrome CLI)
+-----------------------------------------------
+
+O frontend chama POST /api/pdf com { "htmlUrl": "..." } ou o servidor
+monta a URL após gerar o HTML.
+
+  // server.js (exemplo simplificado)
+  const express = require("express");
+  const { execFile } = require("child_process");
+  const fs = require("fs");
+  const path = require("path");
+
+  const app = express();
+  app.use(express.json());
+
+  const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+
+  app.post("/api/pdf", (req, res) => {
+    const htmlUrl = req.body.htmlUrl;
+    if (!htmlUrl) return res.status(400).json({ error: "htmlUrl obrigatório" });
+
+    const outPdf = path.join(__dirname, "tmp", `rel-${Date.now()}.pdf`);
+
+    const args = [
+      "--headless=new",
+      "--disable-gpu",
+      "--no-sandbox",
+      "--run-all-compositor-stages-before-draw",
+      "--virtual-time-budget=15000",
+      "--print-to-pdf-no-header",
+      `--print-to-pdf=${outPdf}`,
+      htmlUrl
+    ];
+
+    execFile(CHROME, args, { timeout: 120000 }, (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      const bytes = fs.readFileSync(outPdf);
+      const dataUri = "data:application/pdf;base64," + bytes.toString("base64");
+      fs.unlinkSync(outPdf);
+
+      res.json({ ok: true, dataUri, fileName: "Relatorio.pdf" });
+    });
+  });
+
+  app.listen(3000);
+
+
+Chamada a partir do frontend
+----------------------------
+
+  async function gerarPdfNoServidor(htmlUrl) {
+    const response = await fetch("http://localhost:3000/api/pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ htmlUrl })
+    });
+
+    const data = await response.json();
+    if (!data.ok) throw new Error(data.error || "Falha ao gerar PDF");
+
+    return data.dataUri; // data:application/pdf;base64,...
+  }
+
+  // Exemplo de download no browser:
+  const dataUri = await gerarPdfNoServidor("http://localhost:8080/relatorio.html");
+  const link = document.createElement("a");
+  link.href = dataUri;
+  link.download = "Relatorio.pdf";
+  link.click();
+
+
+Integração com Wordex + iframe
+------------------------------
+
+Cenário A — tudo no cliente (sem Chrome CLI):
+
+  const dataUri = await iframe.contentWindow.ObterPDF(json);
+
+Cenário B — HTML no servidor, PDF via backend (CLI ou Puppeteer):
+
+  1. Frontend envia JSON ao backend
+  2. Backend gera/salva o HTML paginado (ou recebe HTML pronto)
+  3. Backend sobe HTTP interno ou usa caminho já publicado
+  4. Backend executa Chrome CLI ou Puppeteer page.pdf()
+  5. Frontend recebe dataUri ou arquivo
+
+Cenário C — híbrido:
+
+  1. Frontend usa ObterPDF só para preview rápido
+  2. Backend usa Puppeteer (ou CLI) para PDF oficial/arquivamento
+
+
+Exemplo PowerShell (script no servidor Windows)
+-----------------------------------------------
+
+  param(
+    [Parameter(Mandatory=$true)][string]$HtmlUrl,
+    [Parameter(Mandatory=$true)][string]$PdfPath
+  )
+
+  $chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+
+  & $chrome `
+    --headless=new `
+    --disable-gpu `
+    --run-all-compositor-stages-before-draw `
+    --virtual-time-budget=15000 `
+    --print-to-pdf-no-header `
+    --print-to-pdf="$PdfPath" `
+    $HtmlUrl
+
+  if (-not (Test-Path $PdfPath)) {
+    throw "PDF não foi gerado."
+  }
+
+  [Convert]::ToBase64String([IO.File]::ReadAllBytes($PdfPath))
+
+
+Retorno em base64 com prefixo data:
+  "data:application/pdf;base64," + (base64 puro)
+
+
+Docker / Linux (referência)
+---------------------------
+
+  google-chrome \
+    --headless=new \
+    --disable-gpu \
+    --no-sandbox \
+    --print-to-pdf=/tmp/relatorio.pdf \
+    http://host.docker.internal:8080/relatorio.html
+
+Em container, instale dependências do Chromium e use --no-sandbox.
+
+
+Problemas comuns
+----------------
+
+HTML em branco ou incompleto
+  - Aumente --virtual-time-budget (ex.: 20000)
+  - Sirva por http://, não file://
+  - Aguarde fontes/imagens carregarem
+
+Imagens faltando
+  - Use URLs absolutas acessíveis ao Chrome no servidor
+  - Ou embuta imagens em base64 no JSON/HTML
+
+Margens / página cortada
+  - Use o HTML já paginado do Wordex (.pagex-page)
+  - O tamanho da página segue o CSS @page do relatório (ex. A4 210x297mm)
+
+Cabeçalho com data/URL no PDF
+  - Adicione --print-to-pdf-no-header
+
+Chrome não encontrado
+  - Ajuste o caminho do executável
+  - Verifique permissões do usuário do serviço (IIS, Windows Service)
+
+Timeout em relatórios grandes
+  - Aumente timeout do execFile/spawn (120s ou mais)
+  - No Puppeteer: timeout em goto() e waitForSelector()
+  - Gere HTML com imagens já embutidas
+
+Puppeteer: "Navigation timeout" ou PDF vazio
+  - Use waitUntil: "networkidle0" ou espere .pagex-page
+  - Confirme printBackground: true para fundos e marca d'água
+
+
+Segurança
+---------
+
+- Não passe URLs arbitrárias do usuário direto ao Chrome sem validar
+  (risco de SSRF: o servidor acessaria URLs internas).
+- Restrinja htmlUrl a hosts permitidos (ex.: localhost, CDN interno).
+- Rode o Chrome com usuário de baixo privilégio.
+- Limpe arquivos temporários após gerar o PDF.
+
+
+Resumo
+------
+
+  Frontend  →  POST /api/pdf { htmlUrl }
+
+  Opção A — Chrome CLI:
+    Backend → chrome --headless --print-to-pdf=...
+
+  Opção B — Puppeteer (Node.js):
+    Backend → page.goto(htmlUrl) → page.pdf() → Buffer
+
+  Backend   →  { dataUri: "data:application/pdf;base64,..." }
+  Frontend  →  download ou envia para outro sistema
+
+Para geração 100% no browser, use ObterPDF(json) (helpIFRAME.txt).
+Para geração no servidor com qualidade de impressão Chromium, prefira
+Puppeteer em Node.js ou Chrome CLI em scripts/serviços não-Node.

@@ -1,13 +1,12 @@
 Attribute VB_Name = "Wordex"
 Option Explicit
 
+' Crudex primitivo: importar Wordex.bas + WordexConsulta.bas no crudex.xlsm.
+' Remover do VBA do workbook: WordexTotais, WordexGraficos, frmTotais.
+
 Public Const K_HEADERS_ROW As Long = 1
 Public Const K_DETAILS_ROW As Long = 2
 Public Const K_REQUIRED_COL As Long = 1
-
-Public Sub AbrirFormularioTotais()
-    frmTotais.Show
-End Sub
 
 Public Sub GerarJson()
     Dim json As String
@@ -248,10 +247,22 @@ Private Function ObterRegistroJSON(ByRef plan As Worksheet, ByVal numeroLinha As
             valorTexto = cell.Text
         End If
 
+        If Not Vazio And InStr(valorTexto, """ChartTitle""") > 0 Then
+            GoTo ProximaColuna
+        End If
+
+        If Not Vazio And InStr(valorTexto, """Erro""") > 0 And Left$(Trim$(valorTexto), 1) = "{" Then
+            GoTo ProximaColuna
+        End If
+
         json = json & virgula & JsonString(tituloColuna) & ": "
 
         If Not Vazio And IsJsonRaw(valorTexto) Then
-            json = json & valorTexto
+            If Wordex_DeveEmbalarDatasource(tituloColuna) Then
+                json = json & Wordex_EmbalarJsonColuna(tituloColuna, valorTexto, Wordex_ObterKindExplicito(plan, numeroLinha, tituloColuna))
+            Else
+                json = json & valorTexto
+            End If
         Else
             json = json & Wordex_JsonCampoTipado(plan, numeroLinha, tituloColuna, cell, Vazio)
         End If
@@ -281,7 +292,16 @@ Public Function Wordex_JsonCampoTipado( _
     If vazio Then
         valueJson = "null"
     Else
-        valueJson = Wordex_JsonValorSemFormatacao(cel)
+        Select Case kind
+            Case "number"
+                valueJson = Wordex_JsonValorSemFormatacao(cel)
+            Case "boolean"
+                valueJson = LCase$(CStr(CBool(cel.Value)))
+            Case "datetime"
+                valueJson = """" & Format$(CDate(cel.Value), "yyyy-mm-dd") & """"
+            Case Else
+                valueJson = JsonString(Trim$(cel.Text))
+        End Select
     End If
 
     Wordex_JsonCampoTipado = "{""Kind"": " & JsonString(kind) & ", ""Value"": " & valueJson & "}"
@@ -301,6 +321,7 @@ Public Function Wordex_InferirKind( _
     kindExplicito = Wordex_ObterKindExplicito(plan, numeroLinha, tituloColuna)
 
     If kindExplicito <> vbNullString Then
+        If LCase$(kindExplicito) = "text" Then kindExplicito = "string"
         Wordex_InferirKind = LCase$(kindExplicito)
         Exit Function
     End If
@@ -315,7 +336,7 @@ Public Function Wordex_InferirKind( _
     End If
 
     If Right$(nome, 6) = "_label" Then
-        Wordex_InferirKind = "text"
+        Wordex_InferirKind = "string"
         Exit Function
     End If
 
@@ -336,17 +357,8 @@ Public Function Wordex_InferirKind( _
         Case vbDate
             Wordex_InferirKind = "datetime"
 
-        Case vbByte, vbInteger, vbLong, vbSingle, vbDouble
-            Wordex_InferirKind = "number"
-
-        Case vbCurrency, vbDecimal
-            Wordex_InferirKind = "currency"
-
-        Case vbString
-            Wordex_InferirKind = "text"
-
         Case Else
-            Wordex_InferirKind = "text"
+            Wordex_InferirKind = "string"
     End Select
 End Function
 
@@ -398,6 +410,258 @@ Private Function Wordex_PareceUrlImagem(ByVal valorTexto As String) As Boolean
         InStr(texto, ".webp") > 0 Or _
         InStr(texto, ".svg") > 0 Or _
         InStr(texto, ".bmp") > 0
+End Function
+
+Private Function Wordex_DeveEmbalarDatasource(ByVal tituloColuna As String) As Boolean
+    Dim nome As String
+
+    nome = LCase$(Trim$(tituloColuna))
+
+    Wordex_DeveEmbalarDatasource = _
+        (nome = "clientes") Or _
+        (nome = "produtos") Or _
+        (Left$(nome, 6) = "totais") Or _
+        (Right$(nome, 7) = "grafico")
+End Function
+
+Private Function Wordex_InferirKindDatasource(ByVal tituloColuna As String) As String
+    Dim nome As String
+
+    nome = LCase$(Trim$(tituloColuna))
+
+    ' Kind do wrapper: collection | total | histogram.
+    ' FKs não passam por aqui — ObterRegistroJSON só embala quando Wordex_DeveEmbalarDatasource = True.
+    If Right$(nome, 7) = "grafico" Then
+        Wordex_InferirKindDatasource = "histogram"
+    ElseIf Left$(nome, 6) = "totais" Then
+        Wordex_InferirKindDatasource = "total"
+    Else
+        Wordex_InferirKindDatasource = "collection"
+    End If
+End Function
+
+Private Function Wordex_EmbalarJsonColuna( _
+    ByVal tituloColuna As String, _
+    ByVal valorTexto As String, _
+    ByVal kindExplicito As String _
+) As String
+    Dim kind As String
+    Dim conteudo As String
+
+    kind = kindExplicito
+    If kind = vbNullString Then kind = Wordex_InferirKindDatasource(tituloColuna)
+
+    conteudo = Trim$(valorTexto)
+
+    If Wordex_JaEmbaladoComoDatasource(conteudo) Then
+        Wordex_EmbalarJsonColuna = conteudo
+        Exit Function
+    End If
+
+    If Left$(conteudo, 1) = "[" Then
+        Wordex_EmbalarJsonColuna = "{""Kind"": """ & kind & """, ""Items"": " & conteudo & "}"
+    ElseIf Left$(conteudo, 1) = "{" Then
+        Wordex_EmbalarJsonColuna = "{""Kind"": """ & kind & """, ""Items"": [" & conteudo & "]}"
+    Else
+        Wordex_EmbalarJsonColuna = conteudo
+    End If
+End Function
+
+Private Function Wordex_JaEmbaladoComoDatasource(ByVal conteudo As String) As Boolean
+    Dim texto As String
+
+    texto = LCase$(Trim$(conteudo))
+
+    If Left$(texto, 1) <> "{" Then Exit Function
+
+    Wordex_JaEmbaladoComoDatasource = _
+        InStr(texto, """kind""") > 0 And _
+        InStr(texto, """items""") > 0
+End Function
+
+Public Function Wordex_JsonValorSemFormatacao(ByVal cel As Range) As String
+    Dim valor As Variant
+    Dim valorTexto As String
+    Dim numeroJson As String
+
+    valor = cel.Value
+
+    Select Case VarType(valor)
+        Case vbEmpty, vbNull
+            Wordex_JsonValorSemFormatacao = "null"
+
+        Case vbBoolean
+            Wordex_JsonValorSemFormatacao = LCase$(CStr(CBool(valor)))
+
+        Case vbByte, vbInteger, vbLong, vbSingle, vbDouble, vbCurrency, vbDecimal
+            Wordex_JsonValorSemFormatacao = Wordex_JsonNumeroInvariant(valor)
+
+        Case vbDate
+            Wordex_JsonValorSemFormatacao = """" & Format$(CDate(valor), "yyyy-mm-dd") & """"
+
+        Case vbString
+            valorTexto = Trim$(CStr(valor))
+
+            If valorTexto = vbNullString Then
+                Wordex_JsonValorSemFormatacao = "null"
+            ElseIf Wordex_JsonNormalizarNumeroTexto(valorTexto, numeroJson) Then
+                Wordex_JsonValorSemFormatacao = numeroJson
+            Else
+                Wordex_JsonValorSemFormatacao = """" & Wordex_JsonEscapeTexto(valorTexto) & """"
+            End If
+
+        Case vbError
+            Wordex_JsonValorSemFormatacao = "null"
+
+        Case Else
+            valorTexto = Trim$(CStr(valor))
+
+            If valorTexto = vbNullString Then
+                Wordex_JsonValorSemFormatacao = "null"
+            ElseIf Wordex_JsonNormalizarNumeroTexto(valorTexto, numeroJson) Then
+                Wordex_JsonValorSemFormatacao = numeroJson
+            Else
+                Wordex_JsonValorSemFormatacao = """" & Wordex_JsonEscapeTexto(valorTexto) & """"
+            End If
+    End Select
+End Function
+
+Private Function Wordex_JsonNumeroInvariant(ByVal valor As Variant) As String
+    Dim texto As String
+    Dim sepMilhar As String
+    Dim sepDecimal As String
+
+    texto = CStr(valor)
+
+    sepMilhar = Application.International(xlThousandsSeparator)
+    sepDecimal = Application.International(xlDecimalSeparator)
+
+    If sepMilhar <> vbNullString Then
+        texto = Replace$(texto, sepMilhar, vbNullString)
+    End If
+
+    If sepDecimal <> "." Then
+        texto = Replace$(texto, sepDecimal, ".")
+    End If
+
+    Wordex_JsonNumeroInvariant = texto
+End Function
+
+Private Function Wordex_JsonNormalizarNumeroTexto(ByVal texto As String, ByRef numeroJson As String) As Boolean
+    Dim s As String
+    Dim posVirgula As Long
+    Dim posPonto As Long
+
+    s = Trim$(texto)
+
+    If s = vbNullString Then Exit Function
+
+    If Left$(s, 1) = "+" Then
+        s = Mid$(s, 2)
+    End If
+
+    posVirgula = InStrRev(s, ",")
+    posPonto = InStrRev(s, ".")
+
+    If posVirgula > 0 And posPonto > 0 Then
+        If posVirgula > posPonto Then
+            s = Replace$(s, ".", vbNullString)
+            s = Replace$(s, ",", ".")
+        Else
+            s = Replace$(s, ",", vbNullString)
+        End If
+    ElseIf posVirgula > 0 Then
+        s = Replace$(s, ".", vbNullString)
+        s = Replace$(s, ",", ".")
+    ElseIf posPonto > 0 Then
+        s = Replace$(s, ",", vbNullString)
+    End If
+
+    s = Wordex_JsonAjustarZerosEsquerdaNumero(s)
+
+    If Wordex_JsonNumeroValido(s) Then
+        numeroJson = s
+        Wordex_JsonNormalizarNumeroTexto = True
+    End If
+End Function
+
+Private Function Wordex_JsonAjustarZerosEsquerdaNumero(ByVal numero As String) As String
+    Dim sinal As String
+    Dim parteInteira As String
+    Dim parteDecimal As String
+    Dim posPonto As Long
+
+    If Left$(numero, 1) = "-" Then
+        sinal = "-"
+        numero = Mid$(numero, 2)
+    End If
+
+    posPonto = InStr(1, numero, ".", vbBinaryCompare)
+
+    If posPonto > 0 Then
+        parteInteira = Left$(numero, posPonto - 1)
+        parteDecimal = Mid$(numero, posPonto)
+    Else
+        parteInteira = numero
+        parteDecimal = vbNullString
+    End If
+
+    Do While Len(parteInteira) > 1 And Left$(parteInteira, 1) = "0"
+        parteInteira = Mid$(parteInteira, 2)
+    Loop
+
+    If parteInteira = vbNullString Then
+        parteInteira = "0"
+    End If
+
+    Wordex_JsonAjustarZerosEsquerdaNumero = sinal & parteInteira & parteDecimal
+End Function
+
+Private Function Wordex_JsonNumeroValido(ByVal numero As String) As Boolean
+    Dim i As Long
+    Dim inicio As Long
+    Dim ch As String
+    Dim temDigito As Boolean
+    Dim temPonto As Boolean
+
+    If numero = vbNullString Then Exit Function
+
+    If Left$(numero, 1) = "-" Then
+        If Len(numero) = 1 Then Exit Function
+        inicio = 2
+    Else
+        inicio = 1
+    End If
+
+    For i = inicio To Len(numero)
+        ch = Mid$(numero, i, 1)
+
+        Select Case ch
+            Case "0" To "9"
+                temDigito = True
+            Case "."
+                If temPonto Then Exit Function
+                temPonto = True
+            Case Else
+                Exit Function
+        End Select
+    Next i
+
+    If Not temDigito Then Exit Function
+    If Right$(numero, 1) = "." Then Exit Function
+    If Mid$(numero, inicio, 1) = "." Then Exit Function
+
+    Wordex_JsonNumeroValido = True
+End Function
+
+Private Function Wordex_JsonEscapeTexto(ByVal texto As String) As String
+    texto = Replace$(texto, "\", "\\")
+    texto = Replace$(texto, Chr$(34), Chr$(92) & Chr$(34))
+    texto = Replace$(texto, vbCrLf, "")
+    texto = Replace$(texto, vbCr, "")
+    texto = Replace$(texto, vbLf, "")
+
+    Wordex_JsonEscapeTexto = texto
 End Function
 
 Private Function IsJsonRaw(ByVal valor As String) As Boolean

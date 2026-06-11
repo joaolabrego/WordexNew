@@ -350,6 +350,7 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
   <script type="application/json" id="wordex-pdf-config">@@WORDEX_PDF_CONFIG@@</script>
   <script>
     (function () {
+      /*WORDEX_TEMPLATE_HELPERS*/
       var config = {};
       var titleNode = document.getElementById("wordex-pdf-title");
       var statusNode = document.getElementById("wordex-pdf-status");
@@ -374,13 +375,6 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
 
       if (titleNode) titleNode.textContent = pdfTitle;
       document.title = pdfTitle + " - Wordex PDF";
-
-      function sanitizeFileName(value) {
-        var name = String(value || "").trim().replace(/[\\\\/:*?"<>|]+/g, "_");
-        if (!name) return "Relatorio.pdf";
-        if (!/\\.pdf$/i.test(name)) name += ".pdf";
-        return name;
-      }
 
       function setStatus(message, isError) {
         if (!statusNode) return;
@@ -801,33 +795,6 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
         return pageWidthPx * 0.76;
       }
 
-      function isProbablyCrossOriginUrl(url) {
-        var src = String(url || "").trim();
-        if (!src || src.indexOf("data:") === 0 || src.indexOf("blob:") === 0) {
-          return false;
-        }
-
-        try {
-          return new URL(src, window.location.href).origin !== window.location.origin;
-        } catch (error) {
-          return /^https?:/i.test(src);
-        }
-      }
-
-      function omitUnembeddableImage(cloneImg, src, skipped) {
-        if (cloneImg) {
-          cloneImg.removeAttribute("src");
-          cloneImg.removeAttribute("crossorigin");
-          cloneImg.setAttribute("data-wordex-pdf-omitted", "1");
-          cloneImg.style.visibility = "hidden";
-          cloneImg.style.display = "none";
-        }
-
-        if (src && skipped.indexOf(src) === -1) {
-          skipped.push(src);
-        }
-      }
-
       function stripExternalImagesFromClone(clone) {
         if (!clone) return;
 
@@ -865,116 +832,6 @@ window.WORDEX_PDF_TEMPLATE = `<!DOCTYPE html>
           img.style.visibility = "hidden";
           img.style.display = "none";
         });
-      }
-
-      function blobToDataUrl(blob) {
-        return new Promise(function (resolve) {
-          if (!blob) {
-            resolve("");
-            return;
-          }
-
-          var reader = new FileReader();
-          reader.onload = function () {
-            resolve(String(reader.result || ""));
-          };
-          reader.onerror = function () {
-            resolve("");
-          };
-          reader.readAsDataURL(blob);
-        });
-      }
-
-      function fetchImageAsDataUrl(url) {
-        var src = String(url || "").trim();
-
-        if (!src || src.indexOf("data:") === 0) {
-          return Promise.resolve("");
-        }
-
-        return fetch(src, {
-          mode: "cors",
-          credentials: "omit",
-          cache: "force-cache"
-        })
-          .then(function (response) {
-            if (!response.ok) {
-              return "";
-            }
-
-            return response.blob();
-          })
-          .then(function (blob) {
-            if (!blob || String(blob.type || "").indexOf("image/") !== 0) {
-              return "";
-            }
-
-            return blobToDataUrl(blob);
-          })
-          .catch(function () {
-            return "";
-          });
-      }
-
-      function rasterizeLoadedImageElement(img) {
-        if (!img || !img.naturalWidth || !img.naturalHeight) {
-          return "";
-        }
-
-        try {
-          var canvas = document.createElement("canvas");
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
-          canvas.getContext("2d").drawImage(img, 0, 0);
-          return canvas.toDataURL("image/png");
-        } catch (error) {
-          return "";
-        }
-      }
-
-      function loadImageAsDataUrl(url, useCrossOrigin) {
-        return new Promise(function (resolve) {
-          var src = String(url || "").trim();
-          if (!src) {
-            resolve("");
-            return;
-          }
-
-          if (src.indexOf("data:") === 0) {
-            resolve(src);
-            return;
-          }
-
-          var img = new Image();
-          if (useCrossOrigin) {
-            img.crossOrigin = "anonymous";
-          }
-
-          img.onload = function () {
-            resolve(rasterizeLoadedImageElement(img));
-          };
-
-          img.onerror = function () {
-            resolve("");
-          };
-
-          img.src = src;
-        });
-      }
-
-      function resolveMappedImageDataUrl(src, imageDataUrlMap) {
-        var text = String(src || "").trim();
-        var map = imageDataUrlMap || {};
-
-        if (!text) {
-          return "";
-        }
-
-        if (map[text] && String(map[text]).indexOf("data:") === 0) {
-          return String(map[text]);
-        }
-
-        return "";
       }
 
       async function inlineImagesFromSourcePage(sourcePage, clone) {

@@ -312,30 +312,32 @@ table.wordex-table {
 
 .wordex-continuous-watermark {
   position: absolute;
-  left: 50%;
-  top: 50%;
+  inset: 0;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
   user-select: none;
-  transform: translate(-50%, -50%);
   text-align: center;
-  max-width: 80%;
-  max-height: 80%;
+  overflow: visible;
 }
 
 .wordex-continuous-watermark img {
   display: block;
-  width: 100%;
-  max-width: 100%;
-  max-height: 100%;
+  width: auto;
+  height: auto;
+  max-height: 80%;
   object-fit: contain;
 }
 
 body.wordex-generated-report .wordex-continuous-watermark {
-  position: fixed;
-  left: 50%;
-  top: 50%;
+  position: absolute;
+  inset: 0;
+  left: 0;
+  top: 0;
   z-index: 0;
+  transform: none;
 }
 
 .document-title,
@@ -483,8 +485,8 @@ body.wordex-generated-report table.wordex-table th {
     overflow: visible !important;
   }
 }
-  
-/* v25: gráficos no paginado não devem cortar labels/legendas posicionados por overlay. */
+
+/* Gráficos no paginado não cortam labels/legendas posicionados por overlay. */
 body.wordex-generated-report .wordex-chart-box {
   overflow: visible !important;
   contain: none !important;
@@ -640,12 +642,16 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         var watermark = document.createElement("div");
         watermark.className = "pagex-watermark";
         watermark.style.opacity = String(Math.max(0, Math.min(1, Number(watermarkConfig.opacity) || 0.12)));
+        var sizePercent = Number(watermarkConfig.sizePercent);
+        var imgWidth = Number.isFinite(sizePercent) && sizePercent > 0
+          ? String(Math.max(5, Math.min(100, sizePercent))) + "%"
+          : String(watermarkConfig.width || "80%");
         var img = document.createElement("img");
         img.src = String(watermarkConfig.imageSrc || "");
         img.alt = String(watermarkConfig.imageName || "Marca d'água");
         img.draggable = false;
-        img.style.width = String(watermarkConfig.width || "160mm");
-        img.style.maxWidth = "80%";
+        img.style.width = imgWidth;
+        img.style.maxWidth = imgWidth;
         img.style.maxHeight = "80%";
         watermark.appendChild(img);
         return watermark;
@@ -694,9 +700,40 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         var available = Math.max(0, pageHeight - headerHeight - footerHeight - headerMarginTop - headerMarginBottom - bodyMarginTop - bodyMarginBottom);
 
         body.style.flex = "0 0 auto";
-        body.style.height = available + "px";
+        body.style.height = "auto";
         body.style.minHeight = "0";
         body.style.maxHeight = available + "px";
+      }
+
+      function compactPageBodyArea(pageEl) {
+        var body = pageEl && pageEl.querySelector ? pageEl.querySelector(".pagex-body") : null;
+
+        if (!body) {
+          return;
+        }
+
+        syncPageBodyArea(pageEl);
+
+        var maxHeight = parseFloat(body.style.maxHeight);
+
+        if (!isFinite(maxHeight) || maxHeight <= 0) {
+          return;
+        }
+
+        var contentHeight = Math.ceil(getBodyVisualBottom(body));
+
+        if (contentHeight <= 0) {
+          var flow = body.querySelector(".body-flow");
+          contentHeight = flow ? flow.scrollHeight : 0;
+        }
+
+        body.style.height = Math.min(maxHeight, Math.max(0, contentHeight)) + "px";
+      }
+
+      function compactAllPageBodyAreas(root) {
+        Array.prototype.forEach.call((root || document).querySelectorAll(".pagex-page"), function (pageEl) {
+          compactPageBodyArea(pageEl);
+        });
       }
 
       function layoutBlockChartOverlays(block) {
@@ -871,25 +908,6 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         }
 
         return { x: 0, y: 0, width: 220, height: 100 };
-      }
-
-      function viewBoxPercentX(svg, x) {
-        var viewBox = getChartSvgViewBox(svg);
-        return ((Number(x) - viewBox.x) / viewBox.width) * 100;
-      }
-
-      function viewBoxPercentY(svg, y) {
-        var viewBox = getChartSvgViewBox(svg);
-        return ((Number(y) - viewBox.y) / viewBox.height) * 100;
-      }
-
-      function measureViewBoxWidthPx(svg, preview, widthViewBox) {
-        var viewBox = getChartSvgViewBox(svg);
-        var rect = preview ? preview.getBoundingClientRect() : null;
-
-        if (!rect || !viewBox.width) return 0;
-
-        return (Number(widthViewBox) || 0) * rect.width / viewBox.width;
       }
 
       function getChartViewBoxRenderedRect(svg, preview) {
@@ -1411,6 +1429,7 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
             clone.style.outline = "1px dashed #c00";
           }
         });
+        compactAllPageBodyAreas(pages);
       }
 
       async function startPagex() {
@@ -1429,6 +1448,7 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         paginateBlocks(source, output);
         scheduleChartOverlayRelayout(output);
         tightenAllMainObjectBlockHeights(output);
+        applyWordexSystemPageMacros(output);
         document.body.classList.add("wordex-pagex-ready");
         document.documentElement.classList.add("wordex-pagex-ready");
         var pageCount = output.querySelectorAll(".pagex-page").length;
@@ -1439,15 +1459,7 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         if (saveHtmlButton) saveHtmlButton.disabled = false;
       }
 
-      function applyTemplatePlaceholders(template, values) {
-        return String(template || "").replace(/@@([A-Z0-9_]+)@@/g, function (match, key) {
-          if (!Object.prototype.hasOwnProperty.call(values, key)) {
-            return match;
-          }
-
-          return String(values[key] ?? "");
-        });
-      }
+      /*WORDEX_TEMPLATE_HELPERS*/
 
       function collectReportStyles() {
         var styleNode = document.getElementById("wordex-report-styles");
@@ -1460,13 +1472,6 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         } catch (error) {
           return {};
         }
-      }
-
-      function sanitizeHtmlFileName(value) {
-        var name = String(value || "").trim().replace(/[\\\\/:*?"<>|]+/g, "_");
-        if (!name) return "Relatorio.html";
-        if (!/\\.html$/i.test(name)) name += ".html";
-        return name;
       }
 
       function saveMountedHtml() {
@@ -1495,128 +1500,6 @@ body.wordex-generated-report .wordex-chart-value-label.is-vertical-stacked {
         }, 1000);
 
         setPagedStatus("HTML salvo: " + fileName);
-      }
-
-      function fetchImageAsDataUrl(url) {
-        var src = String(url || "").trim();
-
-        if (!src || src.indexOf("data:") === 0) {
-          return Promise.resolve("");
-        }
-
-        return fetch(src, {
-          mode: "cors",
-          credentials: "omit",
-          cache: "force-cache"
-        })
-          .then(function (response) {
-            if (!response.ok) {
-              return "";
-            }
-
-            return response.blob();
-          })
-          .then(function (blob) {
-            if (!blob || String(blob.type || "").indexOf("image/") !== 0) {
-              return "";
-            }
-
-            return new Promise(function (resolve) {
-              var reader = new FileReader();
-              reader.onload = function () {
-                resolve(String(reader.result || ""));
-              };
-              reader.onerror = function () {
-                resolve("");
-              };
-              reader.readAsDataURL(blob);
-            });
-          })
-          .catch(function () {
-            return "";
-          });
-      }
-
-      function rasterizeLoadedImageElement(img) {
-        if (!img || !img.naturalWidth || !img.naturalHeight) {
-          return "";
-        }
-
-        try {
-          var canvas = document.createElement("canvas");
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
-          canvas.getContext("2d").drawImage(img, 0, 0);
-          return canvas.toDataURL("image/png");
-        } catch (error) {
-          return "";
-        }
-      }
-
-      function loadImageAsDataUrl(url, useCrossOrigin) {
-        return new Promise(function (resolve) {
-          var src = String(url || "").trim();
-          if (!src) {
-            resolve("");
-            return;
-          }
-          if (src.indexOf("data:") === 0) {
-            resolve(src);
-            return;
-          }
-
-          var img = new Image();
-          if (useCrossOrigin) {
-            img.crossOrigin = "anonymous";
-          }
-
-          img.onload = function () {
-            resolve(rasterizeLoadedImageElement(img));
-          };
-
-          img.onerror = function () {
-            resolve("");
-          };
-
-          img.src = src;
-        });
-      }
-
-      function isProbablyCrossOriginUrl(url) {
-        var src = String(url || "").trim();
-        if (!src || src.indexOf("data:") === 0 || src.indexOf("blob:") === 0) {
-          return false;
-        }
-
-        try {
-          return new URL(src, window.location.href).origin !== window.location.origin;
-        } catch (error) {
-          return /^https?:/i.test(src);
-        }
-      }
-
-      function omitUnembeddableImage(cloneImg, src) {
-        if (!cloneImg) return;
-        cloneImg.removeAttribute("src");
-        cloneImg.removeAttribute("crossorigin");
-        cloneImg.setAttribute("data-wordex-pdf-omitted", "1");
-        cloneImg.style.visibility = "hidden";
-        cloneImg.style.display = "none";
-      }
-
-      function resolveMappedImageDataUrl(src, imageDataUrlMap) {
-        var text = String(src || "").trim();
-        var map = imageDataUrlMap || {};
-
-        if (!text) {
-          return "";
-        }
-
-        if (map[text] && String(map[text]).indexOf("data:") === 0) {
-          return String(map[text]);
-        }
-
-        return "";
       }
 
       async function preparePagexHtmlForPdf(root, imageDataUrlMap) {
