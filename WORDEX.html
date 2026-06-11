@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wordex</title>
+  <title>Wordex 1.0</title>
 
   <style id="wordex-editor-style">
     * { box-sizing: border-box; }
@@ -1561,7 +1561,7 @@
         this.documentTitleElement = document.getElementById("documentTitle");
 
         this.wordexDocument = {
-          version: "2.99-header-footer-compact",
+          version: "1.0",
           mode: "continuous",
           description: "Editor Wordex em fluxo contínuo (HTML editável, header/footer, JSON, undo, tabelas, objetos e montagem HTML por dados e clipboard interno).",
           headerTemplate: [],
@@ -3275,7 +3275,7 @@
         return {
           source: "Wordex",
           kind: "blocks",
-          version: "2.99-header-footer-compact",
+          version: "1.0",
           createdAt: new Date().toISOString(),
           region: context.region,
           blocks: [this.cloneBlockForClipboard(context.block)]
