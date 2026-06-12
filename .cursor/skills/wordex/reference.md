@@ -40,6 +40,19 @@ Helpers compartilhados: `applyTemplatePlaceholders`, `sanitizeHtmlFileName`, `sa
 - `.wordex-table` — tabela; modos `data-wordex-selection-mode`
 - `.paragraph-block.move-selected` — parágrafo em modo reordenar
 - `.wordex-paragraph-drop-indicator` — linha de drop no arrasto
+- `.selected-object` — borda laranja de objeto selecionado
+- `.wordex-resize-overlay` — cantoneiras de redimensionamento (fixo no body)
+
+### Editor vs relatório gerado
+
+No editor (`body:not(.wordex-generated-report)`):
+
+- Regiões **sem** `outline` de seleção (`.region.selected` / `:hover` desativados); etiquetas Header/Body/Footer mantidas.
+- `body-flow` / header / footer **sem** bordas tracejadas de guia.
+- `.paragraph` usa `display: flow-root`; `::after` clearfix desativado no editor.
+- Contorno tracejado do `.paragraph` **não** some quando há `.selected-object` dentro.
+
+No `@media print` e relatório paginado/PDF: outlines de edição removidos.
 
 ## JSON do relatório
 
@@ -73,6 +86,8 @@ Preferir Puppeteer (`page.pdf`, `preferCSSPageSize`, `printBackground`) sobre Ch
 | Gráfico cortado no PDF | overflow hidden na captura | `overflow: visible` no clone |
 | Folga interna do gráfico | Altura da caixa > SVG | Borda resolve visualmente; não encolher SVG auto |
 | Imagens faltando no PDF | CORS / URL externa | Embutir base64 ou servir HTTP acessível ao gerador |
+| Tabela não arrasta | Seleção limpa no mousedown da célula | `prepareTableCellForEditing` não deve correr em modo `table`; `defaultPrevented` não bloqueia `startInlineObjectMouseDragCandidate` |
+| Linha-guia azul no editor | Contorno/borda de região Body | Remover outline `.region.selected` e bordas `body-flow` no editor (ver SKILL) |
 
 ## Arquivos auxiliares na raiz
 

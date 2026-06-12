@@ -308,13 +308,9 @@ Private Function Consulta_GrupoParaJsonObject( _
     Dim i As Long
     Dim j As Long
     Dim campo As String
-    Dim colunaOrigem As Long
     Dim tipoTotal As String
     Dim nomeTotal As String
     Dim valorTotal As Variant
-    Dim valorGrafico As Variant
-    Dim fonteEhData As Boolean
-    Dim formato As String
 
     json = "{"
     virgula = vbNullString
@@ -322,11 +318,9 @@ Private Function Consulta_GrupoParaJsonObject( _
     If Not Consulta_ArrayVazio(colunasAgrupadoras) Then
         For i = LBound(colunasAgrupadoras) To UBound(colunasAgrupadoras)
             campo = CStr(colunasAgrupadoras(i))
-            colunaOrigem = Consulta_ObterNumeroColuna(origem, campo)
-            formato = origem.Columns(colunaOrigem).NumberFormat
 
             json = json & virgula & Consulta_JsonString(campo) & ": "
-            json = json & Consulta_JsonCampoTexto(Consulta_ValorComoTexto(valoresGrupo(i), formato))
+            json = json & Wordex_JsonCampoValor(origem, campo, valoresGrupo(i))
 
             virgula = ","
         Next i
@@ -334,22 +328,19 @@ Private Function Consulta_GrupoParaJsonObject( _
 
     For i = LBound(colunasTotalizadoras) To UBound(colunasTotalizadoras)
         campo = CStr(colunasTotalizadoras(i))
-        colunaOrigem = Consulta_ObterNumeroColuna(origem, campo)
-        fonteEhData = Consulta_ColunaPareceData(origem, colunaOrigem)
 
         For j = LBound(valoresCalcular) To UBound(valoresCalcular)
             tipoTotal = Consulta_NormalizarTipoTotal(CStr(valoresCalcular(j)))
             nomeTotal = campo & tipoTotal
             valorTotal = Consulta_CalcularValorTotal(stats, campo, tipoTotal)
-            formato = Consulta_ObterFormatoTotal(origem, colunaOrigem, tipoTotal)
 
             json = json & virgula & Consulta_JsonString(nomeTotal) & ": "
-            json = json & Consulta_JsonCampoTexto(Consulta_ValorComoTexto(valorTotal, formato))
+            json = json & Wordex_JsonCampoValor(origem, campo, valorTotal)
             virgula = ","
 
             If gerarParaGrafico Then
                 json = json & virgula & Consulta_JsonString(nomeTotal & "_Label") & ": "
-                json = json & Consulta_JsonCampoTexto(Consulta_LegendaGrafico(nomeTotal))
+                json = json & Wordex_JsonCampoValor(origem, nomeTotal & "_Label", Consulta_LegendaGrafico(nomeTotal))
                 virgula = ","
             End If
         Next j
@@ -497,39 +488,6 @@ Private Function Consulta_ValorComoTexto(ByVal valor As Variant, ByVal numberFor
     Else
         Consulta_ValorComoTexto = Format$(valor, numberFormat)
     End If
-End Function
-
-Private Function Consulta_JsonCampoTexto(ByVal texto As String) As String
-    Consulta_JsonCampoTexto = "{""Kind"": ""string"", ""Value"": " & Consulta_JsonString(texto) & "}"
-End Function
-
-Private Function Consulta_JsonCampoNumero(ByVal valor As Variant) As String
-    If IsEmpty(valor) Or CStr(valor) = vbNullString Then
-        Consulta_JsonCampoNumero = "{""Kind"": ""number"", ""Value"": null}"
-    Else
-        Consulta_JsonCampoNumero = "{""Kind"": ""number"", ""Value"": " & Consulta_JsonNumeroInvariant(valor) & "}"
-    End If
-End Function
-
-Private Function Consulta_JsonNumeroInvariant(ByVal valor As Variant) As String
-    Dim texto As String
-    Dim sepMilhar As String
-    Dim sepDecimal As String
-
-    texto = CStr(valor)
-
-    sepMilhar = Application.International(xlThousandsSeparator)
-    sepDecimal = Application.International(xlDecimalSeparator)
-
-    If sepMilhar <> vbNullString Then
-        texto = Replace$(texto, sepMilhar, vbNullString)
-    End If
-
-    If sepDecimal <> "." Then
-        texto = Replace$(texto, sepDecimal, ".")
-    End If
-
-    Consulta_JsonNumeroInvariant = texto
 End Function
 
 Private Sub Consulta_AcumularLinha( _

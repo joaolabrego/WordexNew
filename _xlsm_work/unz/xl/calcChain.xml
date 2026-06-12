@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><c r="D3" i="2" l="1" a="1"/><c r="E3" i="2" a="1"/><c r="C3" i="2" a="1"/><c r="G3" i="6" a="1"/><c r="F3" i="4" a="1"/><c r="G5" i="6" a="1"/><c r="F4" i="4" a="1"/><c r="E3" i="4" a="1"/><c r="G4" i="6" a="1"/><c r="E4" i="4" a="1"/><c r="E4" i="4" l="1"/><c r="G4" i="6"/><c r="E3" i="4"/><c r="F4" i="4"/><c r="G5" i="6"/><c r="F3" i="4"/><c r="G3" i="6"/><c r="C3" i="2"/><c r="E3" i="2"/><c r="D3" i="2"/></calcChain>

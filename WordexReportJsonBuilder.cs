@@ -87,7 +87,7 @@ public sealed class WordexReportJsonBuilder
         return this;
     }
 
-    /// <summary>=ObterRegistroTotal(...) + Kind total.</summary>
+    /// <summary>=ObterRegistroTotal(...) + Kind totals.</summary>
     public WordexReportJsonBuilder AddTotal(
         string jsonName,
         string nomeAbaOrigem,
@@ -101,7 +101,7 @@ public sealed class WordexReportJsonBuilder
         return this;
     }
 
-    /// <summary>=ObterRegistroGrafico(...) + Kind histogram.</summary>
+    /// <summary>=ObterRegistroGrafico(...) + Kind graph.</summary>
     public WordexReportJsonBuilder AddHistogram(
         string jsonName,
         string nomeAbaOrigem,

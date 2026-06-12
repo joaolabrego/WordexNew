@@ -198,12 +198,12 @@ public sealed class WordexCrudex
 
         if (nome.EndsWith("grafico", StringComparison.Ordinal))
         {
-            return "histogram";
+            return "graph";
         }
 
         if (nome.StartsWith("totais", StringComparison.Ordinal))
         {
-            return "total";
+            return "totals";
         }
 
         return "collection";
@@ -284,7 +284,7 @@ public sealed class WordexCrudex
             : null;
 
     /// <summary>
-    /// Atalho: monta campo total/histogram embalado como no ROOT do Excel
+    /// Atalho: monta campo total/graph embalado como no ROOT do Excel
     /// (=ObterRegistroTotal / =ObterRegistroGrafico + Kind wrapper).
     /// </summary>
     public object ObterCampoTotalEmbalado(
@@ -293,7 +293,7 @@ public sealed class WordexCrudex
         string colunasTotalizadoras,
         string valoresCalcular,
         params object?[] criterios) =>
-        WordexJsonSupport.WrapDatasource("total",
+        WordexJsonSupport.WrapDatasource("totals",
             _consulta.ObterRegistroTotal(nomeAbaOrigem, colunasAgrupadoras, colunasTotalizadoras, valoresCalcular, criterios));
 
     public object ObterCampoGraficoEmbalado(
@@ -302,7 +302,7 @@ public sealed class WordexCrudex
         string colunasTotalizadoras,
         string valoresCalcular,
         params object?[] criterios) =>
-        WordexJsonSupport.WrapDatasource("histogram",
+        WordexJsonSupport.WrapDatasource("graph",
             _consulta.ObterRegistroGrafico(nomeAbaOrigem, colunasAgrupadoras, colunasTotalizadoras, valoresCalcular, criterios));
 
     /// <summary>

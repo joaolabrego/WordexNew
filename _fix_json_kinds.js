@@ -1,0 +1,12 @@
+const fs = require("fs");
+const path = "wordex.json";
+let text = fs.readFileSync(path, "utf8");
+text = text.replace(/"Kind": "histogram"/g, '"Kind": "graph"');
+text = text.replace(/"Kind": "total"/g, '"Kind": "totals"');
+fs.writeFileSync(path, text, "utf8");
+const data = JSON.parse(text);
+const flat = JSON.stringify(data);
+console.log("totals:", flat.includes('"Kind":"totals"') || flat.includes('"Kind": "totals"'));
+console.log("graph:", flat.includes('"Kind":"graph"') || flat.includes('"Kind": "graph"'));
+console.log("histogram:", flat.includes("histogram"));
+console.log("legacy total kind:", /"Kind": "total"/.test(text));

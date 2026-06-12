@@ -1,11 +1,16 @@
 Attribute VB_Name = "Wordex"
 Option Explicit
 
-' Crudex primitivo: importar Wordex.bas + WordexConsulta.bas no crudex.xlsm.
-' Remover do VBA do workbook: WordexTotais, WordexGraficos, frmTotais.
+' Wordex ponte: importar Wordex.bas + WordexConsulta.bas no wordex.xlsm.
+' Layout de cada aba de dados:
+'   Linha 1 (K_HEADERS_ROW) = nomes dos campos
+'   Linha 2 (K_TYPES_ROW)   = tipos: string, number, date, datetime, boolean,
+'                               collection, object, totals, graph, image, ...
+'   Linha 3+ (K_DETAILS_ROW) = registros
 
 Public Const K_HEADERS_ROW As Long = 1
-Public Const K_DETAILS_ROW As Long = 2
+Public Const K_TYPES_ROW As Long = 2
+Public Const K_DETAILS_ROW As Long = 3
 Public Const K_REQUIRED_COL As Long = 1
 
 Public Sub GerarJson()
@@ -15,20 +20,59 @@ Public Sub GerarJson()
     SalvarJsonEmDisco json
 End Sub
 
+Public Sub LerImagem()
+    Dim dlg As FileDialog
+    Dim caminho As String
+
+    Set dlg = Application.FileDialog(msoFileDialogFilePicker)
+
+    With dlg
+        .Title = "Selecionar imagem"
+        .AllowMultiSelect = False
+        .Filters.Clear
+        .Filters.Add "Imagens", "*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp;*.tif;*.tiff"
+        .Filters.Add "Todos os arquivos", "*.*"
+
+        If .Show <> -1 Then Exit Sub
+
+        caminho = .SelectedItems(1)
+    End With
+
+    ActiveCell.Value = caminho
+
+    MsgBox "Caminho da imagem colocado na célula ativa:" & vbCrLf & caminho, vbInformation, "Wordex"
+End Sub
+
 Private Sub SalvarJsonEmDisco(ByVal json As String)
-    Dim caminhoJson As String
-    
-    If ThisWorkbook.Path = vbNullString Then
-        Err.Raise vbObjectError + 2000, "SalvarJsonEmDisco", _
-            "Salve a planilha antes de gerar o JSON."
+    Dim caminhoJson As Variant
+    Dim nomePadrao As String
+    Dim caminhoInicial As String
+
+    nomePadrao = NomeArquivoSemExtensao(ThisWorkbook.Name) & ".json"
+
+    If ThisWorkbook.Path <> vbNullString Then
+        caminhoInicial = ThisWorkbook.Path & Application.PathSeparator & nomePadrao
+    Else
+        caminhoInicial = nomePadrao
     End If
-    
-    caminhoJson = ThisWorkbook.Path & Application.PathSeparator & _
-                  NomeArquivoSemExtensao(ThisWorkbook.Name) & ".json"
-    
-    SalvarTextoUtf8 caminhoJson, json
-    
+
+    caminhoJson = Application.GetSaveAsFilename( _
+        InitialFileName:=caminhoInicial, _
+        FileFilter:="JSON (*.json), *.json", _
+        Title:="Salvar JSON")
+
+    If caminhoJson = False Then Exit Sub
+
+    caminhoJson = Wordex_CaminhoComExtensaoJson(CStr(caminhoJson))
+
+    On Error GoTo Erro
+    SalvarTextoUtf8 CStr(caminhoJson), json
+
     MsgBox "JSON salvo em:" & vbCrLf & caminhoJson, vbInformation, "Wordex"
+    Exit Sub
+
+Erro:
+    MsgBox "Não foi possível salvar o JSON:" & vbCrLf & Err.Description, vbCritical, "Wordex"
 End Sub
 
 Private Function NomeArquivoSemExtensao(ByVal nomeArquivo As String) As String
@@ -41,6 +85,24 @@ Private Function NomeArquivoSemExtensao(ByVal nomeArquivo As String) As String
     Else
         NomeArquivoSemExtensao = nomeArquivo
     End If
+End Function
+
+Private Function Wordex_CaminhoComExtensaoJson(ByVal caminhoCompleto As String) As String
+    Dim pasta As String
+    Dim nomeArquivo As String
+    Dim pos As Long
+
+    pos = InStrRev(caminhoCompleto, Application.PathSeparator)
+
+    If pos > 0 Then
+        pasta = Left$(caminhoCompleto, pos)
+        nomeArquivo = Mid$(caminhoCompleto, pos + 1)
+    Else
+        pasta = vbNullString
+        nomeArquivo = caminhoCompleto
+    End If
+
+    Wordex_CaminhoComExtensaoJson = pasta & NomeArquivoSemExtensao(nomeArquivo) & ".json"
 End Function
 
 Private Sub SalvarTextoUtf8(ByVal caminhoArquivo As String, ByVal texto As String)
@@ -228,6 +290,7 @@ Private Function ObterRegistroJSON(ByRef plan As Worksheet, ByVal numeroLinha As
     Dim tituloColuna As String
     Dim valorTexto As String
     Dim cell As Range
+    Dim kindJson As String
 
     numeroColuna = 1
     json = "{"
@@ -258,8 +321,12 @@ Private Function ObterRegistroJSON(ByRef plan As Worksheet, ByVal numeroLinha As
         json = json & virgula & JsonString(tituloColuna) & ": "
 
         If Not Vazio And IsJsonRaw(valorTexto) Then
-            If Wordex_DeveEmbalarDatasource(tituloColuna) Then
-                json = json & Wordex_EmbalarJsonColuna(tituloColuna, valorTexto, Wordex_ObterKindExplicito(plan, numeroLinha, tituloColuna))
+            kindJson = Wordex_ObterKindColuna(plan, tituloColuna)
+
+            If Wordex_DeveEmbalarJsonRaw(kindJson) Then
+                json = json & Wordex_EmbalarJsonColuna(tituloColuna, valorTexto, kindJson)
+            ElseIf kindJson = "object" Then
+                json = json & Wordex_EmbalarJsonObject(valorTexto)
             Else
                 json = json & valorTexto
             End If
@@ -285,171 +352,213 @@ Public Function Wordex_JsonCampoTipado( _
     ByVal vazio As Boolean _
 ) As String
     Dim kind As String
-    Dim valueJson As String
-
-    kind = Wordex_InferirKind(plan, numeroLinha, tituloColuna, cel)
 
     If vazio Then
-        valueJson = "null"
+        kind = Wordex_ObterKindColuna(plan, tituloColuna)
+        Wordex_JsonCampoTipado = "{""Kind"": " & JsonString(kind) & ", ""Value"": null}"
     Else
-        Select Case kind
-            Case "number"
-                valueJson = Wordex_JsonValorSemFormatacao(cel)
-            Case "boolean"
-                valueJson = LCase$(CStr(CBool(cel.Value)))
-            Case "datetime"
-                valueJson = """" & Format$(CDate(cel.Value), "yyyy-mm-dd") & """"
-            Case Else
-                valueJson = JsonString(Trim$(cel.Text))
-        End Select
+        Wordex_JsonCampoTipado = Wordex_JsonCampoValor(plan, tituloColuna, cel.Value2, cel)
     End If
-
-    Wordex_JsonCampoTipado = "{""Kind"": " & JsonString(kind) & ", ""Value"": " & valueJson & "}"
 End Function
 
-Public Function Wordex_InferirKind( _
+' Campo {Kind, Value} usando o tipo da linha 2 da aba informada.
+Public Function Wordex_JsonCampoValor( _
     ByRef plan As Worksheet, _
-    ByVal numeroLinha As Long, _
     ByVal tituloColuna As String, _
-    ByVal cel As Range _
+    ByVal valor As Variant, _
+    Optional ByVal cel As Range = Nothing _
 ) As String
-    Dim nome As String
-    Dim kindExplicito As String
-    Dim valor As Variant
+    Dim kind As String
+    Dim valueJson As String
     Dim valorTexto As String
 
-    kindExplicito = Wordex_ObterKindExplicito(plan, numeroLinha, tituloColuna)
-
-    If kindExplicito <> vbNullString Then
-        If LCase$(kindExplicito) = "text" Then kindExplicito = "string"
-        Wordex_InferirKind = LCase$(kindExplicito)
-        Exit Function
+    If Right$(LCase$(Trim$(tituloColuna)), 6) = "_label" Then
+        kind = "string"
+    Else
+        kind = Wordex_ObterKindColuna(plan, tituloColuna)
     End If
 
-    nome = LCase$(Trim$(tituloColuna))
-    valor = cel.Value2
-    valorTexto = Trim$(cel.Text)
-
-    If Right$(nome, 6) = "_value" Then
-        Wordex_InferirKind = "number"
-        Exit Function
+    If cel Is Nothing Then
+        valorTexto = Trim$(CStr(valor))
+    Else
+        valorTexto = Trim$(cel.Text)
     End If
 
-    If Right$(nome, 6) = "_label" Then
-        Wordex_InferirKind = "string"
-        Exit Function
+    If kind = "image" Or Wordex_PareceReferenciaImagem(valorTexto) Then
+        kind = "image"
+        valueJson = Wordex_JsonValorImagem(valorTexto)
+    ElseIf cel Is Nothing Then
+        valueJson = Wordex_JsonValorPorKind(kind, valor, Nothing)
+    Else
+        valueJson = Wordex_JsonValorPorKind(kind, valor, cel)
     End If
 
-    If Wordex_NomeCampoPareceImagem(nome) And Wordex_PareceUrlImagem(valorTexto) Then
-        Wordex_InferirKind = "image"
-        Exit Function
-    End If
-
-    If Wordex_PareceUrlImagem(valorTexto) Then
-        Wordex_InferirKind = "image"
-        Exit Function
-    End If
-
-    Select Case VarType(valor)
-        Case vbBoolean
-            Wordex_InferirKind = "boolean"
-
-        Case vbDate
-            Wordex_InferirKind = "datetime"
-
-        Case Else
-            Wordex_InferirKind = "string"
-    End Select
+    Wordex_JsonCampoValor = "{""Kind"": " & JsonString(kind) & ", ""Value"": " & valueJson & "}"
 End Function
 
-Private Function Wordex_ObterKindExplicito( _
+Public Function Wordex_ObterKindColuna( _
     ByRef plan As Worksheet, _
-    ByVal numeroLinha As Long, _
     ByVal tituloColuna As String _
 ) As String
     Dim numeroColuna As Long
-    Dim tituloKind As String
+    Dim kind As String
 
-    On Error GoTo SemKind
+    numeroColuna = ObterNumeroColuna(plan, tituloColuna)
+    kind = Trim$(plan.Cells(K_TYPES_ROW, numeroColuna).Text)
 
-    tituloKind = Trim$(tituloColuna) & "_Kind"
-    numeroColuna = ObterNumeroColuna(plan, tituloKind)
-    Wordex_ObterKindExplicito = Trim$(CStr(plan.Cells(numeroLinha, numeroColuna).Value2))
-    Exit Function
-
-SemKind:
-    Wordex_ObterKindExplicito = vbNullString
-End Function
-
-Private Function Wordex_NomeCampoPareceImagem(ByVal nomeCampo As String) As Boolean
-    Wordex_NomeCampoPareceImagem = _
-        InStr(nomeCampo, "logo") > 0 Or _
-        InStr(nomeCampo, "imagem") > 0 Or _
-        InStr(nomeCampo, "image") > 0 Or _
-        InStr(nomeCampo, "foto") > 0 Or _
-        InStr(nomeCampo, "picture") > 0 Or _
-        InStr(nomeCampo, "avatar") > 0 Or _
-        InStr(nomeCampo, "url") > 0
-End Function
-
-Private Function Wordex_PareceUrlImagem(ByVal valorTexto As String) As Boolean
-    Dim texto As String
-
-    texto = LCase$(Trim$(valorTexto))
-
-    If texto = vbNullString Then Exit Function
-
-    Wordex_PareceUrlImagem = _
-        Left$(texto, 7) = "http://" Or _
-        Left$(texto, 8) = "https://" Or _
-        Left$(texto, 5) = "data:" Or _
-        InStr(texto, ".png") > 0 Or _
-        InStr(texto, ".jpg") > 0 Or _
-        InStr(texto, ".jpeg") > 0 Or _
-        InStr(texto, ".gif") > 0 Or _
-        InStr(texto, ".webp") > 0 Or _
-        InStr(texto, ".svg") > 0 Or _
-        InStr(texto, ".bmp") > 0
-End Function
-
-Private Function Wordex_DeveEmbalarDatasource(ByVal tituloColuna As String) As Boolean
-    Dim nome As String
-
-    nome = LCase$(Trim$(tituloColuna))
-
-    Wordex_DeveEmbalarDatasource = _
-        (nome = "clientes") Or _
-        (nome = "produtos") Or _
-        (Left$(nome, 6) = "totais") Or _
-        (Right$(nome, 7) = "grafico")
-End Function
-
-Private Function Wordex_InferirKindDatasource(ByVal tituloColuna As String) As String
-    Dim nome As String
-
-    nome = LCase$(Trim$(tituloColuna))
-
-    ' Kind do wrapper: collection | total | histogram.
-    ' FKs não passam por aqui — ObterRegistroJSON só embala quando Wordex_DeveEmbalarDatasource = True.
-    If Right$(nome, 7) = "grafico" Then
-        Wordex_InferirKindDatasource = "histogram"
-    ElseIf Left$(nome, 6) = "totais" Then
-        Wordex_InferirKindDatasource = "total"
-    Else
-        Wordex_InferirKindDatasource = "collection"
+    If kind = vbNullString Then
+        Err.Raise vbObjectError + 1002, "Wordex_ObterKindColuna", _
+            "Defina o tipo na linha " & K_TYPES_ROW & " da aba '" & plan.Name & _
+            "' para a coluna '" & tituloColuna & "'."
     End If
+
+    Wordex_ObterKindColuna = Wordex_NormalizarKind(kind)
+End Function
+
+Private Function Wordex_NormalizarKind(ByVal kind As String) As String
+    kind = LCase$(Trim$(kind))
+
+    ' Vocabulário da planilha (linha 2) → Kind do JSON consumido pelo Wordex.
+    Select Case kind
+        Case "text"
+            Wordex_NormalizarKind = "string"
+        Case "totals", "total"
+            Wordex_NormalizarKind = "totals"
+        Case "graph", "histogram"
+            Wordex_NormalizarKind = "graph"
+        Case Else
+            Wordex_NormalizarKind = kind
+    End Select
+End Function
+
+Private Function Wordex_ValorVazio(ByVal valor As Variant, Optional ByVal cel As Range = Nothing) As Boolean
+    If IsEmpty(valor) Or IsNull(valor) Then
+        Wordex_ValorVazio = True
+        Exit Function
+    End If
+
+    If Not cel Is Nothing Then
+        Wordex_ValorVazio = Trim$(cel.Text) = vbNullString
+        Exit Function
+    End If
+
+    If VarType(valor) = vbString Then
+        Wordex_ValorVazio = Trim$(CStr(valor)) = vbNullString
+    End If
+End Function
+
+Private Function Wordex_JsonValorPorKind( _
+    ByVal kind As String, _
+    ByVal valor As Variant, _
+    Optional ByVal cel As Range = Nothing _
+) As String
+    Dim valorTexto As String
+
+    If Wordex_ValorVazio(valor, cel) Then
+        Wordex_JsonValorPorKind = "null"
+        Exit Function
+    End If
+
+    Select Case kind
+        Case "number"
+            If Not cel Is Nothing Then
+                Wordex_JsonValorPorKind = Wordex_JsonValorSemFormatacao(cel)
+            ElseIf IsNumeric(valor) Then
+                Wordex_JsonValorPorKind = Wordex_JsonNumeroInvariant(valor)
+            Else
+                Wordex_JsonValorPorKind = "null"
+            End If
+
+        Case "boolean"
+            If Not cel Is Nothing Then
+                Wordex_JsonValorPorKind = LCase$(CStr(CBool(cel.Value)))
+            Else
+                Wordex_JsonValorPorKind = LCase$(CStr(CBool(valor)))
+            End If
+
+        Case "datetime", "date"
+            If Not cel Is Nothing Then
+                Wordex_JsonValorPorKind = """" & Format$(CDate(cel.Value), "yyyy-mm-dd") & """"
+            Else
+                Wordex_JsonValorPorKind = """" & Format$(CDate(valor), "yyyy-mm-dd") & """"
+            End If
+
+        Case "object"
+            If Not cel Is Nothing Then
+                valorTexto = Trim$(cel.Text)
+
+                If IsJsonRaw(valorTexto) Then
+                    Wordex_JsonValorPorKind = valorTexto
+                Else
+                    Wordex_JsonValorPorKind = JsonString(valorTexto)
+                End If
+            ElseIf VarType(valor) = vbString And IsJsonRaw(CStr(valor)) Then
+                Wordex_JsonValorPorKind = Trim$(CStr(valor))
+            Else
+                Wordex_JsonValorPorKind = JsonString(CStr(valor))
+            End If
+
+        Case "image"
+            If Not cel Is Nothing Then
+                Wordex_JsonValorPorKind = Wordex_JsonValorImagem(Trim$(cel.Text))
+            Else
+                Wordex_JsonValorPorKind = Wordex_JsonValorImagem(Trim$(CStr(valor)))
+            End If
+
+        Case Else
+            If Not cel Is Nothing Then
+                Wordex_JsonValorPorKind = JsonString(Trim$(cel.Text))
+            Else
+                Wordex_JsonValorPorKind = JsonString(CStr(valor))
+            End If
+    End Select
+End Function
+
+Private Function Wordex_DeveEmbalarJsonRaw(ByVal kind As String) As Boolean
+    Select Case kind
+        Case "collection", "totals", "graph"
+            Wordex_DeveEmbalarJsonRaw = True
+        Case Else
+            Wordex_DeveEmbalarJsonRaw = False
+    End Select
+End Function
+
+Private Function Wordex_EmbalarJsonObject(ByVal valorTexto As String) As String
+    Dim conteudo As String
+
+    conteudo = Trim$(valorTexto)
+
+    If Wordex_JaEmbaladoComoCampoTipado(conteudo) Then
+        Wordex_EmbalarJsonObject = conteudo
+        Exit Function
+    End If
+
+    Wordex_EmbalarJsonObject = "{""Kind"": ""object"", ""Value"": " & conteudo & "}"
+End Function
+
+Private Function Wordex_JaEmbaladoComoCampoTipado(ByVal conteudo As String) As Boolean
+    Dim texto As String
+    Dim posValue As Long
+
+    texto = LCase$(Trim$(conteudo))
+
+    If Left$(texto, 1) <> "{" Then Exit Function
+
+    ' Wrapper raiz {Kind, Value}. Objetos aninhados (ObterRegistro) também
+    ' contêm "Kind"/"Value" nos campos — não podem ser confundidos com wrapper.
+    If Left$(texto, 8) <> "{""kind"":" Then Exit Function
+
+    posValue = InStr(1, texto, """value"":", vbBinaryCompare)
+
+    Wordex_JaEmbaladoComoCampoTipado = (posValue > 8)
 End Function
 
 Private Function Wordex_EmbalarJsonColuna( _
     ByVal tituloColuna As String, _
     ByVal valorTexto As String, _
-    ByVal kindExplicito As String _
+    ByVal kind As String _
 ) As String
-    Dim kind As String
     Dim conteudo As String
-
-    kind = kindExplicito
-    If kind = vbNullString Then kind = Wordex_InferirKindDatasource(tituloColuna)
 
     conteudo = Trim$(valorTexto)
 
@@ -690,4 +799,161 @@ Private Function JsonEscape(ByVal valor As String) As String
     valor = Replace(valor, vbTab, "\t")
 
     JsonEscape = valor
+End Function
+
+Private Function Wordex_JsonValorImagem(ByVal valorTexto As String) As String
+    Dim caminho As String
+    Dim dataUri As String
+
+    valorTexto = Trim$(valorTexto)
+
+    If valorTexto = vbNullString Then
+        Wordex_JsonValorImagem = "null"
+        Exit Function
+    End If
+
+    If Left$(LCase$(valorTexto), 5) = "data:" Then
+        Wordex_JsonValorImagem = JsonString(valorTexto)
+        Exit Function
+    End If
+
+    If Wordex_PareceUrlHttp(valorTexto) Then
+        Wordex_JsonValorImagem = JsonString(valorTexto)
+        Exit Function
+    End If
+
+    caminho = Wordex_ResolverCaminhoImagem(valorTexto)
+
+    On Error GoTo Falha
+    dataUri = Wordex_ImageFileToDataUri(caminho)
+    Wordex_JsonValorImagem = JsonString(dataUri)
+    Exit Function
+
+Falha:
+    Wordex_JsonValorImagem = JsonString(valorTexto)
+End Function
+
+Private Function Wordex_PareceReferenciaImagem(ByVal valorTexto As String) As Boolean
+    Dim texto As String
+    Dim ext As String
+    Dim pos As Long
+
+    texto = Trim$(valorTexto)
+
+    If texto = vbNullString Then Exit Function
+
+    If Left$(LCase$(texto), 5) = "data:" Then
+        Wordex_PareceReferenciaImagem = True
+        Exit Function
+    End If
+
+    If Wordex_PareceUrlHttp(texto) Then
+        Wordex_PareceReferenciaImagem = Wordex_PareceExtensaoImagem(texto)
+        Exit Function
+    End If
+
+    pos = InStrRev(texto, ".")
+
+    If pos = 0 Then Exit Function
+
+    ext = LCase$(Mid$(texto, pos + 1))
+    Wordex_PareceReferenciaImagem = Wordex_ExtensaoImagemValida(ext)
+End Function
+
+Private Function Wordex_PareceExtensaoImagem(ByVal caminho As String) As Boolean
+    Dim pos As Long
+    Dim ext As String
+
+    pos = InStrRev(caminho, ".")
+
+    If pos = 0 Then Exit Function
+
+    ext = LCase$(Mid$(caminho, pos + 1))
+    ext = Left$(ext, InStr(ext & "?", "?") - 1)
+    ext = Left$(ext, InStr(ext & "#", "#") - 1)
+
+    Wordex_PareceExtensaoImagem = Wordex_ExtensaoImagemValida(ext)
+End Function
+
+Private Function Wordex_ExtensaoImagemValida(ByVal ext As String) As Boolean
+    Select Case LCase$(ext)
+        Case "png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "ico", "svg"
+            Wordex_ExtensaoImagemValida = True
+        Case Else
+            Wordex_ExtensaoImagemValida = False
+    End Select
+End Function
+
+Private Function Wordex_PareceUrlHttp(ByVal valorTexto As String) As Boolean
+    Dim texto As String
+
+    texto = LCase$(Trim$(valorTexto))
+    Wordex_PareceUrlHttp = (Left$(texto, 7) = "http://" Or Left$(texto, 8) = "https://")
+End Function
+
+Private Function Wordex_ResolverCaminhoImagem(ByVal caminho As String) As String
+    Dim relativo As String
+
+    caminho = Trim$(caminho)
+
+    If caminho = vbNullString Then
+        Wordex_ResolverCaminhoImagem = vbNullString
+        Exit Function
+    End If
+
+    If Len(Dir$(caminho, vbNormal)) > 0 Then
+        Wordex_ResolverCaminhoImagem = caminho
+        Exit Function
+    End If
+
+    If ThisWorkbook.Path <> vbNullString Then
+        relativo = ThisWorkbook.Path & Application.PathSeparator & caminho
+
+        If Len(Dir$(relativo, vbNormal)) > 0 Then
+            Wordex_ResolverCaminhoImagem = relativo
+            Exit Function
+        End If
+    End If
+
+    Wordex_ResolverCaminhoImagem = caminho
+End Function
+
+Private Function Wordex_EncodeFileBase64(ByVal filePath As String) As String
+    Dim stream As Object
+    Dim xmlDoc As Object
+    Dim node As Object
+
+    Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 1
+    stream.Open
+    stream.LoadFromFile filePath
+
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument.3.0")
+    Set node = xmlDoc.createElement("b64")
+    node.DataType = "bin.base64"
+    node.nodeTypedValue = stream.Read
+
+    Wordex_EncodeFileBase64 = node.Text
+    stream.Close
+End Function
+
+Private Function Wordex_ImageMimePorExtensao(ByVal filePath As String) As String
+    Dim ext As String
+
+    ext = LCase$(Mid$(filePath, InStrRev(filePath, ".") + 1))
+
+    Select Case ext
+        Case "png": Wordex_ImageMimePorExtensao = "image/png"
+        Case "jpg", "jpeg": Wordex_ImageMimePorExtensao = "image/jpeg"
+        Case "gif": Wordex_ImageMimePorExtensao = "image/gif"
+        Case "webp": Wordex_ImageMimePorExtensao = "image/webp"
+        Case "bmp": Wordex_ImageMimePorExtensao = "image/bmp"
+        Case "tif", "tiff": Wordex_ImageMimePorExtensao = "image/tiff"
+        Case Else: Wordex_ImageMimePorExtensao = "application/octet-stream"
+    End Select
+End Function
+
+Private Function Wordex_ImageFileToDataUri(ByVal filePath As String) As String
+    Wordex_ImageFileToDataUri = "data:" & Wordex_ImageMimePorExtensao(filePath) & _
+        ";base64," & Wordex_EncodeFileBase64(filePath)
 End Function
