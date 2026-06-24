@@ -70,6 +70,9 @@ Princípio: **toolbar = ações frequentes e contextuais** (grupos aparecem conf
 | Tabela — **Shift+clique** | Seleção em bloco de células |
 | Objeto (gráfico, imagem, textbox) — clique normal | Edita conteúdo interno (textbox) ou foco normal |
 | Objeto — **Ctrl+clique** | Seleciona objeto (borda laranja, cantoneiras, arrasto livre) |
+| Textbox — **clique normal** | Edita texto interno; grupo **Texto** da toolbar visível |
+| Textbox — **Ctrl+clique** | Seleciona a caixa como objeto; grupo **Texto** oculto; **Alinhar** / **Borda** / **Margem** |
+| Textbox — **duplo-clique** | Só edita/seleciona texto (sem diálogo legado de alinhamento) |
 | Parágrafo — **Ctrl+clique** no bloco | Modo movimentação (`.move-selected`); **arrastar** reordena na região; clique simples cancela |
 
 ### Arrastar objeto no parágrafo
@@ -111,6 +114,26 @@ Reordenar parágrafo: `moveBlockToIndex` — alterar `wordexDocument[region]`, *
 
 Código: `handleTableOrObjectClick`, `cycleTableComponentSelection`, `startInlineObjectMouseDragCandidate`, `handleInlineObjectMouseDragMove`, `handleFreeObjectKeyboard`.
 
+### Textbox
+
+Inserir só em **parágrafo de objeto** (imagem, gráfico ou tabela) — botão **▤ Textbox** (grupo Inserir).
+
+| Contexto | Toolbar **Texto** | Combo **Vertical** (grupo Alinhar) |
+|----------|-------------------|-------------------------------------|
+| Caret **dentro** do textbox (edição) | Visível | Ativa — alinha o **texto dentro** da caixa |
+| Textbox **Ctrl+clique** (objeto) | Oculta | Ativa enquanto o textbox é o alvo |
+| Caret no **parágrafo** (fora do textbox) | Conforme parágrafo | **Desativada** — não afeta textbox “fantasma” |
+
+**Alinhamento vertical do texto** (não move a caixa no parágrafo): combo `#textboxVerticalAlign` — **Nenhum**, **Topo**, **Centro**, **Base**. Persiste em `data-text-vertical-align`; aplica `display:flex` + `justify-content` via `syncTextboxContentVerticalAlignStyles`. Caixa precisa de **altura** suficiente para o efeito ser visível.
+
+**Alinhamento horizontal do texto** (dentro da caixa): botões esquerda/centro/direita/justificar do grupo **Alinhar** com caret no textbox (`applyTextboxTextAlign`).
+
+**Macros em parágrafo de objeto:** texto e macros (`@PageNumber`, campos JSON) **só dentro do textbox**, nunca diretamente no parágrafo. Caret no textbox ou combo **Campo** com alvo guardado (`getTextboxForMacroInsertion`, `prepareMacroInsertionTarget`). Sem JSON: macros de sistema (`@PageNumber`, `@Today`, …) na combo **Campo**.
+
+**Caso de uso típico (header):** logotipo à direita + títulos em textbox(s) no mesmo parágrafo; alinhar verticalmente o texto das caixas com **Centro** ou **Base** para alinhar com o logo.
+
+Código: `getTargetTextboxForVerticalAlign`, `applyTextboxContentVerticalAlign`, `getTextboxForMacroInsertion`, `insertMacroTextInEditableContainer`, `isTextToolbarContext`, `isParagraphSelectedForMacroContext`.
+
 ## Regras de layout (não reverter sem pedido)
 
 - **Gráfico**: borda obrigatória (1px solid preta padrão); usuário pode alterar estilo, não remover (`applyTableBorderPreset('none')` bloqueado)
@@ -133,6 +156,9 @@ Linha detalhe = profundidade fixa no datasource; grupos = ancestrais na árvore.
 | Tabela seleção | `cycleTableComponentSelection`, `handleTableOrObjectClick` |
 | Arrasto de objeto | `startInlineObjectMouseDragCandidate`, `handleInlineObjectMouseDragMove`, `applyObjectFreePosition`, `prepareObjectForFreeDrag` |
 | Teclado objeto livre | `handleFreeObjectKeyboard` |
+| Textbox — alinhamento vertical do texto | `applyTextboxContentVerticalAlign`, `syncTextboxContentVerticalAlignStyles`, `#textboxVerticalAlign` |
+| Textbox — macros | `getTextboxForMacroInsertion`, `insertMacroTextInEditableContainer`, `isParagraphSelectedForMacroContext` |
+| Toolbar contextual | `isTextToolbarContext`, `updateToolbarContext`, `getToolbarContextState` |
 | Geração HTML | `buildGeneratedReportHtml`, `buildGeneratedDocumentClone` |
 | PDF iframe | `obterPdfFromJson`, `ObterPDF` |
 | Paginação | `wordex-paged.html`: `paginateBlocks`, `startPagex`, `buildPdfViewerHtml` |

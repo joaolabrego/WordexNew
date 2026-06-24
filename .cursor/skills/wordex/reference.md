@@ -42,6 +42,8 @@ Helpers compartilhados: `applyTemplatePlaceholders`, `sanitizeHtmlFileName`, `sa
 - `.wordex-paragraph-drop-indicator` — linha de drop no arrasto
 - `.selected-object` — borda laranja de objeto selecionado
 - `.wordex-resize-overlay` — cantoneiras de redimensionamento (fixo no body)
+- `.wordex-textbox` — caixa de texto editável; placeholder `:empty::before` ("Textbox") só em edição vazia
+- `.wordex-textbox[data-text-vertical-align]` — alinhamento vertical do **texto interno** (`top` | `middle` | `bottom`); flex column + `justify-content`
 
 ### Editor vs relatório gerado
 
@@ -88,6 +90,9 @@ Preferir Puppeteer (`page.pdf`, `preferCSSPageSize`, `printBackground`) sobre Ch
 | Imagens faltando no PDF | CORS / URL externa | Embutir base64 ou servir HTTP acessível ao gerador |
 | Tabela não arrasta | Seleção limpa no mousedown da célula | `prepareTableCellForEditing` não deve correr em modo `table`; `defaultPrevented` não bloqueia `startInlineObjectMouseDragCandidate` |
 | Linha-guia azul no editor | Contorno/borda de região Body | Remover outline `.region.selected` e bordas `body-flow` no editor (ver SKILL) |
+| Macro no parágrafo de objeto | Inserção no parágrafo em vez do textbox | `getMacroInsertionContainer` retorna textbox ou null; parágrafo com `mainObject` bloqueado |
+| Vertical altera textbox “antigo” | Cache / fallback “único textbox no parágrafo” | `getTargetTextboxForVerticalAlign` só com caret no textbox ou Ctrl+seleção |
+| Grupo Texto visível com textbox objeto | `activeTextbox` ainda true após Ctrl+clique | `isTextToolbarContext`: `liveObject` textbox → false; limpar foco/seleção em `selectObject` |
 
 ## Arquivos auxiliares na raiz
 

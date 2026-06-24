@@ -85,15 +85,31 @@ Objetos (gráfico, tabela, imagem, textbox) ficam **dentro do HTML do parágrafo
 - **Coleção / Histograma** (seletores de JSON) — ligar o gráfico a um histograma do Crudex (ver §8)
 
 ### Texto / Alinhar / Borda / Margem
-- Formatação de texto, alinhamento de parágrafo ou objeto
-- Bordas (tabela, célula, gráfico, imagem, textbox)
-- Margem do **bloco** parágrafo (não confundir com gaps internos do gráfico — ver §8)
+
+Grupos **contextuais** — aparecem conforme o que está selecionado ou em edição.
+
+| Grupo | Quando aparece |
+|-------|----------------|
+| **Texto** | Parágrafo de texto, célula de tabela, gráfico (rótulos), **textbox em edição** (caret dentro) |
+| **Alinhar** | Parágrafo, objeto ou textbox com contexto de alinhamento |
+| **Vertical:** (combo no Alinhar) | Textbox em **edição** ou **Ctrl+selecionado** como objeto |
+| **Borda** / **Margem** | Célula, tabela, objeto (imagem, gráfico, textbox Ctrl+clique), parágrafo |
+
+**Textbox — regra importante:** com **Ctrl+clique** (modo objeto), o grupo **Texto** **some**; com **clique normal** (editar), o grupo **Texto** **volta**. Não confundir alinhamento do **texto dentro da caixa** com posição da **caixa** no parágrafo (arrasto / gaps — §7).
+
+**Alinhamento horizontal do texto no textbox:** botões esquerda / centro / direita / justificar (grupo **Alinhar**) com caret no textbox.
+
+**Alinhamento vertical do texto no textbox:** combo **Vertical:** — **Nenhum**, **Topo**, **Centro**, **Base**. Afeta o conteúdo **dentro** da caixa (útil no header: alinhar títulos com logotipo). A caixa precisa de altura suficiente; redimensione pelas alças se necessário.
+
+**Bordas** (tabela, célula, gráfico, imagem, textbox). **Margem** do bloco parágrafo (não confundir com gaps internos do gráfico — §8).
 
 ### Dados
 - **📂 Carregar JSON**
 - **🖼 Imagem local** — no objeto selecionado ou novo (Ctrl+clique limpa imagem)
 - **💧 Marca d'água** — imagem de fundo (Ctrl+clique remove)
 - **Coleção / Campo macro** — macros de texto, imagem ou histograma (com JSON carregado; contexto depende do objeto selecionado)
+
+**Macros em parágrafo de objeto** (imagem + textbox no mesmo parágrafo): `@PageNumber`, `@Today`, campos `{{…}}` etc. **só dentro de um textbox** — coloque o cursor na caixa e escolha o campo na combo **Campo**. Não insere texto/macros diretamente no parágrafo ao lado da imagem.
 
 ### Template
 - **Montar template HTML** — gera relatório a partir do JSON
@@ -121,7 +137,16 @@ Na janela **paginada**: **Salvar HTML** e **Gerar PDF**.
 | Arrastar objeto no parágrafo | Arrastar (após seleção implícita ao arrastar, ou com objeto selecionado) |
 | Mover com teclado | **Ctrl + setas** (Shift = passo maior) |
 
-**Textbox:** só arrasta livremente depois de **Ctrl+clique** (clique normal edita o texto).
+**Textbox:**
+
+| Ação | Como |
+|------|------|
+| Editar texto / inserir macros | **Clique** dentro da caixa → grupo **Texto** e combo **Campo** ativos |
+| Selecionar caixa (mover, redimensionar, borda) | **Ctrl+clique** → grupo **Texto** oculto; **Alinhar** / **Borda** / **Margem** |
+| Alinhar texto na vertical (topo/centro/base) | Caret no textbox **ou** Ctrl+seleção → combo **Vertical:** no grupo **Alinhar** |
+| Duplo-clique | Só edição de texto (sem diálogo de alinhamento) |
+
+Só arrasta livremente depois de **Ctrl+clique** (clique normal edita o texto).
 
 ### Tabela
 | Ação | Como |
@@ -252,10 +277,56 @@ Não é necessário campo numérico `*_Value` — o Wordex interpreta o texto fo
 
 ## 9. Textboxes
 
-- Caixa de texto editável, borda tracejada no editor.
-- **Clique** — editar texto.
-- **Ctrl+clique** — selecionar como objeto (mover, redimensionar, borda, margem).
-- Úteis nos **gaps** acima/abaixo do gráfico (ver §7).
+Caixa de texto editável no **parágrafo de objeto** (junto a imagem, gráfico ou tabela). Borda tracejada no editor; contorno laranja quando selecionada como objeto.
+
+### Inserir e posicionar
+
+1. Cursor num parágrafo que já tenha imagem, gráfico ou tabela.
+2. **▤ Textbox** (grupo Inserir).
+3. **Ctrl+clique** na caixa → mover ou redimensionar pelas alças; arrasto livre no parágrafo (como outros objetos).
+
+### Editar vs selecionar
+
+| Modo | Como | Toolbar |
+|------|------|---------|
+| **Edição** | Clique normal; caret dentro | **Texto** visível; macros e formatação |
+| **Objeto** | **Ctrl+clique** | **Texto** oculto; **Alinhar**, **Borda**, **Margem** |
+
+Clique normal num textbox já selecionado com Ctrl liberta a seleção de objeto e volta ao modo edição.
+
+### Alinhamento do texto **dentro** da caixa
+
+Não confundir com a posição da caixa no parágrafo (§7).
+
+| O quê | Onde |
+|-------|------|
+| Horizontal (esquerda, centro, direita, justificar) | Grupo **Alinhar** — com caret no textbox |
+| Vertical (topo, centro, base) | Combo **Vertical:** no grupo **Alinhar** |
+| Remover alinhamento vertical fixo | **Nenhum** na combo **Vertical:** |
+
+Persistência: `data-text-vertical-align` (`top` | `middle` | `bottom`). Para ver o efeito vertical, aumente a **altura** da caixa (alça inferior).
+
+### Macros e parágrafo de objeto
+
+Em parágrafos com imagem/gráfico/tabela, **não** se escreve nem se insere macro no parágrafo em si — só **dentro do textbox**:
+
+1. Clique no textbox (cursor dentro).
+2. Combo **Campo** → `@PageNumber`, `@Today`, `{{NomeCampo}}`, etc.
+3. Sem JSON carregado: macros de sistema (`@PageNumber`, …) continuam disponíveis na combo **Campo**.
+
+### Header: logotipo + títulos
+
+Caso de uso frequente:
+
+1. Imagem (JSON ou local) alinhada à **direita** no header.
+2. Um ou mais **textboxes** no mesmo parágrafo, também à direita.
+3. Altura das caixas próxima da do logo.
+4. Combo **Vertical:** → **Centro** ou **Base** para alinhar linhas de título com o logotipo.
+5. Macros `@PageNumber` / campos JSON dentro dos textboxes.
+
+### Gaps do gráfico (§7)
+
+Textboxes nos vãos acima/abaixo do gráfico: inserir no mesmo parágrafo, posicionar com **Ctrl+clique** + arrasto.
 
 ---
 
@@ -372,6 +443,9 @@ Placeholders `@@...@@` nos templates embutidos. Config em `#wordex-pagex-config`
 | Marca d'água | Fundos de tabela transparentes no paginado/PDF |
 | Histograma + JSON | Importa para o grid ▥; edição manual = simulação persistida no template |
 | Picker de histograma | Fora de tabela: ROOT + histogramas; em célula: coleção da linha fixa |
+| Textbox — alinhamento vertical | Combo **Vertical:** alinha **texto interno**, não a posição da caixa |
+| Textbox — toolbar Texto | Oculta em Ctrl+seleção; visível só com caret na caixa |
+| Textbox — macros | Em parágrafo de objeto, só **dentro** do textbox, nunca no parágrafo vazio |
 | Testes | Servir por HTTP; `file://` limita imagens e PDF |
 
 ---
@@ -386,6 +460,8 @@ O editor mantém pilha de **undo** após mudanças estruturais (`saveUndoStateIf
 
 - [x] Tipografia do gráfico isolada do parágrafo (§8)
 - [x] Passo a passo: selecionar histograma, ▥ Dados, JSON → grid, simulações (§8)
+- [x] Textbox: alinhamento vertical do texto, macros, toolbar Texto vs objeto (§9)
+- [x] Header: logotipo + textboxes alinhados (§9)
 - [ ] Passo a passo com capturas (parágrafo + gráfico + textboxes)
 - [ ] Estrutura completa do JSON (`reportData`) com exemplos campo a campo
 - [ ] Tabelas: linha a linha dos tipos de row (`Header`, `Group`, `Detail`, `Free`, …)
