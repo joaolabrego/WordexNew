@@ -3057,24 +3057,68 @@
         });
       }
 
-      createParagraph(html = "Novo parágrafo body", style = null) {
-        const textStyle = {
-          ...this.getDefaultParagraphTextStyle(),
-          ...this.getCurrentParagraphStyleFromToolbar()
+      getDefaultParagraphContainerStyle() {
+        return {
+          marginTop: "",
+          marginRight: "",
+          marginBottom: "",
+          marginLeft: "",
+          width: "100%",
+          minHeight: ""
         };
+      }
+
+      stripParagraphContainerBorderStyles(style = {}) {
+        ["border", "borderRadius", "borderTop", "borderRight", "borderBottom", "borderLeft"].forEach(key => {
+          delete style[key];
+        });
+
+        return style;
+      }
+
+      pickTypographyStyleForNewParagraph(style = {}) {
+        const picked = { ...this.getDefaultParagraphTextStyle() };
+        const keys = [
+          "fontFamily",
+          "fontSize",
+          "color",
+          "textAlign",
+          "fontWeight",
+          "fontStyle",
+          "textDecoration"
+        ];
+
+        keys.forEach(key => {
+          if (style[key]) {
+            picked[key] = style[key];
+          }
+        });
+
+        return picked;
+      }
+
+      pickSubParagraphStyleForNewColumn(referenceStyle = {}) {
+        return {
+          ...this.getDefaultSubParagraphStyle(),
+          ...this.pickTypographyStyleForNewParagraph(referenceStyle)
+        };
+      }
+
+      getTypographyStyleForNewParagraph() {
+        return this.pickTypographyStyleForNewParagraph(this.getCurrentParagraphStyleFromToolbar());
+      }
+
+      createParagraph(html = "Novo parágrafo body", style = null) {
+        const textStyle = this.getTypographyStyleForNewParagraph();
+        const containerStyle = this.stripParagraphContainerBorderStyles({
+          ...this.getDefaultParagraphContainerStyle(),
+          ...(style || {})
+        });
 
         const paragraph = {
           id: this.createId("paragraph"),
           type: "paragraph",
-          style: {
-            marginTop: "",
-            marginRight: "",
-            marginBottom: "",
-            marginLeft: "",
-            width: "100%",
-            minHeight: "",
-            ...(style || {})
-          },
+          style: containerStyle,
           subParagraphs: [
             this.createSubParagraph(String(html || ""), {
               ...textStyle,
@@ -3119,6 +3163,10 @@
           "textDecoration",
           "border",
           "borderRadius",
+          "borderTop",
+          "borderRight",
+          "borderBottom",
+          "borderLeft",
           "marginTop",
           "marginRight",
           "marginBottom",
@@ -3365,11 +3413,7 @@
         element.style.maxWidth = width;
         element.style.minHeight = style.minHeight || "";
 
-        if (style.border) {
-          element.style.setProperty("border", style.border, "important");
-        } else {
-          element.style.removeProperty("border");
-        }
+        this.applyStoredBorderEdgesToElement(element, style);
 
         if (style.borderRadius) {
           element.style.setProperty("border-radius", style.borderRadius, "important");
@@ -3383,6 +3427,79 @@
 
         element.style.width = blockStyle.width || "100%";
         element.style.minHeight = blockStyle.minHeight || "";
+        element.style.textAlign = blockStyle.textAlign || "";
+
+        this.applyStoredBorderEdgesToElement(element, blockStyle);
+
+        if (blockStyle.borderRadius) {
+          element.style.setProperty("border-radius", blockStyle.borderRadius, "important");
+        } else {
+          element.style.removeProperty("border-radius");
+        }
+      }
+
+      extractParagraphContainerStyleFromElement(element) {
+        if (!element) {
+          return {};
+        }
+
+        const style = {
+          width: element.style.width || "100%",
+          minHeight: element.style.minHeight || ""
+        };
+
+        if (element.style.textAlign) {
+          style.textAlign = element.style.textAlign;
+        }
+
+        const border = element.style.getPropertyValue("border");
+
+        if (border) {
+          style.border = border;
+        }
+
+        ["top", "right", "bottom", "left"].forEach(edge => {
+          const value = element.style.getPropertyValue(`border-${edge}`);
+
+          if (value) {
+            style[`border${edge.charAt(0).toUpperCase()}${edge.slice(1)}`] = value;
+          }
+        });
+
+        const borderRadius = element.style.getPropertyValue("border-radius");
+
+        if (borderRadius) {
+          style.borderRadius = borderRadius;
+        }
+
+        return style;
+      }
+
+      syncParagraphContainerStyleToBlock(paragraphElement, block) {
+        if (!paragraphElement || !block) {
+          return;
+        }
+
+        block.style = block.style || {};
+
+        const containerStyle = this.extractParagraphContainerStyleFromElement(paragraphElement);
+
+        block.style.width = containerStyle.width || block.style.width || "100%";
+        block.style.minHeight = containerStyle.minHeight || "";
+
+        if (containerStyle.textAlign) {
+          block.style.textAlign = containerStyle.textAlign;
+        } else {
+          delete block.style.textAlign;
+        }
+
+        ["border", "borderRadius", "borderTop", "borderRight", "borderBottom", "borderLeft"].forEach(key => {
+          if (containerStyle[key]) {
+            block.style[key] = containerStyle[key];
+          } else {
+            delete block.style[key];
+          }
+        });
       }
 
       extractSubParagraphStyleFromElement(element) {
@@ -3410,6 +3527,8 @@
         if (border) {
           style.border = border;
         }
+
+        Object.assign(style, this.extractBorderEdgeStylesFromElement(element));
 
         if (borderRadius) {
           style.borderRadius = borderRadius;
@@ -3507,10 +3626,7 @@
 
         const referenceSub = block.subParagraphs.find(item => item.id === this.selectedSubParagraphId) ||
           block.subParagraphs[block.subParagraphs.length - 1];
-        const newSub = this.createSubParagraph("", {
-          ...this.getDefaultSubParagraphStyle(),
-          ...(referenceSub?.style || {})
-        });
+        const newSub = this.createSubParagraph("", this.pickSubParagraphStyleForNewColumn(referenceSub?.style));
 
         block.subParagraphs.push(newSub);
         this.equalizeSubParagraphWidthsInBlock(block);
@@ -3568,7 +3684,7 @@
           );
         }
 
-        this.ensureSubParagraphWidthsInBlock(block);
+        this.equalizeSubParagraphWidthsInBlock(block);
 
         const nextSub = block.subParagraphs[Math.min(index, block.subParagraphs.length - 1)];
 
@@ -4818,12 +4934,16 @@
       }
 
       insertParagraph() {
+        this.syncCurrentEditingState();
+
         const paragraph = this.createParagraph(
           this.getDefaultParagraphTextForCurrentRegion()
         );
         this.getSelectedBlocks().push(paragraph);
         this.selectedParagraphId = paragraph.id;
         this.selectedBlockId = paragraph.id;
+        this.selectedSubParagraphId = paragraph.subParagraphs[0]?.id || null;
+        this.paragraphContainerSelected = false;
         this.selectedObject = null;
         this.render();
 
@@ -5228,10 +5348,7 @@
         this.normalizeParagraphBlock(block);
 
         const referenceSub = block.subParagraphs[block.subParagraphs.length - 1];
-        const newSub = this.createSubParagraph("", {
-          ...this.getDefaultSubParagraphStyle(),
-          ...(referenceSub?.style || {})
-        });
+        const newSub = this.createSubParagraph("", this.pickSubParagraphStyleForNewColumn(referenceSub?.style));
 
         block.subParagraphs.push(newSub);
         this.equalizeSubParagraphWidthsInBlock(block);
@@ -12919,12 +13036,135 @@
         });
       }
 
+      elementHasExplicitNoBorder(element) {
+        if (!element?.style) {
+          return false;
+        }
+
+        const shorthand = element.style.getPropertyValue("border").trim().toLowerCase();
+
+        if (shorthand === "none") {
+          return true;
+        }
+
+        const edges = ["top", "right", "bottom", "left"].map(edge =>
+          element.style.getPropertyValue(`border-${edge}`).trim().toLowerCase()
+        );
+
+        return edges.length > 0 && edges.every(value => value === "none");
+      }
+
       ensureChartEssentialBorder(element, settings = WordexEditor.getChartDefaultBorderSettings()) {
-        if (!this.isChartBorderElement(element) || this.chartHasVisibleBorder(element)) {
+        if (!this.isChartBorderElement(element)) {
+          return;
+        }
+
+        if (element.dataset.wordexBorderNone === "1" || this.elementHasExplicitNoBorder(element)) {
+          element.dataset.wordexBorderNone = "1";
+          return;
+        }
+
+        if (this.chartHasVisibleBorder(element)) {
           return;
         }
 
         this.applyBorderStyle(element, settings);
+      }
+
+      markChartBorderExplicit(element, hasBorder) {
+        if (!this.isChartBorderElement(element)) {
+          return;
+        }
+
+        if (hasBorder) {
+          delete element.dataset.wordexBorderNone;
+        } else {
+          element.dataset.wordexBorderNone = "1";
+        }
+      }
+
+      clearBoxBorderShorthand(element) {
+        if (!element) {
+          return;
+        }
+
+        element.style.removeProperty("border");
+      }
+
+      expandBoxBorderShorthandToEdges(element) {
+        if (!element) {
+          return;
+        }
+
+        const shorthand = element.style.getPropertyValue("border").trim();
+
+        if (!shorthand || shorthand.toLowerCase() === "none") {
+          return;
+        }
+
+        ["top", "right", "bottom", "left"].forEach(edge => {
+          const existing = element.style.getPropertyValue(`border-${edge}`).trim();
+
+          if (!existing) {
+            element.style.setProperty(`border-${edge}`, shorthand, "important");
+          }
+        });
+        element.style.removeProperty("border");
+      }
+
+      applyStoredBorderEdgesToElement(element, style = {}) {
+        if (!element) {
+          return;
+        }
+
+        const edgeKeys = ["Top", "Right", "Bottom", "Left"];
+        const hasPerEdge = edgeKeys.some(edge => style[`border${edge}`]);
+
+        if (hasPerEdge) {
+          element.style.removeProperty("border");
+          edgeKeys.forEach(edge => {
+            const key = `border${edge}`;
+            const cssKey = `border-${edge.toLowerCase()}`;
+            const value = style[key];
+
+            if (value) {
+              element.style.setProperty(cssKey, value, "important");
+            } else {
+              element.style.setProperty(cssKey, "none", "important");
+            }
+          });
+          return;
+        }
+
+        if (style.border) {
+          element.style.setProperty("border", style.border, "important");
+          edgeKeys.forEach(edge => {
+            element.style.removeProperty(`border-${edge.toLowerCase()}`);
+          });
+        } else {
+          element.style.removeProperty("border");
+          edgeKeys.forEach(edge => {
+            element.style.removeProperty(`border-${edge.toLowerCase()}`);
+          });
+        }
+      }
+
+      extractBorderEdgeStylesFromElement(element) {
+        const edges = {};
+
+        if (!element) {
+          return edges;
+        }
+
+        ["top", "right", "bottom", "left"].forEach(edge => {
+          const value = element.style.getPropertyValue(`border-${edge}`);
+
+          if (value) {
+            edges[`border${edge.charAt(0).toUpperCase()}${edge.slice(1)}`] = value;
+          }
+        });
+
+        return edges;
       }
 
       normalizeBorderRadius(radius) {
@@ -13080,19 +13320,17 @@
           a escolha do usuário prevaleça visualmente e também no HTML salvo.
         */
         if (settings.width === "0" || settings.style === "none") {
-          if (this.isChartBorderElement(element)) {
-            return;
-          }
-
           this.clearBorderStyle(element);
           return;
         }
 
+        this.clearBoxBorderShorthand(element);
         element.style.setProperty(
           "border",
           `${settings.width} ${settings.style} ${settings.color}`,
           "important"
         );
+        this.markChartBorderExplicit(element, true);
 
         if (element.matches("td")) {
           const table = element.closest(".wordex-table");
@@ -13125,16 +13363,18 @@
       clearBorderStyle(element) {
         if (!element) return;
 
-        if (this.isChartBorderElement(element)) {
-          return;
-        }
-
         /*
           Não basta remover a borda inline: vários elementos do editor têm uma
-          borda padrão no CSS. Para "Sem Borda", gravamos border: none.
+          borda padrão no CSS. Para "Sem Borda", gravamos border: none em todos
+          os lados para vencer shorthand e longhands anteriores.
         */
         element.style.setProperty("border", "none", "important");
+        element.style.setProperty("border-top", "none", "important");
+        element.style.setProperty("border-right", "none", "important");
+        element.style.setProperty("border-bottom", "none", "important");
+        element.style.setProperty("border-left", "none", "important");
         element.style.removeProperty("border-radius");
+        this.markChartBorderExplicit(element, false);
 
         if (element.matches("td")) {
           this.clearCellBorderRadius(element);
@@ -13294,7 +13534,7 @@
       setBorderEdge(element, edge, lineCss) {
         if (!element || !edge) return;
 
-        const property = "border" + edge.charAt(0).toUpperCase() + edge.slice(1);
+        const property = `border-${edge}`;
 
         if (lineCss) {
           element.style.setProperty(property, lineCss, "important");
@@ -13355,10 +13595,6 @@
         const lineCss = this.getBorderLineCss(settings);
 
         if (preset === "none") {
-          if (this.isChartBorderElement(element)) {
-            return false;
-          }
-
           this.clearBorderStyle(element);
           return true;
         }
@@ -13369,8 +13605,10 @@
         }
 
         if (["top", "right", "bottom", "left"].includes(preset)) {
+          this.expandBoxBorderShorthandToEdges(element);
           this.setBorderEdge(element, preset, lineCss);
           element.style.setProperty("border-radius", settings.radius, "important");
+          this.markChartBorderExplicit(element, !!lineCss);
           return true;
         }
 
@@ -13516,6 +13754,18 @@
       }
 
       getCurrentTableBorderContext() {
+        if (
+          this.selectedObject &&
+          this.documentElement.contains(this.selectedObject) &&
+          !this.isWordexTableObject(this.selectedObject)
+        ) {
+          return null;
+        }
+
+        if (this.paragraphContainerSelected) {
+          return null;
+        }
+
         let cell = this.selectedCell;
 
         if (!cell || !this.documentElement.contains(cell)) {
@@ -13679,6 +13929,27 @@
       applyTableBorderPreset(preset) {
         this.closeBorderDropdown();
 
+        const target = this.getCurrentBoxBorderTarget();
+
+        if (
+          target &&
+          (
+            target.kind === "paragraph-container" ||
+            target.kind === "sub-paragraph" ||
+            (target.kind === "object" && !this.isWordexTableObject(target.element))
+          )
+        ) {
+          const applied = this.applyBorderPresetToBoxElement(target.element, preset);
+
+          if (!applied) {
+            alert("Bordas internas só se aplicam a tabelas.");
+            return;
+          }
+
+          this.syncBorderTargetAfterChange(target);
+          return;
+        }
+
         const context = this.getCurrentTableBorderContext();
 
         if (context) {
@@ -13693,30 +13964,19 @@
           return;
         }
 
-        /*
-          v242: o mesmo menu de bordas também atua no objeto/parágrafo corrente.
-          Bordas internas continuam exclusivas de tabela.
-        */
-        const target = this.getCurrentBoxBorderTarget();
+        if (target) {
+          const applied = this.applyBorderPresetToBoxElement(target.element, preset);
 
-        if (!target) {
-          alert("Selecione uma célula, tabela, objeto ou parágrafo para aplicar essa borda.");
+          if (!applied) {
+            alert("Bordas internas só se aplicam a tabelas.");
+            return;
+          }
+
+          this.syncBorderTargetAfterChange(target);
           return;
         }
 
-        if (this.isChartBorderElement(target.element) && preset === "none") {
-          alert("Gráficos não podem ficar sem borda.");
-          return;
-        }
-
-        const applied = this.applyBorderPresetToBoxElement(target.element, preset);
-
-        if (!applied) {
-          alert("Bordas internas só se aplicam a tabelas.");
-          return;
-        }
-
-        this.syncBorderTargetAfterChange(target);
+        alert("Selecione uma célula, tabela, objeto ou parágrafo para aplicar essa borda.");
       }
 
 
@@ -15900,12 +16160,34 @@
 
       isAlignToolbarContext() {
         const liveObject = this.getLiveSelectedObject();
+        const activeTextbox = this.getActiveTextboxForTextEditing();
+        const paragraph = this.getSelectedParagraphElement();
 
-        return !!(
-          liveObject ||
-          this.getActiveTextboxForTextEditing() ||
-          this.getSelectedParagraphElement()
-        );
+        if (liveObject) {
+          return true;
+        }
+
+        if (activeTextbox) {
+          return true;
+        }
+
+        if (this.isTableCellTextEditingContext()) {
+          return true;
+        }
+
+        if (!paragraph) {
+          return false;
+        }
+
+        if (this.paragraphContainerSelected) {
+          return false;
+        }
+
+        if (!this.paragraphHasMainObject(paragraph)) {
+          return true;
+        }
+
+        return this.isCaretInParagraphTextOutsideMainObject(paragraph);
       }
 
       isVerticalAlignToolbarContext() {
@@ -16071,16 +16353,14 @@
       }
 
       syncBorderMenuAvailability() {
-        const target = this.getCurrentBoxBorderTarget();
-        const isChart = this.isChartBorderElement(target?.element);
         const noneButton = document.querySelector('#wordexBorderMenu button[data-border-preset="none"]');
 
         if (!noneButton) {
           return;
         }
 
-        noneButton.disabled = isChart;
-        noneButton.title = isChart ? "Gráficos não podem ficar sem borda" : "";
+        noneButton.disabled = false;
+        noneButton.title = "Remover bordas";
       }
 
       getSelectedTableRowContextWithoutAlert() {
@@ -18193,8 +18473,7 @@
           block.style.marginLeft = wrapper.style.marginLeft || "";
         }
 
-        block.style.width = paragraphElement.style.width || block.style.width || "100%";
-        block.style.minHeight = paragraphElement.style.minHeight || block.style.minHeight || "";
+        this.syncParagraphContainerStyleToBlock(paragraphElement, block);
 
         const subElements = this.getParagraphDirectSubParagraphElements(paragraphElement);
 
@@ -18232,6 +18511,7 @@
         this.ensureSubParagraphWidthsInBlock(block);
         this.ensureParagraphDomHasSubParagraphs(paragraphElement);
         this.applySubParagraphLayoutFromBlock(paragraphElement, block);
+        this.applyParagraphContainerElementStyles(paragraphElement, block.style);
         this.syncSubParagraphWidthsFromDom(paragraphElement, block);
         this.updateParagraphEmptyState(paragraphElement);
         delete block.html;
@@ -18544,14 +18824,7 @@
         return {
           id: block.id || this.createId("paragraph"),
           type: "paragraph",
-          style: {
-            marginTop: "",
-            marginRight: "",
-            marginBottom: "",
-            marginLeft: "",
-            width: "100%",
-            minHeight: ""
-          },
+          style: this.getDefaultParagraphContainerStyle(),
           subParagraphs: [
             this.createSubParagraph(html, {
               fontFamily: "Arial",
