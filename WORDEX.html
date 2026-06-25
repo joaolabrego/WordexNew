@@ -670,9 +670,34 @@
       outline: none;
     }
 
-    body:not(.wordex-generated-report) .wordex-sub-paragraph.wordex-has-user-border.wordex-selected-sub-paragraph {
+    body:not(.wordex-generated-report) .wordex-sub-paragraph.wordex-has-full-user-border.wordex-selected-sub-paragraph {
       outline: none;
       box-shadow: 0 0 0 1px #2277cc;
+    }
+
+    .wordex-sub-paragraph-editor-guides {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      box-sizing: border-box;
+      border-color: #ddd;
+    }
+
+    body:not(.wordex-generated-report) .wordex-sub-paragraph:hover > .wordex-sub-paragraph-editor-guides {
+      border-color: #aaa;
+    }
+
+    body:not(.wordex-generated-report) .wordex-sub-paragraph.wordex-selected-sub-paragraph > .wordex-sub-paragraph-editor-guides {
+      border-color: #2277cc;
+    }
+
+    /*
+      Subparágrafo com objeto principal: manter overflow visível para não cortar
+      bordas do objeto. O tracejado continua com outline-offset positivo (fora da caixa).
+    */
+    body:not(.wordex-generated-report) .wordex-sub-paragraph:has(> .dynamic-image-box, > .wordex-chart-box, > table.wordex-table) {
+      overflow: visible;
     }
 
     .paragraph .wordex-sub-paragraph > div,
@@ -4780,6 +4805,7 @@
         }
 
         const clone = subParagraphElement.cloneNode(true);
+        clone.querySelectorAll(".wordex-sub-paragraph-editor-guides").forEach(node => node.remove());
         this.clearObjectSelectionMarks(clone);
         this.normalizeDynamicImageBoxesForSave(clone);
         return clone.innerHTML;
@@ -5659,6 +5685,19 @@
               region: regionElement?.dataset?.region || this.selected.region
             };
           }
+        }
+
+        const emptySubs = this.getParagraphDirectSubParagraphElements(paragraphElement)
+          .filter(sub => this.isSubParagraphEmptyForObjectInsertion(sub));
+
+        if (emptySubs.length === 1) {
+          const regionElement = paragraphElement.closest(".region");
+
+          return {
+            paragraphElement,
+            subParagraphElement: emptySubs[0],
+            region: regionElement?.dataset?.region || this.selected.region
+          };
         }
 
         const referenceSub = block.subParagraphs[block.subParagraphs.length - 1];
@@ -11107,6 +11146,7 @@
 
         this.syncParagraphElement(paragraphElement);
         this.updateSubParagraphEmptyState(subParagraphElement);
+        this.syncSubParagraphEditorOutline(subParagraphElement);
         this.fitMainObjectToSubParagraphBounds(node, subParagraphElement, { wasEmpty });
         this.updateFreeContainerBounds(subParagraphElement);
         this.scheduleFitParagraphBlockToMainObject(node);
@@ -13766,19 +13806,46 @@
         return edges;
       }
 
-      elementHasVisibleUserBorder(element) {
+      elementHasVisibleBorderOnEdge(element, edge) {
         if (!element) {
           return false;
         }
 
+        const edgeName = String(edge || "").charAt(0).toUpperCase() + String(edge || "").slice(1);
         const computed = window.getComputedStyle(element);
+        const width = parseFloat(computed[`border${edgeName}Width`]) || 0;
+        const lineStyle = computed[`border${edgeName}Style`];
 
-        return ["Top", "Right", "Bottom", "Left"].some(edge => {
-          const width = parseFloat(computed[`border${edge}Width`]) || 0;
-          const lineStyle = computed[`border${edge}Style`];
+        return width > 0 && lineStyle && lineStyle !== "none";
+      }
 
-          return width > 0 && lineStyle && lineStyle !== "none";
-        });
+      elementHasVisibleUserBorder(element) {
+        return ["top", "right", "bottom", "left"].some(edge =>
+          this.elementHasVisibleBorderOnEdge(element, edge)
+        );
+      }
+
+      elementHasFullUserBorder(element) {
+        return ["top", "right", "bottom", "left"].every(edge =>
+          this.elementHasVisibleBorderOnEdge(element, edge)
+        );
+      }
+
+      ensureSubParagraphEditorGuides(element) {
+        let guides = element.querySelector(":scope > .wordex-sub-paragraph-editor-guides");
+
+        if (!guides) {
+          guides = document.createElement("div");
+          guides.className = "wordex-sub-paragraph-editor-guides";
+          guides.setAttribute("aria-hidden", "true");
+          element.insertBefore(guides, element.firstChild);
+        }
+
+        return guides;
+      }
+
+      removeSubParagraphEditorGuides(element) {
+        element?.querySelectorAll(":scope > .wordex-sub-paragraph-editor-guides").forEach(node => node.remove());
       }
 
       syncSubParagraphEditorOutline(element) {
@@ -13786,10 +13853,37 @@
           return;
         }
 
-        element.classList.toggle(
-          "wordex-has-user-border",
-          this.elementHasVisibleUserBorder(element)
-        );
+        if (this.subParagraphHostsMainLayoutObject(element)) {
+          this.removeSubParagraphEditorGuides(element);
+          element.classList.remove("wordex-has-user-border", "wordex-has-full-user-border");
+          return;
+        }
+
+        const edges = ["top", "right", "bottom", "left"];
+        const borderedEdges = edges.filter(edge => this.elementHasVisibleBorderOnEdge(element, edge));
+        const hasUserBorder = borderedEdges.length > 0;
+        const hasFullUserBorder = borderedEdges.length === edges.length;
+
+        element.classList.toggle("wordex-has-user-border", hasUserBorder);
+        element.classList.toggle("wordex-has-full-user-border", hasFullUserBorder);
+
+        if (!hasUserBorder || hasFullUserBorder) {
+          this.removeSubParagraphEditorGuides(element);
+          return;
+        }
+
+        const guides = this.ensureSubParagraphEditorGuides(element);
+
+        edges.forEach(edge => {
+          const cssEdge = `border-${edge}`;
+
+          if (borderedEdges.includes(edge)) {
+            guides.style.removeProperty(cssEdge);
+            return;
+          }
+
+          guides.style.setProperty(cssEdge, "1px dashed", "important");
+        });
       }
 
       normalizeBorderRadius(radius) {
