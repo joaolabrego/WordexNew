@@ -3741,6 +3741,25 @@
         requestAnimationFrame(() => this.updateCurrentLineHighlight());
       }
 
+      selectSubParagraphWithoutEditorFocus(region, blockId, subParagraphId) {
+        this.selectSubParagraph(region, blockId, subParagraphId);
+
+        /*
+          Não focar o subparágrafo após render. O clique no parágrafo foca via
+          gesto do utilizador; focus() programático deixa os <select> da toolbar
+          sem abrir até haver clique no documento.
+        */
+        const selection = window.getSelection();
+
+        if (selection) {
+          selection.removeAllRanges();
+        }
+
+        if (document.activeElement?.closest?.(WordexEditor.subParagraphSelector)) {
+          document.activeElement.blur();
+        }
+      }
+
       selectParagraphContainer(region, blockId) {
         this.clearParagraphBlockMoveSelection();
         this.selected.region = region;
@@ -5263,26 +5282,11 @@
         const element = this.getSelectedParagraphElement();
 
         if (element) {
-          this.selectSubParagraph(
+          this.selectSubParagraphWithoutEditorFocus(
             this.selected.region,
             paragraph.id,
             paragraph.subParagraphs[0]?.id
           );
-
-          /*
-            Não focar o subparágrafo aqui. O clique normal no parágrafo foca
-            via gesto do utilizador; focus() programático logo após o render
-            deixa os <select> da toolbar sem abrir até haver clique no documento.
-          */
-          const selection = window.getSelection();
-
-          if (selection) {
-            selection.removeAllRanges();
-          }
-
-          if (document.activeElement?.closest?.(WordexEditor.subParagraphSelector)) {
-            document.activeElement.blur();
-          }
         }
       }
 
@@ -5589,17 +5593,22 @@
         if (targetBlock && targetBlock.type === "paragraph") {
           this.selectedParagraphId = targetBlock.id;
           this.selectedBlockId = targetBlock.id;
+          this.selectedSubParagraphId = targetBlock.subParagraphs[0]?.id || null;
+          this.paragraphContainerSelected = false;
         } else {
           this.selectedParagraphId = null;
           this.selectedBlockId = null;
+          this.selectedSubParagraphId = null;
         }
 
         this.render();
 
-        const targetElement = this.getSelectedParagraphElement();
-
-        if (targetElement) {
-          this.focusParagraphForTyping(targetElement, { placement: "end" });
+        if (targetBlock?.type === "paragraph") {
+          this.selectSubParagraphWithoutEditorFocus(
+            region,
+            targetBlock.id,
+            targetBlock.subParagraphs[0]?.id
+          );
         }
       }
 
@@ -18527,17 +18536,22 @@
         if (targetBlock && targetBlock.type === "paragraph") {
           this.selectedParagraphId = targetBlock.id;
           this.selectedBlockId = targetBlock.id;
+          this.selectedSubParagraphId = targetBlock.subParagraphs[0]?.id || null;
+          this.paragraphContainerSelected = false;
         } else {
           this.selectedParagraphId = null;
           this.selectedBlockId = null;
+          this.selectedSubParagraphId = null;
         }
 
         this.render();
 
-        const targetElement = this.getSelectedParagraphElement();
-
-        if (targetElement) {
-          this.focusParagraphForTyping(targetElement, { placement: "end-if-empty" });
+        if (targetBlock?.type === "paragraph") {
+          this.selectSubParagraphWithoutEditorFocus(
+            region,
+            targetBlock.id,
+            targetBlock.subParagraphs[0]?.id
+          );
         }
       }
 
