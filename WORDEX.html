@@ -658,8 +658,21 @@
       white-space: pre-wrap;
       box-sizing: border-box;
       outline: 1px dashed #ddd;
-      outline-offset: -1px;
+      outline-offset: 1px;
       overflow: hidden;
+    }
+
+    body:not(.wordex-generated-report) .wordex-sub-paragraph.wordex-has-user-border {
+      outline: none;
+    }
+
+    body:not(.wordex-generated-report) .wordex-sub-paragraph.wordex-has-user-border:hover {
+      outline: none;
+    }
+
+    body:not(.wordex-generated-report) .wordex-sub-paragraph.wordex-has-user-border.wordex-selected-sub-paragraph {
+      outline: none;
+      box-shadow: 0 0 0 1px #2277cc;
     }
 
     .paragraph .wordex-sub-paragraph > div,
@@ -1741,6 +1754,8 @@
         this.primaryMouseButtonDown = false;
         this.resizeOverlay = null;
         this.resizeDrag = null;
+        this.pageLayoutOverlayObserver = null;
+        this.pageLayoutOverlayRefreshTimer = 0;
         this.paragraphMoveBlockId = null;
         this.paragraphBlockReorderDrag = null;
         this.paragraphBlockReorderSuppressClickClear = false;
@@ -1930,6 +1945,7 @@
 
         this.installWordexClipboardEvents();
         this.installObjectResizeHandleEvents();
+        this.installPageLayoutOverlaySync();
         this.installInlineObjectDragEvents();
         this.installParagraphBlockReorderEvents();
         this.bindWatermarkDialogOpenEvents();
@@ -2690,11 +2706,88 @@
         this.saveUndoStateIfChanged();
       }
 
+      syncPageObjectsAfterPageSizeChange() {
+        if (!this.documentElement) {
+          return;
+        }
+
+        this.documentElement.querySelectorAll(".paragraph").forEach(paragraph => {
+          paragraph.querySelectorAll(WordexEditor.objectSelector).forEach(object => {
+            this.limitObjectWidthToParagraph(object);
+          });
+
+          this.getParagraphDirectSubParagraphElements(paragraph).forEach(subParagraph => {
+            subParagraph.querySelectorAll(WordexEditor.objectSelector).forEach(object => {
+              this.clampObjectPositionInsideSubParagraph(object, subParagraph);
+            });
+            this.updateFreeContainerBounds(subParagraph);
+          });
+
+          this.updateParagraphSubParagraphHeightsFromContent(paragraph);
+        });
+      }
+
+      schedulePageLayoutOverlayRefresh(options = {}) {
+        const syncObjects = options.syncObjects === true;
+
+        if (this.pageLayoutOverlayRefreshTimer) {
+          clearTimeout(this.pageLayoutOverlayRefreshTimer);
+        }
+
+        const refresh = (alsoRenderSelection = false) => {
+          if (!this.documentElement) {
+            return;
+          }
+
+          void this.documentElement.offsetWidth;
+          void this.documentElement.offsetHeight;
+
+          if (syncObjects) {
+            this.syncPageObjectsAfterPageSizeChange();
+          }
+
+          if (alsoRenderSelection) {
+            this.renderSelection();
+          } else if (this.isObjectResizeOverlayAllowed()) {
+            this.positionObjectResizeOverlay();
+          } else {
+            this.hideObjectResizeOverlay();
+          }
+        };
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => refresh(false));
+        });
+
+        this.pageLayoutOverlayRefreshTimer = window.setTimeout(() => {
+          this.pageLayoutOverlayRefreshTimer = 0;
+          refresh(true);
+        }, 64);
+      }
+
+      installPageLayoutOverlaySync() {
+        if (!this.documentElement || this.pageLayoutOverlayObserver) {
+          return;
+        }
+
+        if (typeof ResizeObserver === "undefined") {
+          return;
+        }
+
+        this.pageLayoutOverlayObserver = new ResizeObserver(() => {
+          this.schedulePageLayoutOverlayRefresh();
+        });
+
+        this.pageLayoutOverlayObserver.observe(this.documentElement);
+      }
+
 
       applyPageSettingsToEditor() {
         const page = this.getPageSettings();
 
         if (!this.documentElement) return;
+
+        this.hideObjectResizeOverlay();
 
         this.documentElement.style.width = page.width;
         this.documentElement.style.height = page.height;
@@ -2705,6 +2798,7 @@
         this.documentElement.style.setProperty("--wordex-page-margin-right", page.marginRight || "15mm");
 
         this.syncDocumentTitleBar();
+        this.schedulePageLayoutOverlayRefresh({ syncObjects: true });
       }
 
       syncDocumentTitleBar() {
@@ -3440,6 +3534,8 @@
         } else {
           element.style.removeProperty("border-radius");
         }
+
+        this.syncSubParagraphEditorOutline(element);
       }
 
       applyParagraphContainerElementStyles(element, blockStyle = {}) {
@@ -3771,6 +3867,34 @@
         subParagraphElement.contentEditable = "true";
       }
 
+      exitTextboxEditingForObjectSelection(targetObject = null) {
+        const selection = window.getSelection();
+        const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+        const textbox =
+          document.activeElement?.closest?.(".wordex-textbox") ||
+          this.getTextboxFromRange(range) ||
+          this.getTextboxFromRange(this.savedRange);
+
+        if (!textbox || !this.documentElement.contains(textbox)) {
+          return;
+        }
+
+        if (targetObject && textbox === targetObject) {
+          return;
+        }
+
+        textbox.blur();
+        this.deactivateTextboxEditing(textbox);
+
+        if (this.getTextboxFromRange(this.savedRange) === textbox) {
+          this.savedRange = null;
+        }
+
+        if (selection && this.getTextboxFromRange(range) === textbox) {
+          selection.removeAllRanges();
+        }
+      }
+
       activateTextboxEditing(textbox) {
         if (!textbox?.matches?.(".wordex-textbox")) {
           return;
@@ -3966,6 +4090,20 @@
 
       subParagraphHostsMainLayoutObject(subParagraphElement) {
         return !!subParagraphElement?.querySelector?.(WordexEditor.mainObjectSelector);
+      }
+
+      subParagraphBlocksAlignToolbar(subParagraphElement) {
+        return !!subParagraphElement?.querySelector?.(WordexEditor.objectSelector);
+      }
+
+      isSelectedSubParagraphAlignToolbarBlocked() {
+        if (this.paragraphContainerSelected) {
+          return false;
+        }
+
+        const subParagraph = this.getSelectedSubParagraphElement();
+
+        return this.subParagraphBlocksAlignToolbar(subParagraph);
       }
 
       allowsCurrentLineHighlight(container) {
@@ -5050,6 +5188,23 @@
         if (!this.isWordexTableObject(object)) {
           this.clearTableSelectionState();
           this.macroPickerActiveTable = null;
+
+          const selection = window.getSelection();
+          const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+          const cellFromSelection =
+            this.getTableCellFromRange(range) || this.getTableCellFromRange(this.savedRange);
+
+          if (cellFromSelection) {
+            this.savedRange = null;
+
+            if (selection) {
+              selection.removeAllRanges();
+            }
+          }
+        }
+
+        if (!object?.matches?.(".wordex-textbox")) {
+          this.exitTextboxEditingForObjectSelection(object);
         }
 
         const subParagraph = object.closest(WordexEditor.subParagraphSelector);
@@ -6629,10 +6784,16 @@
         const color = this.escapeHtml(this.normalizeColorForInput(chartStyle?.color || "#444444"));
         const fontWeight = String(chartStyle?.fontWeight || "normal").trim();
         const fontStyle = String(chartStyle?.fontStyle || "normal").trim();
+        const textDecoration = String(
+          chartStyle?.textDecoration || chartStyle?.textDecorationLine || "none"
+        ).trim().toLowerCase();
         const weight = fontWeight === "bold" || Number(fontWeight) >= 600 ? "font-weight:bold;" : "";
         const style = fontStyle === "italic" ? "font-style:italic;" : "";
+        const decoration = textDecoration.includes("underline")
+          ? "text-decoration:underline;text-decoration-line:underline;"
+          : "";
 
-        return `font-family:${fontFamily};font-size:${fontSize};color:${color};${weight}${style}`;
+        return `font-family:${fontFamily};font-size:${fontSize};color:${color};${weight}${style}${decoration}`;
       }
 
       buildChartValueLabelStyle(chartStyle) {
@@ -13568,6 +13729,7 @@
               element.style.setProperty(cssKey, "none", "important");
             }
           });
+          this.syncSubParagraphEditorOutline(element);
           return;
         }
 
@@ -13582,6 +13744,8 @@
             element.style.removeProperty(`border-${edge.toLowerCase()}`);
           });
         }
+
+        this.syncSubParagraphEditorOutline(element);
       }
 
       extractBorderEdgeStylesFromElement(element) {
@@ -13600,6 +13764,32 @@
         });
 
         return edges;
+      }
+
+      elementHasVisibleUserBorder(element) {
+        if (!element) {
+          return false;
+        }
+
+        const computed = window.getComputedStyle(element);
+
+        return ["Top", "Right", "Bottom", "Left"].some(edge => {
+          const width = parseFloat(computed[`border${edge}Width`]) || 0;
+          const lineStyle = computed[`border${edge}Style`];
+
+          return width > 0 && lineStyle && lineStyle !== "none";
+        });
+      }
+
+      syncSubParagraphEditorOutline(element) {
+        if (!element?.matches?.(WordexEditor.subParagraphSelector)) {
+          return;
+        }
+
+        element.classList.toggle(
+          "wordex-has-user-border",
+          this.elementHasVisibleUserBorder(element)
+        );
       }
 
       normalizeBorderRadius(radius) {
@@ -13797,6 +13987,8 @@
         if (element.matches(".wordex-textbox")) {
           this.refreshTextboxLayoutAfterBorderChange(element);
         }
+
+        this.syncSubParagraphEditorOutline(element);
       }
 
       clearBorderStyle(element) {
@@ -13830,6 +14022,8 @@
         if (element.matches(".wordex-textbox")) {
           this.refreshTextboxLayoutAfterBorderChange(element);
         }
+
+        this.syncSubParagraphEditorOutline(element);
       }
 
 
@@ -14057,6 +14251,7 @@
             this.refreshTextboxLayoutAfterBorderChange(element);
           }
 
+          this.syncSubParagraphEditorOutline(element);
           return true;
         }
 
@@ -16291,6 +16486,10 @@
         }
 
         if (this.isCaretInEditableTableCell()) {
+          if (liveObject && !this.isWordexTableObject(liveObject)) {
+            return false;
+          }
+
           if (liveObject && this.isWordexTableObject(liveObject)) {
             const mode = this.selectedTableMode || "table";
 
@@ -16611,7 +16810,7 @@
         const activeTextbox = this.getActiveTextboxForTextEditing();
         const paragraph = this.getSelectedParagraphElement();
 
-        if (liveObject) {
+        if (liveObject?.matches?.(".wordex-textbox")) {
           return true;
         }
 
@@ -16628,6 +16827,10 @@
         }
 
         if (this.paragraphContainerSelected) {
+          return false;
+        }
+
+        if (this.isSelectedSubParagraphAlignToolbarBlocked()) {
           return false;
         }
 
@@ -17093,6 +17296,12 @@
       }
 
       getActiveTextboxForTextEditing() {
+        const liveObject = this.getLiveSelectedObject();
+
+        if (liveObject && !liveObject.matches?.(".wordex-textbox")) {
+          return null;
+        }
+
         const activeElement = document.activeElement;
         const activeTextbox = activeElement?.closest?.(".wordex-textbox") || null;
 
