@@ -1491,7 +1491,7 @@
 <button aria-label="Sublinhado" class="compact" data-icon="S" onclick="wordex.toggleUnderline()" title="Sublinhado"></button>
 <button aria-label="Normal" data-icon="Aa" onclick="wordex.clearTextEmphasis()" title="Normal"></button>
 <span class="toolbar-label">Cor</span>
-<input id="fontColor" onchange="wordex.applyTextColor(this.value)" type="color" value="#000000" title="Cor da fonte" aria-label="Cor da fonte"/>
+<input id="fontColor" oninput="wordex.onFontColorInput(this.value)" onchange="wordex.onFontColorChange(this.value)" type="color" value="#000000" title="Cor da fonte" aria-label="Cor da fonte"/>
 </div>
 <div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="align">
 <span class="toolbar-title">Alinhar</span>
@@ -1509,8 +1509,8 @@
 </div>
 <div class="toolbar-group wordex-toolbar-hidden" data-wordex-toolbar-context="border">
 <span class="toolbar-title">Borda</span>
-<input id="borderColor" type="color" value="#000000" title="Cor da borda" aria-label="Cor da borda"/>
-<select class="small" id="borderWidth" title="Espessura da borda" aria-label="Espessura da borda">
+<input id="borderColor" oninput="wordex.onBorderColorInput(this.value)" onchange="wordex.onBorderColorChange(this.value)" type="color" value="#000000" title="Cor da borda" aria-label="Cor da borda"/>
+<select class="small" id="borderWidth" onchange="wordex.onBorderWidthChange()" title="Espessura da borda" aria-label="Espessura da borda">
 <option value="0">0</option>
 <option selected="" value="1px">1px</option>
 <option value="2px">2px</option>
@@ -1518,14 +1518,14 @@
 <option value="4px">4px</option>
 <option value="6px">6px</option>
 </select>
-<select class="small" id="borderStyle" title="Estilo da borda" aria-label="Estilo da borda">
+<select class="small" id="borderStyle" onchange="wordex.onBorderStyleChange()" title="Estilo da borda" aria-label="Estilo da borda">
 <option selected="" value="solid">solid</option>
 <option value="dashed">dashed</option>
 <option value="dotted">dotted</option>
 <option value="double">double</option>
 <option value="none">none</option>
 </select>
-<select class="small" id="borderRadius" title="Raio da borda (cantos arredondados)" aria-label="Raio da borda">
+<select class="small" id="borderRadius" onchange="wordex.onBorderRadiusChange()" title="Raio da borda (cantos arredondados)" aria-label="Raio da borda">
 <option value="0">0</option>
 <option value="2px">2px</option>
 <option selected="" value="4px">4px</option>
@@ -1781,6 +1781,7 @@
         this.resizeDrag = null;
         this.pageLayoutOverlayObserver = null;
         this.pageLayoutOverlayRefreshTimer = 0;
+        this.deferFormattingUndo = false;
         this.paragraphMoveBlockId = null;
         this.paragraphBlockReorderDrag = null;
         this.paragraphBlockReorderSuppressClickClear = false;
@@ -5267,10 +5268,21 @@
             paragraph.id,
             paragraph.subParagraphs[0]?.id
           );
-          this.focusParagraphForTyping(element, {
-            subParagraphId: paragraph.subParagraphs[0]?.id,
-            placement: "end"
-          });
+
+          /*
+            Não focar o subparágrafo aqui. O clique normal no parágrafo foca
+            via gesto do utilizador; focus() programático logo após o render
+            deixa os <select> da toolbar sem abrir até haver clique no documento.
+          */
+          const selection = window.getSelection();
+
+          if (selection) {
+            selection.removeAllRanges();
+          }
+
+          if (document.activeElement?.closest?.(WordexEditor.subParagraphSelector)) {
+            document.activeElement.blur();
+          }
         }
       }
 
@@ -6800,6 +6812,80 @@
         }
 
         return "#444444";
+      }
+
+      normalizeBorderWidthForSelect(width) {
+        const select = document.getElementById("borderWidth");
+        const value = String(width || "1px").trim().toLowerCase();
+        const px = Math.round(parseFloat(value.replace("px", "")) || 0);
+        const candidate = px <= 0 ? "0" : `${px}px`;
+
+        if (select && Array.from(select.options).some(option => option.value === candidate)) {
+          return candidate;
+        }
+
+        return "1px";
+      }
+
+      normalizeBorderStyleForSelect(style) {
+        const select = document.getElementById("borderStyle");
+        const value = String(style || "solid").trim().toLowerCase();
+
+        if (select && Array.from(select.options).some(option => option.value === value)) {
+          return value;
+        }
+
+        return "solid";
+      }
+
+      normalizeBorderRadiusForSelect(radius) {
+        const select = document.getElementById("borderRadius");
+        const normalized = this.normalizeBorderRadius(radius) || "0";
+
+        if (select && Array.from(select.options).some(option => option.value === normalized)) {
+          return normalized;
+        }
+
+        return normalized === "0" ? "0" : "4px";
+      }
+
+      readBorderSettingsFromElement(element) {
+        if (!element) {
+          return null;
+        }
+
+        const computed = window.getComputedStyle(element);
+
+        for (const edge of ["top", "right", "bottom", "left"]) {
+          const edgeName = edge.charAt(0).toUpperCase() + edge.slice(1);
+          const width = computed[`border${edgeName}Width`];
+          const style = computed[`border${edgeName}Style`];
+          const color = computed[`border${edgeName}Color`];
+
+          if ((parseFloat(width) || 0) > 0 && style && style !== "none") {
+            return {
+              width,
+              style,
+              color: this.normalizeColorForInput(color),
+              radius: element.style.getPropertyValue("border-radius") || computed.borderRadius || "0"
+            };
+          }
+        }
+
+        const shorthand = element.style.getPropertyValue("border").trim();
+
+        if (shorthand && !/^none$/i.test(shorthand)) {
+          const parts = shorthand.split(/\s+/);
+
+          return {
+            width: parts[0] || "1px",
+            style: parts[1] || "solid",
+            color: this.normalizeColorForInput(parts[2] || "#000000"),
+            radius: element.style.getPropertyValue("border-radius") || computed.borderRadius || "0"
+          };
+        }
+
+        return null;
       }
 
       getChartBarValueLabel(cell) {
@@ -13368,6 +13454,227 @@
         });
       }
 
+      onFontColorInput(color) {
+        this.deferFormattingUndo = true;
+        this.applyTextColor(color);
+      }
+
+      onFontColorChange(color) {
+        this.deferFormattingUndo = false;
+        this.applyTextColor(color);
+      }
+
+      onBorderColorInput(color) {
+        this.deferFormattingUndo = true;
+        this.applyBorderColorFromToolbar(color);
+      }
+
+      onBorderColorChange(color) {
+        this.deferFormattingUndo = false;
+        this.applyBorderColorFromToolbar(color);
+      }
+
+      onBorderWidthChange() {
+        this.applyBorderAppearanceFromToolbar();
+      }
+
+      onBorderStyleChange() {
+        this.applyBorderAppearanceFromToolbar();
+      }
+
+      onBorderRadiusChange() {
+        this.applyBorderAppearanceFromToolbar();
+      }
+
+      applyBorderAppearanceFromToolbar() {
+        const settings = this.getBorderSettings();
+        const tableContext = this.getCurrentTableBorderContext();
+
+        if (tableContext && this.refreshBorderAppearanceOnTableContext(tableContext, settings)) {
+          this.syncAndSelectTableComponent(tableContext, tableContext.mode || "cell");
+          return;
+        }
+
+        const target = this.getCurrentBoxBorderTarget();
+
+        if (!target?.element) {
+          return;
+        }
+
+        if (this.refreshBorderAppearanceOnElement(target.element, settings)) {
+          this.syncBorderTargetAfterChange(target);
+        }
+      }
+
+      refreshBorderAppearanceOnTableContext(context, settings = this.getBorderSettings()) {
+        if (!context?.table) {
+          return false;
+        }
+
+        const cells = this.getTableCellsForBorderPreset(context);
+        let updated = false;
+
+        cells.forEach(cell => {
+          if (this.refreshBorderAppearanceOnElement(cell, settings)) {
+            updated = true;
+          }
+        });
+
+        if (this.refreshBorderAppearanceOnElement(context.table, settings)) {
+          updated = true;
+        }
+
+        return updated;
+      }
+
+      refreshBorderAppearanceOnElement(element, settings = this.getBorderSettings()) {
+        if (!element) {
+          return false;
+        }
+
+        const lineCss = this.getBorderLineCss(settings);
+
+        if (!lineCss || !this.elementHasVisibleUserBorder(element)) {
+          return false;
+        }
+
+        const shorthand = element.style.getPropertyValue("border").trim();
+
+        if (shorthand && !/^none$/i.test(shorthand)) {
+          this.applyBorderStyle(element, settings);
+          return true;
+        }
+
+        let updated = false;
+
+        ["top", "right", "bottom", "left"].forEach(edge => {
+          if (!this.elementHasVisibleBorderOnEdge(element, edge)) {
+            return;
+          }
+
+          this.setBorderEdge(element, edge, lineCss);
+          updated = true;
+        });
+
+        if (!updated) {
+          return false;
+        }
+
+        const radius = this.normalizeBorderRadius(settings.radius);
+
+        if (radius) {
+          element.style.setProperty("border-radius", radius, "important");
+        }
+
+        if (element.matches?.(WordexEditor.subParagraphSelector)) {
+          this.syncSubParagraphEditorOutline(element);
+        }
+
+        if (this.isChartBorderElement(element)) {
+          this.markChartBorderExplicit(element, true);
+        }
+
+        if (element.matches?.(".wordex-textbox")) {
+          this.refreshTextboxLayoutAfterBorderChange(element);
+        }
+
+        return true;
+      }
+
+      applyBorderColorFromToolbar(color = null) {
+        const settings = this.getBorderSettings();
+
+        if (color) {
+          settings.color = color;
+        }
+
+        const tableContext = this.getCurrentTableBorderContext();
+
+        if (tableContext && this.refreshBorderColorOnTableContext(tableContext, settings)) {
+          this.syncAndSelectTableComponent(tableContext, tableContext.mode || "cell");
+          return;
+        }
+
+        const target = this.getCurrentBoxBorderTarget();
+
+        if (!target?.element) {
+          return;
+        }
+
+        if (this.refreshBorderColorOnElement(target.element, settings)) {
+          this.syncBorderTargetAfterChange(target);
+        }
+      }
+
+      refreshBorderColorOnTableContext(context, settings = this.getBorderSettings()) {
+        if (!context?.table) {
+          return false;
+        }
+
+        const cells = this.getTableCellsForBorderPreset(context);
+        let updated = false;
+
+        cells.forEach(cell => {
+          if (this.refreshBorderColorOnElement(cell, settings)) {
+            updated = true;
+          }
+        });
+
+        if (this.refreshBorderColorOnElement(context.table, settings)) {
+          updated = true;
+        }
+
+        return updated;
+      }
+
+      refreshBorderColorOnElement(element, settings = this.getBorderSettings()) {
+        if (!element) {
+          return false;
+        }
+
+        const lineCss = this.getBorderLineCss(settings);
+
+        if (!lineCss || !this.elementHasVisibleUserBorder(element)) {
+          return false;
+        }
+
+        const shorthand = element.style.getPropertyValue("border").trim();
+
+        if (shorthand && !/^none$/i.test(shorthand)) {
+          this.applyBorderStyle(element, settings);
+          return true;
+        }
+
+        let updated = false;
+
+        ["top", "right", "bottom", "left"].forEach(edge => {
+          if (!this.elementHasVisibleBorderOnEdge(element, edge)) {
+            return;
+          }
+
+          this.setBorderEdge(element, edge, lineCss);
+          updated = true;
+        });
+
+        if (!updated) {
+          return false;
+        }
+
+        if (element.matches?.(WordexEditor.subParagraphSelector)) {
+          this.syncSubParagraphEditorOutline(element);
+        }
+
+        if (this.isChartBorderElement(element)) {
+          this.markChartBorderExplicit(element, true);
+        }
+
+        if (element.matches?.(".wordex-textbox")) {
+          this.refreshTextboxLayoutAfterBorderChange(element);
+        }
+
+        return true;
+      }
+
       toggleBold() {
         this.applyFormatting({ fontWeight: "bold" });
       }
@@ -14366,7 +14673,10 @@
           const paragraph = target.element.closest(".paragraph") || target.element;
           this.syncParagraphElement(paragraph);
           this.renderSelection();
-          this.saveUndoStateIfChanged();
+
+          if (!this.deferFormattingUndo) {
+            this.saveUndoStateIfChanged();
+          }
         }
       }
 
@@ -17033,6 +17343,7 @@
           this.syncParagraphToolbarControls();
         }
 
+        this.syncBorderToolbarControls();
         this.syncTextToolbarControls();
         this.syncTableStructureToolbarControls();
         this.syncTextboxVerticalAlignSelect();
@@ -17108,6 +17419,50 @@
 
         noneButton.disabled = false;
         noneButton.title = "Remover bordas";
+      }
+
+      syncBorderToolbarControls() {
+        if (!this.isBorderToolbarContext()) {
+          return;
+        }
+
+        const tableContext = this.getCurrentTableBorderContext();
+        let styleSource = null;
+
+        if (tableContext?.cell) {
+          styleSource = tableContext.cell;
+        } else if (tableContext?.table) {
+          styleSource = tableContext.table;
+        } else {
+          const target = this.getCurrentBoxBorderTarget();
+          styleSource = target?.element || null;
+        }
+
+        const borderColor = document.getElementById("borderColor");
+        const borderWidth = document.getElementById("borderWidth");
+        const borderStyle = document.getElementById("borderStyle");
+        const borderRadius = document.getElementById("borderRadius");
+        const settings = styleSource ? this.readBorderSettingsFromElement(styleSource) : null;
+
+        if (!settings) {
+          return;
+        }
+
+        if (borderColor) {
+          borderColor.value = this.normalizeColorForInput(settings.color);
+        }
+
+        if (borderWidth) {
+          borderWidth.value = this.normalizeBorderWidthForSelect(settings.width);
+        }
+
+        if (borderStyle) {
+          borderStyle.value = this.normalizeBorderStyleForSelect(settings.style);
+        }
+
+        if (borderRadius) {
+          borderRadius.value = this.normalizeBorderRadiusForSelect(settings.radius);
+        }
       }
 
       getSelectedTableRowContextWithoutAlert() {
@@ -17603,14 +17958,21 @@
           this.syncParagraphElement(paragraph);
           this.refreshLayoutAfterTextContentChange(paragraph, { textbox });
           this.renderSelection();
-          this.saveUndoStateIfChanged();
+
+          if (!this.deferFormattingUndo) {
+            this.saveUndoStateIfChanged();
+          }
+
           return;
         }
 
         this.syncParagraphElement(paragraph);
         this.refreshLayoutAfterTextContentChange(paragraph);
         this.renderSelection();
-        this.saveUndoStateIfChanged();
+
+        if (!this.deferFormattingUndo) {
+          this.saveUndoStateIfChanged();
+        }
       }
 
       applyFormattingToParagraph(paragraph, style) {
@@ -18271,6 +18633,8 @@
         this.selected.region = region;
         this.selectedParagraphId = newParagraph.id;
         this.selectedBlockId = newParagraph.id;
+        this.selectedSubParagraphId = newParagraph.subParagraphs[0]?.id || null;
+        this.paragraphContainerSelected = false;
         this.selectedObject = null;
         this.selectedCell = null;
 
@@ -18279,7 +18643,15 @@
         const newElement = this.getSelectedParagraphElement();
 
         if (newElement) {
-          this.focusParagraphForTyping(newElement, { placement: "start" });
+          this.selectSubParagraph(
+            region,
+            newParagraph.id,
+            newParagraph.subParagraphs[0]?.id
+          );
+          this.focusParagraphForTyping(newElement, {
+            subParagraphId: newParagraph.subParagraphs[0]?.id,
+            placement: "start"
+          });
         }
       }
 
@@ -19193,7 +19565,9 @@
             this.scheduleFitParagraphBlockToMainObject(object);
           }
 
-          this.saveUndoStateIfChanged();
+          if (!this.deferFormattingUndo) {
+            this.saveUndoStateIfChanged();
+          }
         }
       }
 
@@ -19481,10 +19855,20 @@
 
         if (
           subFromCaret &&
+          paragraphElement.contains(subFromCaret) &&
           !this.paragraphContainerSelected &&
           !this.shouldDeferObjectSelectionSyncFromCaret()
         ) {
           this.selectedSubParagraphId = subFromCaret.dataset.subParagraphId;
+        } else if (!this.paragraphContainerSelected && this.selectedSubParagraphId) {
+          const selectedSub = paragraphElement.querySelector(
+            `${WordexEditor.subParagraphSelector}[data-sub-paragraph-id="${this.selectedSubParagraphId}"]`
+          );
+
+          if (!selectedSub) {
+            const firstSub = this.getParagraphDirectSubParagraphElements(paragraphElement)[0];
+            this.selectedSubParagraphId = firstSub?.dataset?.subParagraphId || null;
+          }
         }
 
         this.savedRange = range.cloneRange();
