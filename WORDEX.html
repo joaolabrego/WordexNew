@@ -1174,7 +1174,8 @@
       outline-offset: 2px;
       box-shadow: 0 0 0 1px #999 inset !important;
       border-radius: 4px;
-      background: #fff;
+      box-sizing: border-box;
+      background: rgba(255, 255, 255, 0.4);
       color: #222;
       font-size: 12pt;
       line-height: 1.25;
@@ -1737,6 +1738,7 @@
         this.lastUndoSnapshot = "";
         this.isRestoringUndo = false;
         this.isInsertingObject = false;
+        this.primaryMouseButtonDown = false;
         this.resizeOverlay = null;
         this.resizeDrag = null;
         this.paragraphMoveBlockId = null;
@@ -1764,6 +1766,14 @@
           if (event.target?.closest?.("#jsonCollection, #jsonMacroField, .wordex-json-picker")) {
             this.updateJsonMacroToolbar();
           }
+        });
+
+        document.addEventListener("mousedown", () => {
+          this.primaryMouseButtonDown = true;
+        });
+
+        document.addEventListener("mouseup", () => {
+          this.primaryMouseButtonDown = false;
         });
 
         document.addEventListener("selectionchange", () => {
@@ -2728,6 +2738,16 @@
         if (unit === "in") return number * 25.4;
 
         return 0;
+      }
+
+      parseCssSizeToPixels(value) {
+        const mm = this.parseCssSizeToMillimeters(value);
+
+        if (mm <= 0) {
+          return 0;
+        }
+
+        return Math.round(mm * 3.7795275591);
       }
 
       formatMillimeters(value) {
@@ -3741,6 +3761,13 @@
           return;
         }
 
+        const activeTextbox = this.getActiveTextboxForTextEditing();
+
+        if (activeTextbox && subParagraphElement.contains(activeTextbox)) {
+          subParagraphElement.contentEditable = "false";
+          return;
+        }
+
         subParagraphElement.contentEditable = "true";
       }
 
@@ -4229,6 +4256,16 @@
           return;
         }
 
+        /*
+          Enquanto um objeto está selecionado, o mousedown num subparágrafo
+          vizinho move o caret antes do clique concluir — não mostrar faixa
+          de linha até a seleção mudar de verdade (mouseup/click).
+        */
+        if (this.selectedObject?.matches?.(WordexEditor.objectSelector)) {
+          this.clearCurrentLineHighlight();
+          return;
+        }
+
         this.documentElement?.querySelectorAll(".wordex-current-line").forEach(element => {
           element.classList.remove("wordex-current-line");
         });
@@ -4363,21 +4400,13 @@
         }
 
         const hostsMainLayoutObject = this.subParagraphHostsMainLayoutObject(subParagraphElement);
-        let height = 18;
+        const savedMinHeight = subParagraphElement.style.minHeight;
 
-        if (hostsMainLayoutObject) {
-          const currentMinHeight = Number.parseInt(subParagraphElement.style.minHeight, 10) || 0;
-          height = Math.max(
-            height,
-            currentMinHeight,
-            Math.ceil(subParagraphElement.scrollHeight || 0)
-          );
-        } else {
-          const savedMinHeight = subParagraphElement.style.minHeight;
-          subParagraphElement.style.minHeight = "0px";
-          height = Math.ceil(subParagraphElement.scrollHeight || 0);
-          subParagraphElement.style.minHeight = savedMinHeight;
-        }
+        subParagraphElement.style.minHeight = "0px";
+
+        let height = Math.max(18, Math.ceil(subParagraphElement.scrollHeight || 0));
+
+        subParagraphElement.style.minHeight = savedMinHeight;
 
         subParagraphElement.querySelectorAll(WordexEditor.objectSelector).forEach(object => {
           const objectBottom = hostsMainLayoutObject && object.matches(WordexEditor.mainObjectSelector)
@@ -4390,6 +4419,29 @@
         return Math.max(18, height);
       }
 
+      getTextboxBorderThicknessPx(textbox) {
+        if (!textbox?.matches?.(".wordex-textbox")) {
+          return { top: 0, right: 0, bottom: 0, left: 0, vertical: 0, horizontal: 0 };
+        }
+
+        void textbox.offsetHeight;
+        const style = window.getComputedStyle(textbox);
+
+        const top = parseFloat(style.borderTopWidth) || 0;
+        const right = parseFloat(style.borderRightWidth) || 0;
+        const bottom = parseFloat(style.borderBottomWidth) || 0;
+        const left = parseFloat(style.borderLeftWidth) || 0;
+
+        return {
+          top,
+          right,
+          bottom,
+          left,
+          vertical: top + bottom,
+          horizontal: left + right
+        };
+      }
+
       fitTextboxHeightToContent(textbox) {
         if (!textbox?.matches?.(".wordex-textbox")) {
           return 0;
@@ -4398,18 +4450,94 @@
         const savedHeight = textbox.style.height;
         textbox.style.height = "auto";
 
+        void textbox.offsetHeight;
+
         const neededHeight = Math.max(
           18,
-          Math.ceil(textbox.scrollHeight || 0)
+          Math.ceil(textbox.offsetHeight || textbox.scrollHeight || 0)
         );
 
         textbox.style.height = savedHeight;
 
-        const currentHeight = Number.parseInt(savedHeight, 10) || 0;
-        const nextHeight = Math.max(currentHeight, neededHeight);
+        textbox.style.height = neededHeight + "px";
+        return neededHeight;
+      }
 
-        textbox.style.height = nextHeight + "px";
-        return nextHeight;
+      refreshTextboxSizeAfterResize(textbox) {
+        if (!textbox?.matches?.(".wordex-textbox")) {
+          return;
+        }
+
+        const manualHeight =
+          this.parseCssSizeToPixels(textbox.style.height) ||
+          Math.round(textbox.offsetHeight || 0);
+
+        this.fitTextboxHeightToContent(textbox);
+
+        const fittedHeight =
+          this.parseCssSizeToPixels(textbox.style.height) ||
+          Math.round(textbox.offsetHeight || 0);
+
+        textbox.style.height = Math.max(manualHeight, fittedHeight) + "px";
+
+        const paragraph = textbox.closest(".paragraph");
+        const subParagraph = textbox.closest(WordexEditor.subParagraphSelector);
+
+        if (paragraph && subParagraph) {
+          this.updateParagraphSubParagraphHeightsFromContent(paragraph, subParagraph);
+          this.updateFreeContainerBounds(subParagraph);
+        }
+      }
+
+      refreshTextboxLayoutAfterBorderChange(textbox) {
+        if (!textbox?.matches?.(".wordex-textbox")) {
+          return;
+        }
+
+        const prevVertical = Number.parseFloat(textbox.dataset.wordexBorderVerticalPx) || 0;
+        const prevHorizontal = Number.parseFloat(textbox.dataset.wordexBorderHorizontalPx) || 0;
+        const borders = this.getTextboxBorderThicknessPx(textbox);
+        const deltaVertical = borders.vertical - prevVertical;
+        const deltaHorizontal = borders.horizontal - prevHorizontal;
+
+        if (deltaVertical !== 0) {
+          const heightPx =
+            this.parseCssSizeToPixels(textbox.style.height) ||
+            textbox.offsetHeight ||
+            0;
+
+          if (heightPx > 0) {
+            textbox.style.height = Math.max(18, Math.round(heightPx + deltaVertical)) + "px";
+          }
+        }
+
+        if (deltaHorizontal !== 0) {
+          const widthPx =
+            this.parseCssSizeToPixels(textbox.style.width) ||
+            textbox.offsetWidth ||
+            0;
+
+          if (widthPx > 0) {
+            textbox.style.width = Math.max(40, Math.round(widthPx + deltaHorizontal)) + "px";
+          }
+        }
+
+        textbox.dataset.wordexBorderVerticalPx = String(borders.vertical);
+        textbox.dataset.wordexBorderHorizontalPx = String(borders.horizontal);
+
+        this.fitTextboxHeightToContent(textbox);
+
+        if (textbox.scrollHeight > textbox.clientHeight + 1) {
+          textbox.style.height =
+            Math.ceil(textbox.scrollHeight + borders.vertical) + "px";
+        }
+
+        const paragraph = textbox.closest(".paragraph");
+        const subParagraph = textbox.closest(WordexEditor.subParagraphSelector);
+
+        if (paragraph && subParagraph) {
+          this.updateParagraphSubParagraphHeightsFromContent(paragraph, subParagraph);
+        }
       }
 
       refreshLayoutAfterTextContentChange(paragraph, options = {}) {
@@ -4443,6 +4571,7 @@
 
         if (subParagraph) {
           this.updateParagraphSubParagraphHeightsFromContent(paragraph, subParagraph);
+          this.updateFreeContainerBounds(subParagraph);
         }
 
         requestAnimationFrame(() => this.positionObjectResizeOverlay());
@@ -4925,7 +5054,7 @@
 
         const subParagraph = object.closest(WordexEditor.subParagraphSelector);
 
-        if (subParagraph) {
+        if (subParagraph && !this.isInsertingObject) {
           this.clampObjectInsideContainer(object, subParagraph);
           this.updateFreeContainerBounds(subParagraph);
         }
@@ -5327,6 +5456,20 @@
         return target;
       }
 
+      isSubParagraphEmptyForObjectInsertion(subParagraphElement) {
+        if (!subParagraphElement?.matches?.(WordexEditor.subParagraphSelector)) {
+          return false;
+        }
+
+        if (subParagraphElement.querySelector(WordexEditor.mainObjectSelector)) {
+          return false;
+        }
+
+        return this.isParagraphVisuallyEmptyHtml(
+          this.getCleanSubParagraphHtml(subParagraphElement)
+        );
+      }
+
       createSubParagraphForObjectInsertion(options = {}) {
         const shouldAlert = options.alert !== false;
         const paragraphElement = this.getSelectedParagraphElement();
@@ -5346,6 +5489,22 @@
         }
 
         this.normalizeParagraphBlock(block);
+
+        if (!this.paragraphContainerSelected && this.selectedSubParagraphId) {
+          const selectedSub = paragraphElement.querySelector(
+            `${WordexEditor.subParagraphSelector}[data-sub-paragraph-id="${this.selectedSubParagraphId}"]`
+          );
+
+          if (selectedSub && this.isSubParagraphEmptyForObjectInsertion(selectedSub)) {
+            const regionElement = paragraphElement.closest(".region");
+
+            return {
+              paragraphElement,
+              subParagraphElement: selectedSub,
+              region: regionElement?.dataset?.region || this.selected.region
+            };
+          }
+        }
 
         const referenceSub = block.subParagraphs[block.subParagraphs.length - 1];
         const newSub = this.createSubParagraph("", this.pickSubParagraphStyleForNewColumn(referenceSub?.style));
@@ -6217,7 +6376,6 @@
           this.insertNodeAtCurrentInsertionPoint(image);
 
           if (image.isConnected) {
-            this.selectObject(image);
             this.prefetchReportImageDataUrls(this.reportData)
               .then(() => this.previewDynamicImageBox(image))
               .catch(() => this.previewDynamicImageBox(image));
@@ -7948,6 +8106,10 @@
         imageBox.appendChild(img);
         imageBox.dataset.wordexEditorPreview = "1";
         delete imageBox.dataset.wordexMaterialized;
+
+        if (this.selectedObject === imageBox) {
+          this.scheduleObjectResizeOverlayAfterInsert(imageBox);
+        }
       }
 
       async previewDynamicImagesInDocument() {
@@ -10124,7 +10286,75 @@
           );
         } finally {
           this.isInsertingObject = false;
+
+          if (this.selectedObject?.matches?.(WordexEditor.objectSelector)) {
+            this.scheduleObjectResizeOverlayAfterInsert(this.selectedObject);
+          }
         }
+      }
+
+      scheduleObjectResizeOverlayAfterInsert(object) {
+        if (!object?.matches?.(WordexEditor.objectSelector)) {
+          return;
+        }
+
+        const finalize = () => {
+          if (!this.isInDocument(object)) {
+            return;
+          }
+
+          if (this.selectedObject && this.selectedObject !== object) {
+            return;
+          }
+
+          if (!this.selectedObject) {
+            this.selectedObject = object;
+          }
+
+          if (object.matches?.(WordexEditor.mainObjectSelector)) {
+            this.fitParagraphBlockToMainObject(object);
+          }
+
+          const container =
+            object.closest(WordexEditor.subParagraphSelector) ||
+            object.closest(".paragraph");
+
+          void container?.offsetHeight;
+          void object.offsetHeight;
+
+          this.renderSelection();
+        };
+
+        const images = object.matches("img")
+          ? [object]
+          : Array.from(object.querySelectorAll("img"));
+        const pendingImages = images.filter(image => !image.complete);
+
+        if (pendingImages.length === 0) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(finalize);
+          });
+          return;
+        }
+
+        let pending = pendingImages.length;
+
+        const onImageReady = () => {
+          pending -= 1;
+
+          if (pending > 0) {
+            return;
+          }
+
+          requestAnimationFrame(() => {
+            requestAnimationFrame(finalize);
+          });
+        };
+
+        pendingImages.forEach(image => {
+          image.addEventListener("load", onImageReady, { once: true });
+          image.addEventListener("error", onImageReady, { once: true });
+        });
       }
 
       clearSelectedCellWhenCaretLeavesTable() {
@@ -10380,13 +10610,17 @@
           object.style.width = width + "px";
         }
 
-        const height = Math.max(
+        let layoutHeight = Math.max(
           min.height,
-          Math.round(object.getBoundingClientRect().height || object.offsetHeight || min.height)
+          Math.round(object.offsetHeight || min.height)
         );
 
-        if (object.matches(".dynamic-image-box, .wordex-chart-box, .wordex-textbox")) {
-          object.style.height = height + "px";
+        if (object.matches(".dynamic-image-box, .wordex-chart-box")) {
+          layoutHeight = Math.max(
+            min.height,
+            Math.round(object.getBoundingClientRect().height || object.offsetHeight || min.height)
+          );
+          object.style.height = layoutHeight + "px";
 
           if (object.matches(".wordex-chart-box")) {
             this.scheduleChartOverlayLayout(object);
@@ -10401,7 +10635,7 @@
 
         const containerHeight = Math.max(container.clientHeight || 0, neededBottom);
         const maxX = Math.max(0, containerWidth - width);
-        const maxY = Math.max(0, containerHeight - height);
+        const maxY = Math.max(0, containerHeight - layoutHeight);
         const clampedX = this.clamp(this.getObjectVisualXInsideBlock(object, container), 0, maxX);
         const y = this.clamp(this.getObjectVisualYInsideBlock(object, container), 0, maxY);
 
@@ -10438,12 +10672,26 @@
 
         object.style.width = width + "px";
 
-        if (object.matches(".dynamic-image-box, .wordex-chart-box, .wordex-textbox")) {
+        let layoutHeight = height;
+
+        if (object.matches(".dynamic-image-box, .wordex-chart-box")) {
+          object.style.height = height + "px";
+        } else if (object.matches(".wordex-textbox")) {
+          layoutHeight = Math.max(
+            min.height,
+            Math.round(object.offsetHeight || min.height)
+          );
+
+          if (layoutHeight > height) {
+            object.style.height = height + "px";
+            layoutHeight = height;
+          }
+        } else if (this.isWordexTableObject(object)) {
           object.style.height = height + "px";
         }
 
         const maxX = Math.max(0, containerWidth - width - padding);
-        const maxY = Math.max(0, containerHeight - height - padding);
+        const maxY = Math.max(0, containerHeight - layoutHeight - padding);
         const x = this.clamp(this.getObjectVisualXInsideBlock(object, container), 0, maxX);
         const y = this.clamp(this.getObjectVisualYInsideBlock(object, container), 0, maxY);
 
@@ -10580,26 +10828,130 @@
         }
       }
 
+      getSubParagraphInnerSize(subParagraphElement) {
+        if (!subParagraphElement?.matches?.(WordexEditor.subParagraphSelector)) {
+          return { width: 0, height: 0 };
+        }
+
+        const inset = this.getSubParagraphObjectInsetPx(subParagraphElement);
+        const style = window.getComputedStyle(subParagraphElement);
+        const paddingLeft = parseFloat(style.paddingLeft) || 0;
+        const paddingRight = parseFloat(style.paddingRight) || 0;
+        const paddingTop = parseFloat(style.paddingTop) || 0;
+        const paddingBottom = parseFloat(style.paddingBottom) || 0;
+
+        return {
+          width: Math.max(
+            0,
+            (subParagraphElement.clientWidth || 0) - paddingLeft - paddingRight - inset * 2
+          ),
+          height: Math.max(
+            0,
+            (subParagraphElement.clientHeight || 0) - paddingTop - paddingBottom - inset * 2
+          )
+        };
+      }
+
+      getSubParagraphBoundsForObjectFill(subParagraphElement, object, options = {}) {
+        if (!subParagraphElement?.matches?.(WordexEditor.subParagraphSelector)) {
+          return { width: 40, height: 24 };
+        }
+
+        const min = this.getObjectMinimumSize(object);
+        const inset = this.getSubParagraphObjectInsetPx(subParagraphElement);
+        void subParagraphElement.offsetHeight;
+
+        const inner = this.getSubParagraphInnerSize(subParagraphElement);
+        const width = Math.max(min.width, Math.floor(inner.width));
+
+        const paragraph = subParagraphElement.closest(".paragraph");
+        const siblings = paragraph
+          ? this.getParagraphDirectSubParagraphElements(paragraph)
+          : [subParagraphElement];
+        let height = 18;
+
+        siblings.forEach(sub => {
+          void sub.offsetHeight;
+          height = Math.max(height, Math.ceil(sub.getBoundingClientRect().height || 0));
+
+          const minHeight = Number.parseInt(sub.style.minHeight, 10);
+
+          if (Number.isFinite(minHeight) && minHeight > 0) {
+            height = Math.max(height, minHeight);
+          }
+        });
+
+        const wasEmpty =
+          options.wasEmpty === true ||
+          this.isParagraphVisuallyEmptyHtml(this.getCleanSubParagraphHtml(subParagraphElement));
+
+        if (wasEmpty) {
+          const defaultHeightPx =
+            this.parseCssSizeToPixels(object?.style?.height) ||
+            this.parseCssSizeToPixels("45mm");
+
+          height = Math.max(height, defaultHeightPx);
+        }
+
+        height = Math.max(min.height, Math.floor(height - inset * 2));
+
+        return { width, height };
+      }
+
+      fitMainObjectToSubParagraphBounds(object, subParagraphElement, options = {}) {
+        if (
+          !object?.matches?.(WordexEditor.mainObjectSelector) ||
+          !subParagraphElement?.matches?.(WordexEditor.subParagraphSelector)
+        ) {
+          return;
+        }
+
+        const bounds = this.getSubParagraphBoundsForObjectFill(
+          subParagraphElement,
+          object,
+          options
+        );
+        const inset = this.getSubParagraphObjectInsetPx(subParagraphElement);
+
+        subParagraphElement.style.minHeight = Math.max(bounds.height + inset * 2, 18) + "px";
+        void subParagraphElement.offsetHeight;
+
+        const inner = this.getSubParagraphInnerSize(subParagraphElement);
+        const fillWidth = Math.max(
+          bounds.width,
+          Math.floor(inner.width || bounds.width)
+        );
+
+        object.style.maxWidth = "none";
+        object.style.minWidth = "0";
+        object.style.right = "";
+
+        this.applyObjectSizeInPixels(object, fillWidth, bounds.height);
+        object.dataset.blockBottomGap = "0";
+        this.applyObjectFreePosition(object, subParagraphElement, inset, inset, 0);
+      }
+
       insertMainObjectInsideSubParagraph(node, subParagraphElement, paragraphElement) {
         this.saveUndoCheckpointForParagraph(paragraphElement);
 
         subParagraphElement.innerHTML = "";
+        const wasEmpty = true;
         this.applyAlignment(node, "free");
         subParagraphElement.appendChild(node);
-        this.applyObjectFreePosition(node, subParagraphElement, 0, 0);
-        this.limitObjectWidthToParagraph(node);
-        this.updateFreeContainerBounds(subParagraphElement);
 
         this.selectedParagraphId = paragraphElement.dataset.blockId;
         this.selectedBlockId = paragraphElement.dataset.blockId;
         this.selectedSubParagraphId = subParagraphElement.dataset.subParagraphId;
         this.paragraphContainerSelected = false;
-        this.selectedObject = null;
 
         this.syncParagraphElement(paragraphElement);
+        this.updateSubParagraphEmptyState(subParagraphElement);
+        this.fitMainObjectToSubParagraphBounds(node, subParagraphElement, { wasEmpty });
+        this.updateFreeContainerBounds(subParagraphElement);
         this.scheduleFitParagraphBlockToMainObject(node);
-        this.renderSelection();
         this.selectObject(node);
+        this.fitMainObjectToSubParagraphBounds(node, subParagraphElement, { wasEmpty });
+        this.clearCurrentLineHighlight();
         this.saveUndoStateIfChanged();
       }
 
@@ -10887,34 +11239,40 @@
           return paragraphContainerInfo;
         }
 
-        const subParagraphInfo = this.getSubParagraphResizeInfo();
-
-        if (subParagraphInfo) {
-          return subParagraphInfo;
-        }
-
         const tableComponentInfo = this.getSelectedTableComponentResizeInfo();
 
         if (tableComponentInfo) {
           return tableComponentInfo;
         }
 
-        if (!this.selectedObject?.matches?.(WordexEditor.objectSelector)) {
-          return null;
+        if (this.selectedObject?.matches?.(WordexEditor.objectSelector)) {
+          const object = this.selectedObject;
+          const container =
+            object.closest(WordexEditor.subParagraphSelector) ||
+            object.closest(".paragraph");
+
+          void container?.offsetHeight;
+          void object.offsetHeight;
+
+          const rect = object.getBoundingClientRect();
+
+          if (rect.width > 0 && rect.height > 0) {
+            return {
+              kind: "object",
+              mode: "object",
+              rect,
+              object
+            };
+          }
         }
 
-        const rect = this.selectedObject.getBoundingClientRect();
+        const subParagraphInfo = this.getSubParagraphResizeInfo();
 
-        if (rect.width <= 0 || rect.height <= 0) {
-          return null;
+        if (subParagraphInfo) {
+          return subParagraphInfo;
         }
 
-        return {
-          kind: "object",
-          mode: "object",
-          rect,
-          object: this.selectedObject
-        };
+        return null;
       }
 
       getUnionRectFromElements(elements) {
@@ -11047,14 +11405,74 @@
         root?.querySelectorAll?.(".wordex-resize-overlay").forEach(node => node.remove());
       }
 
+      shouldDeferObjectSelectionSyncFromCaret() {
+        return (
+          this.primaryMouseButtonDown &&
+          this.selectedObject?.matches?.(WordexEditor.objectSelector)
+        );
+      }
+
       updateObjectResizeOverlay() {
+        if (this.isInsertingObject) {
+          this.hideObjectResizeOverlay();
+          return;
+        }
+
         if (!this.isObjectResizeOverlayAllowed()) {
           this.hideObjectResizeOverlay();
           return;
         }
 
         this.ensureObjectResizeOverlay();
-        this.positionObjectResizeOverlay();
+
+        requestAnimationFrame(() => {
+          this.positionObjectResizeOverlay();
+        });
+      }
+
+      refreshResizeOverlayRect(resizeInfo) {
+        if (!resizeInfo) {
+          return null;
+        }
+
+        if (resizeInfo.kind === "object") {
+          const object = resizeInfo.object;
+
+          if (object && this.isInDocument(object)) {
+            const container =
+              object.closest(WordexEditor.subParagraphSelector) ||
+              object.closest(".paragraph");
+
+            void container?.offsetHeight;
+            void object.offsetHeight;
+            return object.getBoundingClientRect();
+          }
+        }
+
+        if (resizeInfo.kind === "sub-paragraph") {
+          const sub = resizeInfo.sub;
+
+          if (sub && this.isInDocument(sub)) {
+            void sub.offsetHeight;
+            return sub.getBoundingClientRect();
+          }
+        }
+
+        if (resizeInfo.kind === "paragraph-container") {
+          const paragraph = resizeInfo.paragraph;
+
+          if (paragraph && this.isInDocument(paragraph)) {
+            void paragraph.offsetHeight;
+            return paragraph.getBoundingClientRect();
+          }
+        }
+
+        if (String(resizeInfo.kind || "").startsWith("table-")) {
+          const refreshed = this.getSelectedTableComponentResizeInfo();
+          return refreshed?.rect || resizeInfo.rect;
+        }
+
+        return resizeInfo.rect;
       }
 
       positionObjectResizeOverlay() {
@@ -11070,7 +11488,12 @@
           return;
         }
 
-        const rect = resizeInfo.rect;
+        const rect = this.refreshResizeOverlayRect(resizeInfo);
+
+        if (!rect || rect.width <= 0 || rect.height <= 0) {
+          this.hideObjectResizeOverlay();
+          return;
+        }
 
         this.resizeOverlay.dataset.resizeTarget = resizeInfo.kind;
         this.resizeOverlay.style.left = rect.left + "px";
@@ -11749,7 +12172,10 @@
           }
 
           this.fitParagraphBlockToMainObject(object);
-          this.positionObjectResizeOverlay();
+
+          if (!this.isInsertingObject) {
+            this.positionObjectResizeOverlay();
+          }
         });
       }
 
@@ -12197,7 +12623,10 @@
           this.updateFreeContainerBounds(container);
         }
 
-        this.positionObjectResizeOverlay();
+        if (!this.isInsertingObject) {
+          this.positionObjectResizeOverlay();
+        }
+
         return size;
       }
 
@@ -12513,7 +12942,9 @@
         const cell = drag.object.closest("td");
         const subParagraph = drag.object.closest(WordexEditor.subParagraphSelector);
 
-        if (cell) {
+        if (drag.object.matches(".wordex-textbox")) {
+          this.refreshTextboxSizeAfterResize(drag.object);
+        } else if (cell) {
           this.clampObjectInsideContainer(drag.object, cell);
         } else if (subParagraph) {
           this.clampObjectPositionInsideSubParagraph(drag.object, subParagraph);
@@ -12562,6 +12993,10 @@
         const object = drag.object;
 
         if (this.isInDocument(object)) {
+          if (object.matches(".wordex-textbox")) {
+            this.refreshTextboxSizeAfterResize(object);
+          }
+
           this.syncObjectAfterChangeAndKeepSelected(object);
           this.positionObjectResizeOverlay();
         }
@@ -13358,6 +13793,10 @@
             element.dataset.wordexBorderRadius = "1";
           }
         }
+
+        if (element.matches(".wordex-textbox")) {
+          this.refreshTextboxLayoutAfterBorderChange(element);
+        }
       }
 
       clearBorderStyle(element) {
@@ -13386,6 +13825,10 @@
           element.style.borderSpacing = "";
           element.style.overflow = "";
           delete element.dataset.wordexBorderRadius;
+        }
+
+        if (element.matches(".wordex-textbox")) {
+          this.refreshTextboxLayoutAfterBorderChange(element);
         }
       }
 
@@ -13609,6 +14052,11 @@
           this.setBorderEdge(element, preset, lineCss);
           element.style.setProperty("border-radius", settings.radius, "important");
           this.markChartBorderExplicit(element, !!lineCss);
+
+          if (element.matches(".wordex-textbox")) {
+            this.refreshTextboxLayoutAfterBorderChange(element);
+          }
+
           return true;
         }
 
@@ -16543,6 +16991,11 @@
 
         const selectedObject = this.getLiveSelectedObject();
 
+        if (selectedObject?.matches?.(".wordex-textbox")) {
+          this.applyTextboxTextAlign(selectedObject, align);
+          return;
+        }
+
         if (selectedObject) {
           const objectAlign = this.normalizeToolbarAlignForObject(align);
           this.applyAlignment(selectedObject, objectAlign);
@@ -16614,10 +17067,16 @@
           v253/v254: o textbox precisa ter alinhamento interno próprio.
           Quando o parágrafo é alinhado, o objeto acompanha visualmente o fluxo,
           mas o texto interno não deve herdar o text-align do parágrafo.
-          A partir da v254, Ctrl+click seleciona o textbox como objeto;
-          clique normal mantém o foco de edição no texto interno.
+          Com textbox selecionado (Ctrl+click), os botões Alinhar atuam só
+          no texto interno — não movem/redimensionam a caixa.
         */
         textbox.style.textAlign = normalizedAlign;
+
+        if (this.selectedObject === textbox || this.getActiveTextboxForTextEditing() === textbox) {
+          this.syncObjectAfterChange(textbox);
+          return;
+        }
+
         this.syncObjectAfterChangeAndKeepSelected(textbox);
       }
 
@@ -16898,6 +17357,7 @@
 
           if (paragraph && subParagraph) {
             this.updateParagraphSubParagraphHeightsFromContent(paragraph, subParagraph);
+            this.updateFreeContainerBounds(subParagraph);
           }
 
           this.syncObjectAfterChangeAndKeepSelected(object);
@@ -18693,7 +19153,10 @@
           }
         }
 
-        if (this.selectedObject?.matches?.(".dynamic-image-box")) {
+        if (
+          this.selectedObject?.matches?.(".dynamic-image-box") &&
+          !this.shouldDeferObjectSelectionSyncFromCaret()
+        ) {
           const range = selection.getRangeAt(0);
           const element = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
             ? range.commonAncestorContainer
@@ -18711,7 +19174,11 @@
 
         const subFromCaret = this.findSubParagraphElementFromNode(range.commonAncestorContainer);
 
-        if (subFromCaret && !this.paragraphContainerSelected) {
+        if (
+          subFromCaret &&
+          !this.paragraphContainerSelected &&
+          !this.shouldDeferObjectSelectionSyncFromCaret()
+        ) {
           this.selectedSubParagraphId = subFromCaret.dataset.subParagraphId;
         }
 
@@ -19254,6 +19721,7 @@
           subElement.classList.toggle(
             "wordex-selected-sub-paragraph",
             !this.paragraphContainerSelected &&
+              !this.selectedObject &&
               subElement.dataset.subParagraphId === this.selectedSubParagraphId
           );
         });
